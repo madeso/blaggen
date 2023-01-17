@@ -33,10 +33,10 @@ internal sealed class InitSiteCommand : Command<InitSiteCommand.Settings>
 
     public override int Execute([NotNull] CommandContext context, [NotNull] Settings args)
     {
-        var site = new SiteData();
+        var site = new SiteData { Name= "My new blog" };
         site.Sources.Add("post", "posts");
-        site.Generators.Add(new ListGenerator { Source = "post", Single = "post.mustache.html", List= "list-post.mustache.html", Extension="html" });
-        site.Indices.Add(new IndexGenerator { Sources = new string[] { "post" }, Template = "index.mustache.html", Dest = "index.html" });
+        site.Generators.Add(new ListGenerator { Source = "post", Summary="Posts", Single = "post.mustache.html", List= "list-post.mustache.html", Extension="html" });
+        site.Indices.Add(new IndexGenerator { Sources = new string[] { "post" } ,Template = "index.mustache.html", Dest = "index.html" });
         var json = JsonUtil.Write(site);
         var path = Path.Join(Environment.CurrentDirectory, SiteData.PATH);
         File.WriteAllText(path, json);
@@ -117,7 +117,13 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
             .Select(d => new KeyValuePair<string, object>(d.Name, new Func<object>(() => d.Content)))
             .ToImmutableArray()
             ;
-        static void AddRange(Dictionary<string, object> data, IEnumerable<KeyValuePair<string, object>> list) { foreach(var (k,v) in list) { data.Add(k,v); } }
+        static void AddRange(Dictionary<string, object> data, IEnumerable<KeyValuePair<string, object>> list) {
+            foreach(var (k,v) in list) { data.Add(k,v); }
+        }
+        static void AddCommonData(Dictionary<string, object> data, string title, string summary) {
+            data.Add("title", title);
+            data.Add("summary", summary);
+        }
 
         var pagesGenerated = 0;
         var timeStart = DateTime.Now;
@@ -159,9 +165,8 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
                         var html = Markdig.Markdown.ToHtml(post.Markdown);
                         Dictionary<string, object> data = new();
                         data.Add("content", html);
-                        data.Add("title", post.Front.Title);
+                        AddCommonData(data, post.Front.Title, post.Front.Summary);
                         data.Add("date", DateToString(post.Front.Date));
-                        data.Add("summary", post.Front.Summary);
                         AddRange(data, partials);
                         // todo(Gustav): add more data
 
@@ -187,6 +192,7 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
                 {
                     // todo(Gustav): add pagination
                     Dictionary<string, object> data = new();
+                    AddCommonData(data, $"{sourceDir} - {site.Data.Name}", gen.Summary);
                     data.Add("pages", postList.Select(post => new {
                             title = post.Front.Title,
                             date=DateToString(post.Front.Date),
@@ -241,6 +247,9 @@ class ListGenerator
     [JsonPropertyName("single")]
     public string Single { get; set; } = string.Empty;
 
+    [JsonPropertyName("summary")]
+    public string Summary { get; set; } = string.Empty;
+
     [JsonPropertyName("list")]
     public string List { get; set; } = string.Empty;
 
@@ -249,6 +258,9 @@ class ListGenerator
 
 class SiteData
 {
+    [JsonPropertyName("name")]
+    public string Name{ get; set; } = string.Empty;
+
     [JsonPropertyName("sources")]
     public Dictionary<string, string> Sources { get; set; } = new();
 

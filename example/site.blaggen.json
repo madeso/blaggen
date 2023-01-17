@@ -1,4 +1,6 @@
 {
+  "tile": "Sample site",
+  "url": "http://www.example.com/",
   "sources": {
     "post": "posts"
   },
