@@ -356,9 +356,10 @@ internal static class Logic
         if(string.IsNullOrEmpty(frontmatter.Summary))
         {
             // hacky way to generate a summary
-            var markless = content.Trim().Replace("#", "");
-            var dot = markless.IndexOf('.');
-            frontmatter.Summary = dot != -1 ? markless.Substring(0, dot) : string.Join(' ', markless.Split(' ').Take(25)) + "...";
+            var linesWithoutEndingDot = content.Replace("#", "") // remove headers
+                .Split('\n', StringSplitOptions.TrimEntries).Select(x => x.TrimEnd('.').Trim()); // split into lines and remove ending dot
+            var markless = string.Join(". ", linesWithoutEndingDot); // join into a long string again with a dot at the end
+            frontmatter.Summary = string.Join(' ', markless.Split(' ').Take(25)) + "...";
         }
 
         return new Post(frontmatter, Path.GetFileNameWithoutExtension(file.Name), content);
