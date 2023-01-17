@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Posts</title>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+
+        <link rel="canonical" href="https://todo.com/">
+        <meta name="description" content="posts">
+        
+        <meta property="og:type" content="website">
+        <meta property="og:url" content="https://todo.com">
+        <meta property="og:title" content="posts">
+        <meta property="og:description" content="posts">
+    </head>
+    <body>
+        <h1>Posts</h1>
+        {{#pages}}
+        <p>
+            <a href="{{link}}">{{title}}</a> - {{date}}
+        </p>
+        <p>{{summary}}</p>
+        {{/pages}}
+    </body>
+</html>

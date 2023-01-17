@@ -1,0 +1,22 @@
+{
+  "sources": {
+    "post": "posts"
+  },
+  "indices": [
+    {
+      "source": [
+        "post"
+      ],
+      "template": "index.mustache.html",
+      "dest": "index.html"
+    }
+  ],
+  "generators": [
+    {
+      "source": "post",
+      "extension": "html",
+      "single": "post.mustache.html",
+      "list": "list-post.mustache.html"
+    }
+  ]
+}
