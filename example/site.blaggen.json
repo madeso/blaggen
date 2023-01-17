@@ -1,5 +1,5 @@
 {
-  "tile": "Sample site",
+  "name": "Sample site",
   "url": "http://www.example.com/",
   "sources": {
     "post": "posts"
@@ -17,6 +17,7 @@
     {
       "source": "post",
       "extension": "html",
+      "summary": "Posts by me",
       "single": "post.mustache.html",
       "list": "list-post.mustache.html"
     }
