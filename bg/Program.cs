@@ -3,6 +3,7 @@ using Spectre.Console.Cli;
 using Stubble.Core.Builders;
 using System.Collections.Immutable;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection.Metadata.Ecma335;
 using System.Text;
@@ -75,20 +76,16 @@ internal sealed class NewPostCommand : Command<NewPostCommand.Settings>
         }
 
         var postFolder = Logic.SubDir(Logic.GetContentDirectory(root), folder);
-        if(postFolder.Exists == false)
-        {
-            postFolder.Create();
-        }
+        if(postFolder.Exists == false) { postFolder.Create(); }
 
         var frontmatter = JsonUtil.Write(new FrontMatter { Title = args.Title });
-
         var fileName = Logic.MakeSafe(args.Title) + ".md";
-
         var content = $"{Logic.SOURCE_START}\n{frontmatter}\n{Logic.SOURCE_END}\n{Logic.FRONTMATTER_SEP}\n# {args.Title}";
         var path = Path.Join(postFolder.FullName, fileName);
         File.WriteAllText(path, content);
 
-        return run.ErrorCount > 0 ? -1 : 0;
+        Debug.Assert(run.ErrorCount == 0);
+        return 0;
     }
 }
 
@@ -114,9 +111,7 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
         // todo(Gustav): generate
         var publicDir = Logic.SubDir(root, "public");
         var templateDir = Logic.SubDir(root, "templates");
-
         var stubble = new StubbleBuilder().Build();
-
         var pagesGenerated = 0;
         var timeStart = DateTime.Now;
 
@@ -166,7 +161,6 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
                         var filename = $"{post.FilenameWithoutExtension}.{gen.Extension}";
                         var path = Logic.DirFile(postDir, filename);
                         File.WriteAllText(path, renderedPage);
-
                         AnsiConsole.MarkupLineInterpolated($"Generated {path} for {gen}");
                         pagesGenerated += 1;
                     }
@@ -196,7 +190,6 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
                     var filename = $"{sourceDir}.{gen.Extension}";
                     var path = Logic.DirFile(publicDir, filename);
                     File.WriteAllText(path, renderedPage);
-
                     AnsiConsole.MarkupLineInterpolated($"Generated {path} for {gen}");
                     pagesGenerated += 1;
                 }
@@ -208,9 +201,7 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
 
         var timeEnd = DateTime.Now;
         var timeTaken = timeEnd - timeStart;
-
         AnsiConsole.MarkupLineInterpolated($"Wrote [green]{pagesGenerated}[/] files in [blue]{timeTaken}[/]");
-
         return run.ErrorCount > 0 ? -1 : 0;
     }
 }
@@ -380,8 +371,10 @@ internal static class Logic
             foreach(var f in files)
             {
                 if (f == null) { continue; }
+
                 var post = ParsePost(run, f);
                 if(post == null) { continue; }
+
                 yield return post;
             }
         }
