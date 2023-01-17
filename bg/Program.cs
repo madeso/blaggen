@@ -112,6 +112,13 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
         var publicDir = Logic.SubDir(root, "public");
         var templateDir = Logic.SubDir(root, "templates");
         var stubble = new StubbleBuilder().Build();
+        var partials = Logic.SubDir(root, "partials").EnumerateFiles()
+            .Select(file => new {Name=Path.GetFileNameWithoutExtension(file.Name), Content=File.ReadAllText(file.FullName) })
+            .Select(d => new KeyValuePair<string, object>(d.Name, new Func<object>(() => d.Content)))
+            .ToImmutableArray()
+            ;
+        static void AddRange(Dictionary<string, object> data, IEnumerable<KeyValuePair<string, object>> list) { foreach(var (k,v) in list) { data.Add(k,v); } }
+
         var pagesGenerated = 0;
         var timeStart = DateTime.Now;
 
@@ -155,6 +162,7 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
                         data.Add("title", post.Front.Title);
                         data.Add("date", DateToString(post.Front.Date));
                         data.Add("summary", post.Front.Summary);
+                        AddRange(data, partials);
                         // todo(Gustav): add more data
 
                         var renderedPage = stubble.Render(templateSource, data);
@@ -185,6 +193,7 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
                             link=$"{sourceDir}/{post.FilenameWithoutExtension}.{gen.Extension}",
                             summary = post.Front.Summary
                         }).ToArray());
+                    AddRange(data, partials);
 
                     var renderedPage = stubble.Render(templateSource, data);
                     var filename = $"{sourceDir}.{gen.Extension}";
