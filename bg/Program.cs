@@ -114,7 +114,7 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
         var stubble = new StubbleBuilder().Build();
         var partials = Logic.SubDir(root, "partials").EnumerateFiles()
             .Select(file => new {Name=Path.GetFileNameWithoutExtension(file.Name), Content=File.ReadAllText(file.FullName) })
-            .Select(d => new KeyValuePair<string, object>(d.Name, new Func<object>(() => d.Content)))
+            .Select(d => new KeyValuePair<string, object>($"partial_{d.Name}", new Func<object>(() => d.Content)))
             .ToImmutableArray()
             ;
         static void AddRange(Dictionary<string, object> data, IEnumerable<KeyValuePair<string, object>> list) {
