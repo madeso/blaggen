@@ -328,6 +328,7 @@ class FrontMatter
     public HashSet<string> Tags {get; set;} = new();
 }
 
+// todo(Gustav): add associated files to be generated...
 record Post(FrontMatter Front, string FilenameWithoutExtension, string Markdown);
 
 // ----------------------------------------------------------------------------------------------------------------------------
