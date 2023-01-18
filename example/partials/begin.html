@@ -3,15 +3,40 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
         <title>{{title}}</title>
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
-
-        <link rel="canonical" href="{{url}}">
         <meta name="description" content="{{summary}}">
+        <link rel="canonical" href="{{url}}">
+
+        <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
         
         <meta property="og:type" content="website">
         <meta property="og:url" content="{{url}}">
         <meta property="og:title" content="{{title}}">
         <meta property="og:description" content="{{summary}}">
     </head>
+
+    
+
     <body>
+        <div class="hero" data-theme="dark" style="background-color: #394046;">
+            <!-- todo(Gustav): generate nav data -->
+            <nav class="container-fluid">
+                <ul>
+                    <li><strong>My page</strong></li>
+                </ul>
+                <ul>
+                    <li><a href="#">Link</a></li>
+                    <li><a href="#">Link</a></li>
+                    <li><a href="#" role="button">Button</a></li>
+                </ul>
+            </nav>
+            <header class="container">
+                <hgroup>
+                    <h1>My page</h1>
+                    <h2>summary</h2>
+                </hgroup>
+                <p>&nbsp;</p>
+            </header>
+        </div>
+        <main class="container">

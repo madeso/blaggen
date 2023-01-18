@@ -1,9 +1,10 @@
 {{& partial_begin}}
     <h1>Posts</h1>
     {{#pages}}
-    <p>
-        <a href="{{link}}">{{title}}</a> - {{date}}
-    </p>
-    <p>{{summary}}</p>
+    <article>
+        <header>{{title}} - {{date}}</header>
+        {{summary}}
+        <footer>read more...</footer>
+    </article>
     {{/pages}}
 {{& partial_end}}
