@@ -120,9 +120,10 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
         static void AddRange(Dictionary<string, object> data, IEnumerable<KeyValuePair<string, object>> list) {
             foreach(var (k,v) in list) { data.Add(k,v); }
         }
-        static void AddCommonData(Dictionary<string, object> data, string title, string summary) {
+        static void AddCommonData(Dictionary<string, object> data, string title, string summary, string url) {
             data.Add("title", title);
             data.Add("summary", summary);
+            data.Add("url", url);
         }
 
         var pagesGenerated = 0;
@@ -162,16 +163,16 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
                     foreach(var post in postList)
                     {
                         // todo(Gustav): check file date and only generate if needed
+                        var filename = $"{post.FilenameWithoutExtension}.{gen.Extension}";
                         var html = Markdig.Markdown.ToHtml(post.Markdown);
                         Dictionary<string, object> data = new();
                         data.Add("content", html);
-                        AddCommonData(data, post.Front.Title, post.Front.Summary);
+                        AddCommonData(data, post.Front.Title, post.Front.Summary, $"{site.Data.Url}/{sourceDir}/{filename}");
                         data.Add("date", DateToString(post.Front.Date));
                         AddRange(data, partials);
                         // todo(Gustav): add more data
 
                         var renderedPage = stubble.Render(templateSource, data);
-                        var filename = $"{post.FilenameWithoutExtension}.{gen.Extension}";
                         var path = Logic.DirFile(postDir, filename);
                         File.WriteAllText(path, renderedPage);
                         AnsiConsole.MarkupLineInterpolated($"Generated {path} for {gen}");
@@ -192,7 +193,8 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
                 {
                     // todo(Gustav): add pagination
                     Dictionary<string, object> data = new();
-                    AddCommonData(data, $"{sourceDir} - {site.Data.Name}", gen.Summary);
+                    var filename = $"{sourceDir}.{gen.Extension}";
+                    AddCommonData(data, $"{sourceDir} - {site.Data.Name}", gen.Summary, $"{site.Data.Url}/{filename}");
                     data.Add("pages", postList.Select(post => new {
                             title = post.Front.Title,
                             date=DateToString(post.Front.Date),
@@ -202,7 +204,6 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
                     AddRange(data, partials);
 
                     var renderedPage = stubble.Render(templateSource, data);
-                    var filename = $"{sourceDir}.{gen.Extension}";
                     var path = Logic.DirFile(publicDir, filename);
                     File.WriteAllText(path, renderedPage);
                     AnsiConsole.MarkupLineInterpolated($"Generated {path} for {gen}");
@@ -260,6 +261,10 @@ class SiteData
 {
     [JsonPropertyName("name")]
     public string Name{ get; set; } = string.Empty;
+
+    [JsonPropertyName("url")]
+    public string BaseUrl { get; set; } = string.Empty;
+    public string Url => BaseUrl.EndsWith('/') ? BaseUrl.TrimEnd('/') : BaseUrl;
 
     [JsonPropertyName("sources")]
     public Dictionary<string, string> Sources { get; set; } = new();
