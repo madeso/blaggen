@@ -108,7 +108,6 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
         site.Data.Validate(run);
         if(run.ErrorCount > 0) { return -1; }
 
-        // todo(Gustav): generate
         var publicDir = Logic.SubDir(root, "public");
         var templateDir = Logic.SubDir(root, "templates");
         var stubble = new StubbleBuilder().Build();
@@ -129,9 +128,20 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
         var pagesGenerated = 0;
         var timeStart = DateTime.Now;
 
-        string DateToString(DateTime dt)
+        static string DateToString(DateTime dt)
         {
             return dt.ToLongDateString();
+        }
+
+        static object PostToObject(Post post, string sourceDir, string extension)
+        {
+            return new
+            {
+                title = post.Front.Title,
+                date = DateToString(post.Front.Date),
+                link = $"{sourceDir}/{post.FilenameWithoutExtension}.{extension}",
+                summary = post.Front.Summary
+            };
         }
 
         foreach (var gen in site.Data.Generators)
@@ -195,12 +205,7 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
                     Dictionary<string, object> data = new();
                     var filename = $"{sourceDir}.{gen.Extension}";
                     AddCommonData(data, $"{sourceDir} - {site.Data.Name}", gen.Summary, $"{site.Data.Url}/{filename}");
-                    data.Add("pages", postList.Select(post => new {
-                            title = post.Front.Title,
-                            date=DateToString(post.Front.Date),
-                            link=$"{sourceDir}/{post.FilenameWithoutExtension}.{gen.Extension}",
-                            summary = post.Front.Summary
-                        }).ToArray());
+                    data.Add("pages", postList.Select(post => PostToObject(post, sourceDir, gen.Extension)).ToArray());
                     AddRange(data, partials);
 
                     var renderedPage = stubble.Render(templateSource, data);
@@ -212,7 +217,44 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
             }
         }
 
-        // todo(Gustav): index generators
+        foreach(var gen in site.Data.Indices)
+        {
+            var templatePath = Logic.DirFile(templateDir, gen.Template);
+            var templateSource = Logic.LoadFile(run, templatePath);
+            if (templateSource == null)
+            {
+                run.WriteError($"Missing template file {templatePath}");
+            }
+            else
+            {
+                var filename = gen.Dest;
+                Dictionary<string, object> data = new();
+                AddCommonData(data, site.Data.Name, site.Data.Summary, $"{site.Data.Url}/{filename}");
+                AddRange(data, partials);
+                foreach(var source in gen.Sources)
+                {
+                    if(site.Posts.TryGetValue(source, out var posts) == false)
+                    {
+                        run.WriteError($"Failed to find posts named {source} for {gen}");
+                    }
+                    else if (site.Data.Sources.TryGetValue(source, out var sourceDir) == false)
+                    {
+                        run.WriteError($"(bug) missing {source} in source list for index {gen}");
+                    }
+                    else
+                    {
+                        data.Add(sourceDir, posts.Select(post => PostToObject(post, sourceDir, gen.Extension)).ToArray());
+                    }
+                }
+
+                var renderedPage = stubble.Render(templateSource, data);
+                var path = Logic.DirFile(publicDir, filename);
+                File.WriteAllText(path, renderedPage);
+                AnsiConsole.MarkupLineInterpolated($"Generated {path} for {gen}");
+                pagesGenerated += 1;
+            }
+        }
+
         // todo(Gustav): tag generator
 
         var timeEnd = DateTime.Now;
@@ -232,6 +274,9 @@ class IndexGenerator
 
     [JsonPropertyName("template")]
     public string Template { get; set; } = string.Empty;
+
+    [JsonPropertyName("extension")]
+    public string Extension { get; set; } = string.Empty;
 
     [JsonPropertyName("dest")]
     public string Dest { get; set; } = string.Empty;
@@ -261,6 +306,9 @@ class SiteData
 {
     [JsonPropertyName("name")]
     public string Name{ get; set; } = string.Empty;
+
+    [JsonPropertyName("summary")]
+    public string Summary { get; set; } = string.Empty;
 
     [JsonPropertyName("url")]
     public string BaseUrl { get; set; } = string.Empty;
