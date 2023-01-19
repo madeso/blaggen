@@ -465,7 +465,8 @@ public static class Generate
     private static int WritePost(Run run, Site site, ImmutableArray<DirectoryInfo> templateFolders, Post post, ImmutableArray<ImmutableArray<KeyValuePair<string, object>>> summaries, DirectoryInfo destDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
     {
         Dictionary<string, object> data = new();
-        
+
+        data.Add("pages", summaries);
         data.Add("content_html", post.MarkdownHtml);
         data.Add("content_text", post.MarkdownPlainText);
         // todo(Gustav): generate full url
