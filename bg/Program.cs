@@ -235,6 +235,9 @@ internal static class Constants
 
     public const string DIR_TEMPLATE = "_dir" + MUSTACHE_TEMPLATE_POSTFIX;
     public const string POST_TEMPLATE = "_post" + MUSTACHE_TEMPLATE_POSTFIX;
+
+
+    public const string INDEX_NAME = "_index";
 }
 
 internal static class Input
@@ -284,7 +287,7 @@ internal static class Input
 
         var nameWithoutExtension = Path.GetFileNameWithoutExtension(file.Name);
 
-        return new Post(Guid.NewGuid(), nameWithoutExtension == "_index", frontmatter, file, nameWithoutExtension, markdownHtml, markdownText);
+        return new Post(Guid.NewGuid(), nameWithoutExtension == Constants.INDEX_NAME, frontmatter, file, nameWithoutExtension, markdownHtml, markdownText);
     }
 
     public static SiteData? LoadSiteData(Run run, DirectoryInfo root)
@@ -311,7 +314,7 @@ internal static class Input
         var postFiles = LoadPosts(run, root.GetFiles("*.md", SearchOption.TopDirectoryOnly));
         var dirs = LoadDirsWithoutNulls(run, root.GetDirectories()).ToList();
 
-        var dirsAsPosts = dirs.Where(dir => dir.Posts.Length == 1 && dir.Posts[0].Name == "_index").ToImmutableArray();
+        var dirsAsPosts = dirs.Where(dir => dir.Posts.Length == 1 && dir.Posts[0].Name == Constants.INDEX_NAME).ToImmutableArray();
         
         var dirsToRemove = dirsAsPosts.Select(dir => dir.Id).ToHashSet();
         dirs.RemoveAll(dir => dirsToRemove.Contains(dir.Id));
