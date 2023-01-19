@@ -38,6 +38,15 @@ internal sealed class InitSiteCommand : Command<InitSiteCommand.Settings>
 
     public override int Execute([NotNull] CommandContext context, [NotNull] Settings args)
     {
+        var run = new Run();
+
+        var existingSite = SiteData.FindRootFromCurentDirectory();
+        if(existingSite != null)
+        {
+            run.WriteError($"Site already exists at {existingSite.FullName}");
+            return -1;
+        }
+
         var site = new SiteData { Name= "My new blog" };
         var json = JsonUtil.Write(site);
         var path = Path.Join(Environment.CurrentDirectory, SiteData.PATH);
