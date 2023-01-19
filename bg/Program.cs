@@ -2,6 +2,8 @@
 using Spectre.Console.Cli;
 using Stubble.Core;
 using Stubble.Core.Builders;
+using Stubble.Core.Exceptions;
+using Stubble.Core.Settings;
 using System.Collections.Immutable;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -127,7 +129,7 @@ class Templates
     {
         TemplateFolder = root.GetDir("templates");
         ContentFolder = Input.GetContentDirectory(root);
-        Stubble = new StubbleBuilder().Build();
+        stubble = new StubbleBuilder().Build();
 
         var templateFiles = TemplateFolder.EnumerateFiles("*.*", SearchOption.AllDirectories)
             .Where(f => f.Name.Contains(Constants.MUSTACHE_TEMPLATE_POSTFIX))
@@ -141,11 +143,32 @@ class Templates
             ;
     }
 
+    private readonly StubbleVisitorRenderer stubble;
+
     public DirectoryInfo TemplateFolder { get; }
     public DirectoryInfo ContentFolder { get; }
-    public StubbleVisitorRenderer Stubble { get; }
     public ImmutableHashSet<string> Extensions { get; }
     public ImmutableDictionary<FileInfo, string> TemplateDict { get; }
+
+    internal string RenderMustache(Run run, string template, FileInfo templateFile, Dictionary<string, object> data, Site site)
+    {
+        // todo(Gustav): switch to compiled patterns? config?
+        try
+        {
+            var settings = new RenderSettings
+            {
+                ThrowOnDataMiss = true, CultureInfo = site.Data.CultureInfo,
+            };
+            return stubble.Render(template, data, settings);
+        }
+        catch(StubbleException err)
+        {
+            run.WriteError($"{templateFile.FullName}: {err.Message}");
+
+            // todo(Gustav): can we switch settings and render a invalid page here? is it worthwhile?
+            return "";
+        }
+    }
 }
 
 // ----------------------------------------------------------------------------------------------------------------------------
@@ -434,14 +457,14 @@ public static class Generate
         data.AddRange(partials);
         // todo(Gustav): add more data
 
-        return GenerateAll(run, destDir, templates, templateFolders, post, data);
+        return GenerateAll(site, run, destDir, templates, templateFolders, post, data);
     }
 
     record FileWithOptionalContent(FileInfo File, string? Content);
 
     private static string DisplayNameForFile(FileInfo file) => Path.GetRelativePath(Environment.CurrentDirectory, file.FullName);
 
-    private static int GenerateAll(Run run, DirectoryInfo destDir, Templates templates, ImmutableArray<DirectoryInfo> templateFolders, Post post, Dictionary<string, object> data)
+    private static int GenerateAll(Site site, Run run, DirectoryInfo destDir, Templates templates, ImmutableArray<DirectoryInfo> templateFolders, Post post, Dictionary<string, object> data)
     {
         int pagesGenerated = 0;
         var templateName = post.IsIndex ? Constants.DIR_TEMPLATE : Constants.POST_TEMPLATE;
@@ -465,7 +488,7 @@ public static class Generate
 
             destDir.Create();
             
-            var renderedPage = templates.Stubble.Render(selected.Content!, data);
+            var renderedPage = templates.RenderMustache(run, selected.Content!, selected.File, data, site);
             File.WriteAllText(path.FullName, renderedPage);
             AnsiConsole.MarkupLineInterpolated($"Generated {DisplayNameForFile(path)} from {DisplayNameForFile(post.SourceFile)} and {DisplayNameForFile(selected.File)}");
             pagesGenerated += 1;
