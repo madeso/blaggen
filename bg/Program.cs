@@ -1,11 +1,14 @@
 ﻿using Spectre.Console;
 using Spectre.Console.Cli;
+using Stubble.Core;
 using Stubble.Core.Builders;
 using System.Collections.Immutable;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Reflection.Metadata.Ecma335;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -34,9 +37,6 @@ internal sealed class InitSiteCommand : Command<InitSiteCommand.Settings>
     public override int Execute([NotNull] CommandContext context, [NotNull] Settings args)
     {
         var site = new SiteData { Name= "My new blog" };
-        site.Sources.Add("post", "posts");
-        site.Generators.Add(new ListGenerator { Source = "post", Summary="Posts", Single = "post.mustache.html", List= "list-post.mustache.html", Extension="html" });
-        site.Indices.Add(new IndexGenerator { Sources = new string[] { "post" } ,Template = "index.mustache.html", Dest = "index.html" });
         var json = JsonUtil.Write(site);
         var path = Path.Join(Environment.CurrentDirectory, SiteData.PATH);
         File.WriteAllText(path, json);
@@ -51,38 +51,32 @@ internal sealed class NewPostCommand : Command<NewPostCommand.Settings>
 {
     public sealed class Settings : CommandSettings
     {
-        [Description("Type of post to create")]
-        [CommandArgument(0, "<type>")]
-        public string Type { get; init; } = string.Empty;
-
-        [Description("Post title")]
-        [CommandArgument(1, "<title>")]
-        public string Title { get; init; } = string.Empty;
+        [Description("Relative path to post")]
+        [CommandArgument(1, "<path>")]
+        public string Path { get; init; } = string.Empty;
     }
 
     public override int Execute([NotNull] CommandContext context, [NotNull] Settings args)
     {
         var run = new Run();
-        var root = SiteData.FindRoot();
+        var root = SiteData.FindRoot(); // todo(Gustav): figure out root based on entered path, not current directory
         if(root == null) { run.WriteError("Unable to find root"); return -1; }
 
-        var site = Logic.LoadSiteData(run, root);
+        var site = Input.LoadSiteData(run, root);
         if(site == null) { return -1; }
 
-        if(site.Sources.TryGetValue(args.Type, out var folder) == false)
-        {
-            run.WriteError($"Invalid type {args.Type}, must be one of: {site.Sources.Keys}");
-            return -1;
-        }
+        var path = new FileInfo(args.Path);
+        if (path.Exists) { run.WriteError($"Post {path} already exit"); return -1; }
 
-        var postFolder = Logic.SubDir(Logic.GetContentDirectory(root), folder);
-        if(postFolder.Exists == false) { postFolder.Create(); }
+        // todo(Gustav): create _index.md for each directory depending on setting
+        var contentFolder = Input.GetContentDirectory(root);
+        var relative = Path.GetRelativePath(contentFolder.FullName, path.FullName);
+        if(relative.Contains("..")) { run.WriteError($"Post {path} must be a subpath of {contentFolder}"); return -1; }
 
-        var frontmatter = JsonUtil.Write(new FrontMatter { Title = args.Title });
-        var fileName = Logic.MakeSafe(args.Title) + ".md";
-        var content = $"{Logic.SOURCE_START}\n{frontmatter}\n{Logic.SOURCE_END}\n{Logic.FRONTMATTER_SEP}\n# {args.Title}";
-        var path = Path.Join(postFolder.FullName, fileName);
-        File.WriteAllText(path, content);
+        var title = site.CultureInfo.TextInfo.ToTitleCase(Path.GetFileNameWithoutExtension(path.Name));
+        var frontmatter = JsonUtil.Write(new FrontMatter { Title = title });
+        var content = $"{Input.SOURCE_START}\n{frontmatter}\n{Input.SOURCE_END}\n{Input.FRONTMATTER_SEP}\n# {title}";
+        File.WriteAllText(path.FullName, content);
 
         Debug.Assert(run.ErrorCount == 0);
         return 0;
@@ -99,208 +93,63 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
     public override int Execute([NotNull] CommandContext context, [NotNull] Settings args)
     {
         var run = new Run();
+
         var root = SiteData.FindRoot();
         if (root == null) { run.WriteError("Unable to find root"); return -1; }
 
-        var site = Logic.LoadSite(run, root);
+        var site = Input.LoadSite(run, root);
         if (site == null) { return -1; }
 
-        site.Data.Validate(run);
-        if(run.ErrorCount > 0) { return -1; }
-
-        var publicDir = Logic.SubDir(root, "public");
-        var templateDir = Logic.SubDir(root, "templates");
-        var stubble = new StubbleBuilder().Build();
-        var partials = Logic.SubDir(root, "partials").EnumerateFiles()
+        var publicDir = root.GetDir("public");
+        var templates = new Templates(run, root);
+        var partials = root.GetDir("partials").EnumerateFiles()
             .Select(file => new {Name=Path.GetFileNameWithoutExtension(file.Name), Content=File.ReadAllText(file.FullName) })
             .Select(d => new KeyValuePair<string, object>($"partial_{d.Name}", new Func<object>(() => d.Content)))
             .ToImmutableArray()
             ;
-        static void AddRange(Dictionary<string, object> data, IEnumerable<KeyValuePair<string, object>> list) {
-            foreach(var (k,v) in list) { data.Add(k,v); }
-        }
-        static void AddCommonData(Dictionary<string, object> data, string title, string summary, string url) {
-            data.Add("title", title);
-            data.Add("summary", summary);
-            data.Add("url", url);
-        }
-
-        var pagesGenerated = 0;
+        
         var timeStart = DateTime.Now;
 
-        static string DateToString(DateTime dt)
-        {
-            return dt.ToLongDateString();
-        }
-
-        static object PostToObject(Post post, string sourceDir, string extension)
-        {
-            return new
-            {
-                title = post.Front.Title,
-                date = DateToString(post.Front.Date),
-                link = $"{sourceDir}/{post.FilenameWithoutExtension}.{extension}",
-                summary = post.Front.Summary
-            };
-        }
-
-        foreach (var gen in site.Data.Generators)
-        {
-            if(site.Posts.TryGetValue(gen.Source, out var postList) == false)
-            {
-                run.WriteError($"(bug) missing {gen.Source}");
-                continue;
-            }
-
-            if(site.Data.Sources.TryGetValue(gen.Source, out var sourceDir) == false)
-            {
-                run.WriteError($"(bug) missing {gen.Source} in source list");
-                continue;
-            }
-
-            var postDir = Logic.SubDir(publicDir, sourceDir); // ie. public/posts
-
-            if(string.IsNullOrWhiteSpace(gen.Single) == false)
-            {
-                var templatePath = Logic.DirFile(templateDir, gen.Single);
-                var templateSource = Logic.LoadFile(run, templatePath);
-                if(templateSource == null)
-                {
-                    run.WriteError($"Missing template file {templatePath}");
-                }
-                else
-                {
-                    foreach(var post in postList)
-                    {
-                        // todo(Gustav): check file date and only generate if needed
-                        var filename = $"{post.FilenameWithoutExtension}.{gen.Extension}";
-                        var html = Markdig.Markdown.ToHtml(post.Markdown);
-                        Dictionary<string, object> data = new();
-                        data.Add("content", html);
-                        AddCommonData(data, post.Front.Title, post.Front.Summary, $"{site.Data.Url}/{sourceDir}/{filename}");
-                        data.Add("date", DateToString(post.Front.Date));
-                        AddRange(data, partials);
-                        // todo(Gustav): add more data
-
-                        var renderedPage = stubble.Render(templateSource, data);
-                        var path = Logic.DirFile(postDir, filename);
-                        File.WriteAllText(path, renderedPage);
-                        AnsiConsole.MarkupLineInterpolated($"Generated {path} for {gen}");
-                        pagesGenerated += 1;
-                    }
-                }
-            }
-
-            if(string.IsNullOrEmpty(gen.List) == false)
-            {
-                var templatePath = Logic.DirFile(templateDir, gen.List);
-                var templateSource = Logic.LoadFile(run, templatePath);
-                if (templateSource == null)
-                {
-                    run.WriteError($"Missing template file {templatePath}");
-                }
-                else
-                {
-                    // todo(Gustav): add pagination
-                    Dictionary<string, object> data = new();
-                    var filename = $"{sourceDir}.{gen.Extension}";
-                    AddCommonData(data, $"{sourceDir} - {site.Data.Name}", gen.Summary, $"{site.Data.Url}/{filename}");
-                    data.Add("pages", postList.Select(post => PostToObject(post, sourceDir, gen.Extension)).ToArray());
-                    AddRange(data, partials);
-
-                    var renderedPage = stubble.Render(templateSource, data);
-                    var path = Logic.DirFile(publicDir, filename);
-                    File.WriteAllText(path, renderedPage);
-                    AnsiConsole.MarkupLineInterpolated($"Generated {path} for {gen}");
-                    pagesGenerated += 1;
-                }
-            }
-        }
-
-        foreach(var gen in site.Data.Indices)
-        {
-            var templatePath = Logic.DirFile(templateDir, gen.Template);
-            var templateSource = Logic.LoadFile(run, templatePath);
-            if (templateSource == null)
-            {
-                run.WriteError($"Missing template file {templatePath}");
-            }
-            else
-            {
-                var filename = gen.Dest;
-                Dictionary<string, object> data = new();
-                AddCommonData(data, site.Data.Name, site.Data.Summary, $"{site.Data.Url}/{filename}");
-                AddRange(data, partials);
-                foreach(var source in gen.Sources)
-                {
-                    if(site.Posts.TryGetValue(source, out var posts) == false)
-                    {
-                        run.WriteError($"Failed to find posts named {source} for {gen}");
-                    }
-                    else if (site.Data.Sources.TryGetValue(source, out var sourceDir) == false)
-                    {
-                        run.WriteError($"(bug) missing {source} in source list for index {gen}");
-                    }
-                    else
-                    {
-                        data.Add(sourceDir, posts.Select(post => PostToObject(post, sourceDir, gen.Extension)).ToArray());
-                    }
-                }
-
-                var renderedPage = stubble.Render(templateSource, data);
-                var path = Logic.DirFile(publicDir, filename);
-                File.WriteAllText(path, renderedPage);
-                AnsiConsole.MarkupLineInterpolated($"Generated {path} for {gen}");
-                pagesGenerated += 1;
-            }
-        }
-
-        // todo(Gustav): tag generator
+        var pagesGenerated = Generate.WriteSite(run, site, publicDir, templates, partials);
+        // todo(Gustav): copy static files
 
         var timeEnd = DateTime.Now;
         var timeTaken = timeEnd - timeStart;
         AnsiConsole.MarkupLineInterpolated($"Wrote [green]{pagesGenerated}[/] files in [blue]{timeTaken}[/]");
+
         return run.ErrorCount > 0 ? -1 : 0;
     }
 }
 
+class Templates
+{
+    public Templates(Run run, DirectoryInfo root)
+    {
+        TemplateFolder = root.GetDir("templates");
+        ContentFolder = Input.GetContentDirectory(root);
+        Stubble = new StubbleBuilder().Build();
+
+        var templateFiles = TemplateFolder.EnumerateFiles("*.*", SearchOption.AllDirectories)
+            .Where(f => f.Name.Contains(Constants.MUSTACHE_TEMPLATE_POSTFIX))
+            .ToImmutableArray();
+
+        this.Extensions = templateFiles.Select(file => file.Extension.ToLowerInvariant()).ToImmutableHashSet();
+        this.TemplateDict = templateFiles
+            .Select(file => new { File = file, Contents = file.LoadFileOrNull(run) })
+            .Where(x => x.Contents != null)
+            .ToImmutableDictionary(x => x.File, x => x.Contents!)
+            ;
+    }
+
+    public DirectoryInfo TemplateFolder { get; }
+    public DirectoryInfo ContentFolder { get; }
+    public StubbleVisitorRenderer Stubble { get; }
+    public ImmutableHashSet<string> Extensions { get; }
+    public ImmutableDictionary<FileInfo, string> TemplateDict { get; }
+}
+
 // ----------------------------------------------------------------------------------------------------------------------------
 // Data and basic functions
-
-class IndexGenerator
-{
-    [JsonPropertyName("source")]
-    public string[] Sources { get; set; } = Array.Empty<string>();
-
-    [JsonPropertyName("template")]
-    public string Template { get; set; } = string.Empty;
-
-    [JsonPropertyName("extension")]
-    public string Extension { get; set; } = string.Empty;
-
-    [JsonPropertyName("dest")]
-    public string Dest { get; set; } = string.Empty;
-}
-
-class ListGenerator
-{
-    [JsonPropertyName("source")]
-    public string Source { get; set; } = string.Empty;
-
-    [JsonPropertyName("extension")]
-    public string Extension { get; set; } = string.Empty;
-
-    [JsonPropertyName("single")]
-    public string Single { get; set; } = string.Empty;
-
-    [JsonPropertyName("summary")]
-    public string Summary { get; set; } = string.Empty;
-
-    [JsonPropertyName("list")]
-    public string List { get; set; } = string.Empty;
-
-    public override string ToString() => $"{Source} {Extension}";
-}
 
 class SiteData
 {
@@ -310,40 +159,20 @@ class SiteData
     [JsonPropertyName("summary")]
     public string Summary { get; set; } = string.Empty;
 
+    [JsonPropertyName("culture")]
+    public string Culture { get; set; } = "en-US";
+
+    [JsonPropertyName("short_date_format")]
+    public string ShortDateFormat { get; set; } = "g";
+    
+    [JsonPropertyName("long_date_format")]
+    public string LongDateFormat { get; set; } = "G";
+
     [JsonPropertyName("url")]
     public string BaseUrl { get; set; } = string.Empty;
     public string Url => BaseUrl.EndsWith('/') ? BaseUrl.TrimEnd('/') : BaseUrl;
 
-    [JsonPropertyName("sources")]
-    public Dictionary<string, string> Sources { get; set; } = new();
-
-    [JsonPropertyName("indices")]
-    public List<IndexGenerator> Indices{ get; set; } = new();
-
-    [JsonPropertyName("generators")]
-    public List<ListGenerator> Generators { get; set; } = new();
-
     public const string PATH = "site.blaggen.json";
-
-    public void Validate(Run run)
-    {
-        foreach(var index in Indices)
-        {
-            var invalids = index.Sources.Where(src => Sources.ContainsKey(src) == false);
-            foreach(var i in invalids)
-            {
-                run.WriteError($"Index generator {index.Template} references missing {i}");
-            }
-        }
-
-        foreach (var gen in Generators)
-        {
-            if (Sources.ContainsKey(gen.Source) != true)
-            {
-                run.WriteError($"Page generator {gen.Single}/{gen.List} references missing {gen.Source}");
-            }
-        }
-    }
 
     // find root that contains the root file (or null)
     public static DirectoryInfo? FindRoot()
@@ -357,9 +186,25 @@ class SiteData
 
         return current;
     }
-}
 
-record Site (SiteData Data, ImmutableDictionary<string, ImmutableArray<Post>> Posts);
+    public CultureInfo CultureInfo
+    {
+        get
+        {
+            return new CultureInfo(Culture, false);
+        }
+    }
+
+    public string ShortDateToString(DateTime dt)
+    {
+        return dt.ToString(ShortDateFormat, this.CultureInfo);
+    }
+
+    public string LongDateToString(DateTime dt)
+    {
+        return dt.ToString(ShortDateFormat, this.CultureInfo);
+    }
+}
 
 class FrontMatter
 {
@@ -377,18 +222,28 @@ class FrontMatter
 }
 
 // todo(Gustav): add associated files to be generated...
-record Post(FrontMatter Front, string FilenameWithoutExtension, string Markdown);
+record Post(Guid Id, bool IsIndex, FrontMatter Front, FileInfo SourceFile, string Name, string MarkdownHtml, string MarkdownPlainText);
+record Dir(Guid Id, string Name, ImmutableArray<Post> Posts, ImmutableArray<Dir> Dirs);
+record Site(SiteData Data, Dir Root);
 
 // ----------------------------------------------------------------------------------------------------------------------------
 // App logic
 
-internal static class Logic
+internal static class Constants
+{
+    public const string MUSTACHE_TEMPLATE_POSTFIX = ".mustache";
+
+    public const string DIR_TEMPLATE = "_dir" + MUSTACHE_TEMPLATE_POSTFIX;
+    public const string POST_TEMPLATE = "_post" + MUSTACHE_TEMPLATE_POSTFIX;
+}
+
+internal static class Input
 {
     public const string SOURCE_START = "```json";
     public const string SOURCE_END = "```";
     public const string FRONTMATTER_SEP = "***"; // markdown hline
 
-    public static Post? ParsePost(Run run, FileInfo file)
+    private static Post? ParsePost(Run run, FileInfo file)
     {
         var lines = File.ReadLines(file.FullName).ToImmutableArray();
 
@@ -407,16 +262,29 @@ internal static class Logic
         var frontmatter = JsonUtil.Parse<FrontMatter>(run, file.FullName, frontmatterJson.ToString());
         if(frontmatter == null) { return null; }
 
-        if(string.IsNullOrEmpty(frontmatter.Summary))
+        var markdownHtml = Markdig.Markdown.ToHtml(content);
+        var markdownText = Markdig.Markdown.ToPlainText(content);
+
+        if (string.IsNullOrEmpty(frontmatter.Summary))
         {
             // hacky way to generate a summary
-            var linesWithoutEndingDot = content.Replace("#", "") // remove headers
+            const string ELLIPSIS = "...";
+            const int WORDS_IN_AUTO_SUMMARY = 25;
+
+            var linesWithoutEndingDot = markdownText
                 .Split('\n', StringSplitOptions.TrimEntries).Select(x => x.TrimEnd('.').Trim()); // split into lines and remove ending dot
-            var markless = string.Join(". ", linesWithoutEndingDot); // join into a long string again with a dot at the end
-            frontmatter.Summary = string.Join(' ', markless.Split(' ').Take(25)) + "...";
+            // todo(Gustav): normalize whitespace
+            var sentances = string.Join(". ", linesWithoutEndingDot); // join into a long string again with a dot at the end
+            var summary = string.Join(' ', sentances.Split(' ').Take(WORDS_IN_AUTO_SUMMARY)) + ELLIPSIS;
+            frontmatter.Summary = summary.Length < markdownText.Length
+                ? summary
+                : markdownText
+                ;
         }
 
-        return new Post(frontmatter, Path.GetFileNameWithoutExtension(file.Name), content);
+        var nameWithoutExtension = Path.GetFileNameWithoutExtension(file.Name);
+
+        return new Post(Guid.NewGuid(), nameWithoutExtension == "_index", frontmatter, file, nameWithoutExtension, markdownHtml, markdownText);
     }
 
     public static SiteData? LoadSiteData(Run run, DirectoryInfo root)
@@ -428,22 +296,59 @@ internal static class Logic
     public static Site? LoadSite(Run run, DirectoryInfo root)
     {
         var data = LoadSiteData(run, root);
-        if(data == null) { return null; }
+        if (data == null) { return null; }
 
-        var content = GetContentDirectory(root);
+        var content = LoadDir(run, GetContentDirectory(root));
+        if (content == null) { return null; }
 
-        var posts = data.Sources
-            .Select(kvp => new KeyValuePair<string, ImmutableArray<Post>>
-                (kvp.Key, LoadPosts(run, SubDir(content, kvp.Value)).OrderByDescending(p => p.Front.Date).ToImmutableArray())
-            )
-            .ToImmutableDictionary()
+        return new Site(data, content);
+    }
+
+    record PostWithOptionalName(Post Post, string? Name);
+
+    private static Dir? LoadDir(Run run, DirectoryInfo root)
+    {
+        var postFiles = LoadPosts(run, root.GetFiles("*.md", SearchOption.TopDirectoryOnly));
+        var dirs = LoadDirsWithoutNulls(run, root.GetDirectories()).ToList();
+
+        var dirsAsPosts = dirs.Where(dir => dir.Posts.Length == 1 && dir.Posts[0].Name == "_index").ToImmutableArray();
+        
+        var dirsToRemove = dirsAsPosts.Select(dir => dir.Id).ToHashSet();
+        dirs.RemoveAll(dir => dirsToRemove.Contains(dir.Id));
+
+        var additionalPostSrcs = dirsAsPosts.Select(dir => dir.Posts[0])
+            .Select(post => new PostWithOptionalName(post, post.SourceFile.DirectoryName))
+            .ToImmutableArray();
+        foreach(var data in additionalPostSrcs.Where(data => data.Name == null))
+        {
+            run.WriteError($"{data.Post.Name} is missing a directory: {data.Post.SourceFile}");
+        }
+        var additionalPosts = additionalPostSrcs
+            .Where(data=>data.Name != null)
+            .Select(data => new Post(data.Post.Id, false, data.Post.Front, data.Post.SourceFile, data.Post.SourceFile.DirectoryName!, data.Post.MarkdownHtml, data.Post.MarkdownPlainText))
             ;
 
-        return new Site(data, posts);
+        // todo(Gustav): if dir is missing a entry, optionally add a empty _index page
 
-        static IEnumerable<Post> LoadPosts(Run run, DirectoryInfo dir)
+        var posts = postFiles.Concat(additionalPosts).OrderByDescending(p => p.Front.Date).ToImmutableArray();
+
+        return new Dir(Guid.NewGuid(), root.Name, posts, dirs.ToImmutableArray());
+
+        static IEnumerable<Dir> LoadDirsWithoutNulls(Run run, IEnumerable<DirectoryInfo> dirs)
         {
-            var files = dir.GetFiles("*.md", SearchOption.AllDirectories);
+            foreach (var d in dirs)
+            {
+                if (d == null) { continue; }
+
+                var dir = LoadDir(run, d);
+                if (dir == null) { continue; }
+
+                yield return dir;
+            }
+        }
+
+        static IEnumerable<Post> LoadPosts(Run run, IEnumerable<FileInfo> files)
+        {
             foreach(var f in files)
             {
                 if (f == null) { continue; }
@@ -458,58 +363,125 @@ internal static class Logic
 
     public static DirectoryInfo GetContentDirectory(DirectoryInfo root)
     {
-        return SubDir(root, "content");
+        return root.GetDir("content");
+    }
+}
+
+public static class Generate
+{
+    private static void AddCommonData(Dictionary<string, object> data, string title, string summary, string url)
+    {
+        data.Add("title", title);
+        data.Add("summary", summary);
+        data.Add("url", url);
     }
 
-    internal static DirectoryInfo SubDir(DirectoryInfo dir, string sub)
+    
+    private static ImmutableArray<KeyValuePair<string, object>> SummaryForPost(Post post, Site site)
     {
-        return dir.CreateSubdirectory(sub);
+        return ImmutableArray.Create<KeyValuePair<string, object>>
+        (
+            new KeyValuePair<string, object>("title", post.Front.Title),
+            new KeyValuePair<string, object>("time_short", site.Data.ShortDateToString(post.Front.Date)),
+            new KeyValuePair<string, object>("time_long", site.Data.LongDateToString(post.Front.Date)),
+            // new("link", $"{sourceDir}/{post.FilenameWithoutExtension}.{extension}"),
+            new KeyValuePair<string, object>("summary", post.Front.Summary),
+            new KeyValuePair<string, object>("full_html", post.MarkdownHtml),
+            new KeyValuePair<string, object>("full_text", post.MarkdownPlainText)
+        );
+}
+
+    internal static int WriteSite(Run run, Site site, DirectoryInfo publicDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
+    {
+        var owners = ImmutableArray.Create<Dir>();
+        return WriteDir(run, site, site.Root, publicDir, templates, partials, owners, true);
     }
 
-    internal static object MakeSafe(string str)
+    private static int WriteDir(Run run, Site site, Dir dir, DirectoryInfo targetDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials, ImmutableArray<Dir> owners, bool isRoot)
     {
-        // algorithm inspired by the description of the doxygen version
-        // https://stackoverflow.com/a/30490482
-        var buf = "";
+        int count = 0;
+        var ownersWithSelf = isRoot ? owners : owners.Add(dir); // if this is root, don't add the "content" folder
+        var templateFolders = GenerateTemplateFolders(templates, ownersWithSelf);
 
-        foreach (var c in str)
+        foreach (var subdir in dir.Dirs)
         {
-            buf += c switch
-            {
-                // '0' .. '9'
-                '0' or '1' or '2' or '3' or '4' or '5' or '6' or '7' or '8' or '9' or
-                // 'a'..'z'
-                'a' or 'b' or 'c' or 'd' or 'e' or 'f' or 'g' or 'h' or 'i' or 'j' or
-                'k' or 'l' or 'm' or 'n' or 'o' or 'p' or 'q' or 'r' or 's' or 't' or
-                'u' or 'v' or 'w' or 'x' or 'y' or 'z' or
-                // other safe characters...
-                // is _ considered safe? we only care about one way translation
-                // so it should be safe.... right?
-                '-' or '_'
-                => $"{c}",
-                ' ' => '_',
-                // 'A'..'Z'
-                // 'A'..'Z'
-                'A' or 'B' or 'C' or 'D' or 'E' or 'F' or 'G' or 'H' or 'I' or 'J' or
-                'K' or 'L' or 'M' or 'N' or 'O' or 'P' or 'Q' or 'R' or 'S' or 'T' or
-                'U' or 'V' or 'W' or 'X' or 'Y' or 'Z'
-                => $"_{Char.ToLowerInvariant(c)}",
-                _ => $"_{(int)c}"
-            };
+            count += WriteDir(run, site, subdir, targetDir.GetDir(subdir.Name), templates, partials, ownersWithSelf, false);
         }
 
-        return buf;
+        var summaries = dir.Posts.Select(post => SummaryForPost(post, site)).ToImmutableArray();
+        foreach (var post in dir.Posts)
+        {
+            // todo(Gustav): paginate index using Chunk(size)
+            count += WritePost(run, site, templateFolders, post, summaries, targetDir.GetDir(post.Name), templates, partials);
+        }
+
+        return count;
     }
 
-    internal static string? LoadFile(Run run, string path)
+    private static int WritePost(Run run, Site site, ImmutableArray<DirectoryInfo> templateFolders, Post post, ImmutableArray<ImmutableArray<KeyValuePair<string, object>>> summaries, DirectoryInfo destDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
     {
-        if (File.Exists(path) == false) { return null; } // ugly!
-        return File.ReadAllText(path);
+        Dictionary<string, object> data = new();
+        
+        data.Add("content_html", post.MarkdownHtml);
+        data.Add("content_text", post.MarkdownPlainText);
+        // todo(Gustav): generate full url
+        AddCommonData(data, post.Front.Title, post.Front.Summary, string.Empty); // $"{site.Data.Url}/{sourceDir}/{filename}"
+        data.Add("time_short", site.Data.ShortDateToString(post.Front.Date));
+        data.Add("time_long", site.Data.LongDateToString(post.Front.Date));
+        data.AddRange(partials);
+        // todo(Gustav): add more data
+
+        return GenerateAll(run, destDir, templates, templateFolders, post, data);
     }
 
-    internal static string DirFile(DirectoryInfo dir, string file)
+    record FileWithOptionalContent(FileInfo File, string? Content);
+
+    private static string DisplayNameForFile(FileInfo file) => Path.GetRelativePath(Environment.CurrentDirectory, file.FullName);
+
+    private static int GenerateAll(Run run, DirectoryInfo destDir, Templates templates, ImmutableArray<DirectoryInfo> templateFolders, Post post, Dictionary<string, object> data)
     {
-        return Path.Join(dir.FullName, file);
+        int pagesGenerated = 0;
+        var templateName = post.IsIndex ? Constants.DIR_TEMPLATE : Constants.POST_TEMPLATE;
+        
+        foreach (var ext in templates.Extensions)
+        {
+            var templateFiles = templateFolders
+                .Select(dir => dir.GetFile(templateName + ext))
+                .Select(file => new FileWithOptionalContent(file, file.LoadFileSilentOrNull()))
+                .ToImmutableArray()
+                ;
+
+            var path = destDir.GetFile("index" + ext);
+            var selected = templateFiles.Where(file => file.Content != null).FirstOrDefault();
+            if(selected == null)
+            {
+                var tried = string.Join(' ', templateFiles.Select(x => DisplayNameForFile(x.File)));
+                run.WriteError($"Unable to generate {DisplayNameForFile(post.SourceFile)} to {DisplayNameForFile(path)} for {ext}, tried to use: {tried}");
+                continue;
+            }
+
+            destDir.Create();
+            
+            var renderedPage = templates.Stubble.Render(selected.Content!, data);
+            File.WriteAllText(path.FullName, renderedPage);
+            AnsiConsole.MarkupLineInterpolated($"Generated {DisplayNameForFile(path)} from {DisplayNameForFile(post.SourceFile)} and {DisplayNameForFile(selected.File)}");
+            pagesGenerated += 1;
+        }
+        return pagesGenerated;
+    }
+
+    private static ImmutableArray<DirectoryInfo> GenerateTemplateFolders(Templates templates, IEnumerable<Dir> owners)
+    {
+        var root = new DirectoryInfo[] { templates.TemplateFolder };
+        var children = owners
+            // template paths going from current dir to root
+            .Accumulate(ImmutableArray.Create<string>(), (dir, arr) => arr.Add(dir.Name))
+            .Reverse()
+            // convert to actual directory
+            .Select(arr => templates.TemplateFolder.GetSubDirs(arr))
+            ;
+        var ret = children.Concat(root).ToImmutableArray();
+        return ret;
     }
 }
 
@@ -524,6 +496,65 @@ public class Run
     {
         AnsiConsole.MarkupLineInterpolated($"[red]ERROR[/]: {message}");
         ErrorCount += 1;
+    }
+}
+
+public static class FileExtensions
+{
+    internal static DirectoryInfo GetDir(this DirectoryInfo dir, string sub)
+    {
+        return new DirectoryInfo(Path.Join(dir.FullName, sub));
+    }
+
+    internal static DirectoryInfo GetSubDirs(this DirectoryInfo dir, IEnumerable<string> sub)
+    {
+        return sub.Aggregate(dir, (current, name) => current.GetDir(name));
+    }
+
+    internal static FileInfo GetFile(this DirectoryInfo dir, string file)
+    {
+        return new FileInfo(Path.Join(dir.FullName, file));
+    }
+
+    internal static string? LoadFileOrNull(this FileInfo path, Run run)
+    {
+        try { return File.ReadAllText(path.FullName); }
+        catch(Exception x)
+        {
+            run.WriteError($"Failed to load {path.FullName}: {x.Message}");
+            return null;
+        }
+    }
+
+    internal static string? LoadFileSilentOrNull(this FileInfo path)
+    {
+        try { return File.ReadAllText(path.FullName); }
+        catch
+        {
+            return null;
+        }
+    }
+}
+
+public static class DictionaryExtensions
+{
+    public static void AddRange<K, V>(this Dictionary<K, V> data, IEnumerable<KeyValuePair<K, V>> list)
+        where K: class
+        where V: class
+    { foreach (var (k, v) in list) { data.Add(k, v); } }
+}
+
+public static class IterTools
+{
+    // returns: initial+p0, initial+p0+p1, initial+p0+p1+p2 ...
+    public static IEnumerable<R> Accumulate<T, R>(this IEnumerable<T> src, R initial, Func<T, R, R> add)
+    {
+        var current = initial;
+        foreach(var t in src)
+        {
+            current = add(t, current);
+            yield return current;
+        }
     }
 }
 
