@@ -61,14 +61,18 @@ internal sealed class NewPostCommand : Command<NewPostCommand.Settings>
     public override int Execute([NotNull] CommandContext context, [NotNull] Settings args)
     {
         var run = new Run();
-        var root = SiteData.FindRoot(); // todo(Gustav): figure out root based on entered path, not current directory
+
+        var path = new FileInfo(args.Path);
+        if (path.Exists) { run.WriteError($"Post {path} already exit"); return -1; }
+
+        var pathDir = path.Directory;
+        if(pathDir == null) { run.WriteError($"Post {path} isn't rooted"); return -1; }
+
+        var root = SiteData.FindRoot(pathDir);
         if(root == null) { run.WriteError("Unable to find root"); return -1; }
 
         var site = Input.LoadSiteData(run, root);
         if(site == null) { return -1; }
-
-        var path = new FileInfo(args.Path);
-        if (path.Exists) { run.WriteError($"Post {path} already exit"); return -1; }
 
         // todo(Gustav): create _index.md for each directory depending on setting
         var contentFolder = Input.GetContentDirectory(root);
@@ -96,7 +100,7 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
     {
         var run = new Run();
 
-        var root = SiteData.FindRoot();
+        var root = SiteData.FindRootFromCurentDirectory();
         if (root == null) { run.WriteError("Unable to find root"); return -1; }
 
         var site = Input.LoadSite(run, root);
@@ -198,11 +202,16 @@ class SiteData
     public const string PATH = "site.blaggen.json";
 
     // find root that contains the root file (or null)
-    public static DirectoryInfo? FindRoot()
+    public static DirectoryInfo? FindRootFromCurentDirectory()
     {
-        DirectoryInfo? current = new DirectoryInfo(Environment.CurrentDirectory);
+        return FindRoot(new DirectoryInfo(Environment.CurrentDirectory));
+    }
 
-        while (current != null && File.Exists(Path.Join(current.FullName, PATH)) == false)
+    public static DirectoryInfo? FindRoot(DirectoryInfo? start)
+    {
+        DirectoryInfo? current = start;
+
+        while (current != null && current.GetFile(PATH).Exists == false)
         {
             current = current.Parent;
         }
