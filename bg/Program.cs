@@ -411,13 +411,6 @@ internal static class Input
 
 public static class Generate
 {
-    private static void AddCommonData(Dictionary<string, object> data, string title, string summary, string url)
-    {
-        data.Add("title", title);
-        data.Add("summary", summary);
-        data.Add("url", url);
-    }
-
     internal class CommonData
     {
         public readonly string title;
