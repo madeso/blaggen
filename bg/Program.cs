@@ -488,7 +488,7 @@ public static class Generate
             count += WriteDir(run, site, subdir, targetDir.GetDir(subdir.Name), templates, partials, ownersWithSelf, false);
         }
 
-        var summaries = dir.Posts.Select(post => new SummaryForPost(post, site)).ToImmutableArray();
+        var summaries = dir.Posts.Where(post => post.IsIndex == false).Select(post => new SummaryForPost(post, site)).ToImmutableArray();
         foreach (var post in dir.Posts)
         {
             // todo(Gustav): paginate index using Chunk(size)
