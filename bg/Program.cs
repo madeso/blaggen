@@ -9,8 +9,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using System.Reflection.Metadata.Ecma335;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -119,7 +117,7 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
         var templates = new Templates(run, root);
         var partials = root.GetDir("partials").EnumerateFiles()
             .Select(file => new {Name=Path.GetFileNameWithoutExtension(file.Name), Content=File.ReadAllText(file.FullName) })
-            .Select(d => new KeyValuePair<string, object>($"partial_{d.Name}", new Func<object>(() => d.Content)))
+            .Select(d => new KeyValuePair<string, object>(d.Name, new Func<object>(() => d.Content)))
             .ToImmutableArray()
             ;
         
@@ -163,7 +161,7 @@ class Templates
     public ImmutableHashSet<string> Extensions { get; }
     public ImmutableDictionary<FileInfo, string> TemplateDict { get; }
 
-    internal string RenderMustache(Run run, string template, FileInfo templateFile, Dictionary<string, object> data, Site site)
+    internal string RenderMustache(Run run, string template, FileInfo templateFile, Generate.PageData data, Site site)
     {
         // todo(Gustav): switch to compiled patterns? config?
         try
@@ -420,20 +418,65 @@ public static class Generate
         data.Add("url", url);
     }
 
-    
-    private static ImmutableArray<KeyValuePair<string, object>> SummaryForPost(Post post, Site site)
+    internal class CommonData
     {
-        return ImmutableArray.Create<KeyValuePair<string, object>>
-        (
-            new KeyValuePair<string, object>("title", post.Front.Title),
-            new KeyValuePair<string, object>("time_short", site.Data.ShortDateToString(post.Front.Date)),
-            new KeyValuePair<string, object>("time_long", site.Data.LongDateToString(post.Front.Date)),
-            // new("link", $"{sourceDir}/{post.FilenameWithoutExtension}.{extension}"),
-            new KeyValuePair<string, object>("summary", post.Front.Summary),
-            new KeyValuePair<string, object>("full_html", post.MarkdownHtml),
-            new KeyValuePair<string, object>("full_text", post.MarkdownPlainText)
-        );
-}
+        public readonly string title;
+        public readonly string summary;
+        public readonly string url;
+
+        public CommonData(string title, string summary, string url)
+        {
+            this.title = title;
+            this.summary = summary;
+            this.url = url;
+        }
+    }
+
+    internal class SummaryForPost
+    {
+        public readonly string title;
+        public readonly string time_short;
+        public readonly string time_long;
+        public readonly string link;
+        public readonly string summary;
+        public readonly string full_html;
+        public readonly string full_text;
+
+        public SummaryForPost(Post post, Site site)
+        { 
+            this.title = post.Front.Title;
+            this.time_short = site.Data.ShortDateToString(post.Front.Date);
+            this.time_long = site.Data.LongDateToString(post.Front.Date);
+            this.link = string.Empty;
+            this.summary = post.Front.Summary;
+            this.full_html = post.MarkdownHtml;
+            this.full_text = post.MarkdownPlainText;
+        }
+    }
+
+    internal class PageData : CommonData
+    {
+        public readonly string content_html;
+        public readonly string content_text;
+        public readonly string time_short;
+        public readonly string time_long;
+        public readonly Dictionary<string, object> partial;
+        public readonly List<SummaryForPost> pages;
+
+        public PageData(Site site, Post post, Dictionary<string, object> partials, List<SummaryForPost> summaries)
+            : base(post.Front.Title, post.Front.Summary, string.Empty)
+        {
+            content_html = post.MarkdownHtml;
+            content_text = post.MarkdownPlainText;
+            time_short = site.Data.ShortDateToString(post.Front.Date);
+            time_long = site.Data.LongDateToString(post.Front.Date);
+
+            this.partial = partials;
+            this.pages = summaries;
+        }
+        // todo(Gustav): add more data
+        // todo(Gustav): generate full url
+    }
 
     internal static int WriteSite(Run run, Site site, DirectoryInfo publicDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
     {
@@ -452,7 +495,7 @@ public static class Generate
             count += WriteDir(run, site, subdir, targetDir.GetDir(subdir.Name), templates, partials, ownersWithSelf, false);
         }
 
-        var summaries = dir.Posts.Select(post => SummaryForPost(post, site)).ToImmutableArray();
+        var summaries = dir.Posts.Select(post => new SummaryForPost(post, site)).ToImmutableArray();
         foreach (var post in dir.Posts)
         {
             // todo(Gustav): paginate index using Chunk(size)
@@ -462,19 +505,9 @@ public static class Generate
         return count;
     }
 
-    private static int WritePost(Run run, Site site, ImmutableArray<DirectoryInfo> templateFolders, Post post, ImmutableArray<ImmutableArray<KeyValuePair<string, object>>> summaries, DirectoryInfo destDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
+    private static int WritePost(Run run, Site site, ImmutableArray<DirectoryInfo> templateFolders, Post post, ImmutableArray<SummaryForPost> summaries, DirectoryInfo destDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
     {
-        Dictionary<string, object> data = new();
-
-        data.Add("pages", summaries);
-        data.Add("content_html", post.MarkdownHtml);
-        data.Add("content_text", post.MarkdownPlainText);
-        // todo(Gustav): generate full url
-        AddCommonData(data, post.Front.Title, post.Front.Summary, string.Empty); // $"{site.Data.Url}/{sourceDir}/{filename}"
-        data.Add("time_short", site.Data.ShortDateToString(post.Front.Date));
-        data.Add("time_long", site.Data.LongDateToString(post.Front.Date));
-        data.AddRange(partials);
-        // todo(Gustav): add more data
+        var data = new PageData(site, post, partials.ToDictionary(k => k.Key, k=>k.Value), summaries.ToList());
 
         return GenerateAll(site, run, destDir, templates, templateFolders, post, data);
     }
@@ -483,7 +516,7 @@ public static class Generate
 
     private static string DisplayNameForFile(FileInfo file) => Path.GetRelativePath(Environment.CurrentDirectory, file.FullName);
 
-    private static int GenerateAll(Site site, Run run, DirectoryInfo destDir, Templates templates, ImmutableArray<DirectoryInfo> templateFolders, Post post, Dictionary<string, object> data)
+    private static int GenerateAll(Site site, Run run, DirectoryInfo destDir, Templates templates, ImmutableArray<DirectoryInfo> templateFolders, Post post, PageData data)
     {
         int pagesGenerated = 0;
         var templateName = post.IsIndex ? Constants.DIR_TEMPLATE : Constants.POST_TEMPLATE;
