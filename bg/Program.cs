@@ -492,7 +492,7 @@ public static class Generate
         foreach (var post in dir.Posts)
         {
             // todo(Gustav): paginate index using Chunk(size)
-            count += WritePost(run, site, templateFolders, post, summaries, targetDir.GetDir(post.Name), templates, partials);
+            count += WritePost(run, site, templateFolders, post, summaries, targetDir, templates, partials);
         }
 
         return count;
@@ -509,11 +509,13 @@ public static class Generate
 
     private static string DisplayNameForFile(FileInfo file) => Path.GetRelativePath(Environment.CurrentDirectory, file.FullName);
 
-    private static int GenerateAll(Site site, Run run, DirectoryInfo destDir, Templates templates, ImmutableArray<DirectoryInfo> templateFolders, Post post, PageData data)
+    private static int GenerateAll(Site site, Run run, DirectoryInfo postsDir, Templates templates, ImmutableArray<DirectoryInfo> templateFolders, Post post, PageData data)
     {
         int pagesGenerated = 0;
         var templateName = post.IsIndex ? Constants.DIR_TEMPLATE : Constants.POST_TEMPLATE;
-        
+        var destDir = post.IsIndex ? postsDir : postsDir.GetDir(post.Name);
+
+
         foreach (var ext in templates.Extensions)
         {
             var templateFiles = templateFolders
