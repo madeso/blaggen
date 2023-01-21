@@ -262,7 +262,7 @@ class FrontMatter
 }
 
 // todo(Gustav): add associated files to be generated...
-record Post(Guid Id, bool IsIndex, FrontMatter Front, FileInfo SourceFile, string Name, string MarkdownHtml, string MarkdownPlainText);
+record Post(Guid Id, bool IsIndex, ImmutableArray<string> RelativePath, FrontMatter Front, FileInfo SourceFile, string Name, string MarkdownHtml, string MarkdownPlainText);
 record Dir(Guid Id, string Name, ImmutableArray<Post> Posts, ImmutableArray<Dir> Dirs);
 record Site(SiteData Data, Dir Root);
 
@@ -286,7 +286,7 @@ internal static class Input
     public const string SOURCE_END = "```";
     public const string FRONTMATTER_SEP = "***"; // markdown hline
 
-    private static Post? ParsePost(Run run, FileInfo file)
+    private static Post? ParsePost(Run run, FileInfo file, ImmutableArray<string> relativePath)
     {
         var lines = File.ReadLines(file.FullName).ToImmutableArray();
 
@@ -327,7 +327,7 @@ internal static class Input
 
         var nameWithoutExtension = Path.GetFileNameWithoutExtension(file.Name);
 
-        return new Post(Guid.NewGuid(), nameWithoutExtension == Constants.INDEX_NAME, frontmatter, file, nameWithoutExtension, markdownHtml, markdownText);
+        return new Post(Guid.NewGuid(), nameWithoutExtension == Constants.INDEX_NAME, relativePath.Add(nameWithoutExtension), frontmatter, file, nameWithoutExtension, markdownHtml, markdownText);
     }
 
     public static SiteData? LoadSiteData(Run run, DirectoryInfo root)
@@ -341,7 +341,7 @@ internal static class Input
         var data = LoadSiteData(run, root);
         if (data == null) { return null; }
 
-        var content = LoadDir(run, GetContentDirectory(root));
+        var content = LoadDir(run, GetContentDirectory(root), ImmutableArray.Create<string>(), true);
         if (content == null) { return null; }
 
         return new Site(data, content);
@@ -349,54 +349,55 @@ internal static class Input
 
     record PostWithOptionalName(Post Post, string? Name);
 
-    private static Dir? LoadDir(Run run, DirectoryInfo root)
+    private static Dir? LoadDir(Run run, DirectoryInfo root, ImmutableArray<string> relativePaths, bool isContentFolder)
     {
-        var postFiles = LoadPosts(run, root.GetFiles("*.md", SearchOption.TopDirectoryOnly));
-        var dirs = LoadDirsWithoutNulls(run, root.GetDirectories()).ToList();
+        var name = root.Name;
+        var relativePathsIncludingSelf = isContentFolder ? relativePaths : relativePaths.Add(name);
 
+        var postFiles = LoadPosts(run, root.GetFiles("*.md", SearchOption.TopDirectoryOnly), relativePathsIncludingSelf);
+        var dirs = LoadDirsWithoutNulls(run, root.GetDirectories(), relativePathsIncludingSelf).ToList();
+
+        // remove dirs that only contain a index
         var dirsAsPosts = dirs.Where(dir => dir.Posts.Length == 1 && dir.Posts[0].Name == Constants.INDEX_NAME).ToImmutableArray();
-
         var dirsToRemove = dirsAsPosts.Select(dir => dir.Id).ToHashSet();
         dirs.RemoveAll(dir => dirsToRemove.Contains(dir.Id));
 
+        // "move" those index pages one level up and promote to regular pages
         var additionalPostSrcs = dirsAsPosts.Select(dir => dir.Posts[0])
             .Select(post => new PostWithOptionalName(post, post.SourceFile.DirectoryName))
             .ToImmutableArray();
         foreach (var data in additionalPostSrcs.Where(data => data.Name == null))
-        {
-            run.WriteError($"{data.Post.Name} is missing a directory: {data.Post.SourceFile}");
-        }
+            { run.WriteError($"{data.Post.Name} is missing a directory: {data.Post.SourceFile}"); }
         var additionalPosts = additionalPostSrcs
             .Where(data => data.Name != null)
-            .Select(data => new Post(data.Post.Id, false, data.Post.Front, data.Post.SourceFile, data.Post.SourceFile.DirectoryName!, data.Post.MarkdownHtml, data.Post.MarkdownPlainText))
+            .Select(data => new Post(data.Post.Id, false, data.Post.RelativePath.PopBack(),  data.Post.Front, data.Post.SourceFile, data.Post.SourceFile.DirectoryName!, data.Post.MarkdownHtml, data.Post.MarkdownPlainText))
             ;
 
         // todo(Gustav): if dir is missing a entry, optionally add a empty _index page
 
         var posts = postFiles.Concat(additionalPosts).OrderByDescending(p => p.Front.Date).ToImmutableArray();
+        return new Dir(Guid.NewGuid(), name, posts, dirs.ToImmutableArray());
 
-        return new Dir(Guid.NewGuid(), root.Name, posts, dirs.ToImmutableArray());
-
-        static IEnumerable<Dir> LoadDirsWithoutNulls(Run run, IEnumerable<DirectoryInfo> dirs)
+        static IEnumerable<Dir> LoadDirsWithoutNulls(Run run, IEnumerable<DirectoryInfo> dirs, ImmutableArray<string> relativePaths)
         {
             foreach (var d in dirs)
             {
                 if (d == null) { continue; }
 
-                var dir = LoadDir(run, d);
+                var dir = LoadDir(run, d, relativePaths, false);
                 if (dir == null) { continue; }
 
                 yield return dir;
             }
         }
 
-        static IEnumerable<Post> LoadPosts(Run run, IEnumerable<FileInfo> files)
+        static IEnumerable<Post> LoadPosts(Run run, IEnumerable<FileInfo> files, ImmutableArray<string> relativePaths)
         {
             foreach (var f in files)
             {
                 if (f == null) { continue; }
 
-                var post = ParsePost(run, f);
+                var post = ParsePost(run, f, relativePaths);
                 if (post == null) { continue; }
 
                 yield return post;
@@ -451,7 +452,10 @@ public static class Generate
         {
             this.title = post.Front.Title;
             this.summary = post.Front.Summary;
-            this.url = string.Empty;
+
+            var rel = post.IsIndex ? post.RelativePath.PopBack() : post.RelativePath;
+            var relative = string.Join('/', rel.Add("index"));
+            this.url = $"{site.Data.Url}/{relative}";
             content_html = post.MarkdownHtml;
             content_text = post.MarkdownPlainText;
             time_short = site.Data.ShortDateToString(post.Front.Date);
@@ -608,6 +612,16 @@ public static class DictionaryExtensions
         where K : class
         where V : class
     { foreach (var (k, v) in list) { data.Add(k, v); } }
+}
+
+public static class ImmutableArrayExtensions
+{
+    public static ImmutableArray<T> PopBack<T>(this ImmutableArray<T> data)
+    {
+        if(data.Length == 0) { return data; }
+        var ret = data.RemoveAt(data.Length-1);
+        return ret;
+    }
 }
 
 public static class IterTools
