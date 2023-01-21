@@ -89,6 +89,8 @@ internal sealed class NewPostCommand : Command<NewPostCommand.Settings>
         var title = site.CultureInfo.TextInfo.ToTitleCase(Path.GetFileNameWithoutExtension(path.Name));
         var frontmatter = JsonUtil.Write(new FrontMatter { Title = title });
         var content = $"{Input.SOURCE_START}\n{frontmatter}\n{Input.SOURCE_END}\n{Input.FRONTMATTER_SEP}\n# {title}";
+
+        path.Directory!.Create();
         File.WriteAllText(path.FullName, content);
 
         Debug.Assert(run.ErrorCount == 0);
