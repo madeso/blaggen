@@ -430,7 +430,7 @@ public static class Generate
         public readonly string title;
         public readonly string time_short;
         public readonly string time_long;
-        public readonly string link;
+        public readonly string name;
         public readonly string summary;
         public readonly string full_html;
         public readonly string full_text;
@@ -440,7 +440,7 @@ public static class Generate
             this.title = post.Front.Title;
             this.time_short = site.Data.ShortDateToString(post.Front.Date);
             this.time_long = site.Data.LongDateToString(post.Front.Date);
-            this.link = string.Empty;
+            this.name = post.Name;
             this.summary = post.Front.Summary;
             this.full_html = post.MarkdownHtml;
             this.full_text = post.MarkdownPlainText;
