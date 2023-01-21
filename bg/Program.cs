@@ -86,7 +86,12 @@ internal sealed class NewPostCommand : Command<NewPostCommand.Settings>
         var relative = Path.GetRelativePath(contentFolder.FullName, path.FullName);
         if (relative.Contains("..")) { run.WriteError($"Post {pathDir} must be a subpath of {contentFolder}"); return -1; }
 
-        var title = site.CultureInfo.TextInfo.ToTitleCase(Path.GetFileNameWithoutExtension(path.Name));
+        var postNameBase = Path.GetFileNameWithoutExtension(path.Name);
+        if(postNameBase == Constants.INDEX_NAME)
+        {
+            postNameBase = path.Directory!.Name;
+        }
+        var title = site.CultureInfo.TextInfo.ToTitleCase(postNameBase.Replace('-', ' ').Replace('_', ' '));
         var frontmatter = JsonUtil.Write(new FrontMatter { Title = title });
         var content = $"{Input.SOURCE_START}\n{frontmatter}\n{Input.SOURCE_END}\n{Input.FRONTMATTER_SEP}\n# {title}";
 
