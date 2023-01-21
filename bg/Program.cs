@@ -39,13 +39,13 @@ internal sealed class InitSiteCommand : Command<InitSiteCommand.Settings>
         var run = new Run();
 
         var existingSite = SiteData.FindRootFromCurentDirectory();
-        if(existingSite != null)
+        if (existingSite != null)
         {
             run.WriteError($"Site already exists at {existingSite.FullName}");
             return -1;
         }
 
-        var site = new SiteData { Name= "My new blog" };
+        var site = new SiteData { Name = "My new blog" };
         var json = JsonUtil.Write(site);
         var path = Path.Join(Environment.CurrentDirectory, SiteData.PATH);
         File.WriteAllText(path, json);
@@ -73,18 +73,18 @@ internal sealed class NewPostCommand : Command<NewPostCommand.Settings>
         if (path.Exists) { run.WriteError($"Post {path} already exit"); return -1; }
 
         var pathDir = path.Directory;
-        if(pathDir == null) { run.WriteError($"Post {path} isn't rooted"); return -1; }
+        if (pathDir == null) { run.WriteError($"Post {path} isn't rooted"); return -1; }
 
         var root = SiteData.FindRoot(pathDir);
-        if(root == null) { run.WriteError("Unable to find root"); return -1; }
+        if (root == null) { run.WriteError("Unable to find root"); return -1; }
 
         var site = Input.LoadSiteData(run, root);
-        if(site == null) { return -1; }
+        if (site == null) { return -1; }
 
         // todo(Gustav): create _index.md for each directory depending on setting
         var contentFolder = Input.GetContentDirectory(root);
         var relative = Path.GetRelativePath(contentFolder.FullName, path.FullName);
-        if(relative.Contains("..")) { run.WriteError($"Post {path} must be a subpath of {contentFolder}"); return -1; }
+        if (relative.Contains("..")) { run.WriteError($"Post {path} must be a subpath of {contentFolder}"); return -1; }
 
         var title = site.CultureInfo.TextInfo.ToTitleCase(Path.GetFileNameWithoutExtension(path.Name));
         var frontmatter = JsonUtil.Write(new FrontMatter { Title = title });
@@ -116,11 +116,11 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
         var publicDir = root.GetDir("public");
         var templates = new Templates(run, root);
         var partials = root.GetDir("partials").EnumerateFiles()
-            .Select(file => new {Name=Path.GetFileNameWithoutExtension(file.Name), Content=File.ReadAllText(file.FullName) })
+            .Select(file => new { Name = Path.GetFileNameWithoutExtension(file.Name), Content = File.ReadAllText(file.FullName) })
             .Select(d => new KeyValuePair<string, object>(d.Name, new Func<object>(() => d.Content)))
             .ToImmutableArray()
             ;
-        
+
         var timeStart = DateTime.Now;
 
         var pagesGenerated = Generate.WriteSite(run, site, publicDir, templates, partials);
@@ -168,11 +168,12 @@ class Templates
         {
             var settings = new RenderSettings
             {
-                ThrowOnDataMiss = true, CultureInfo = site.Data.CultureInfo,
+                ThrowOnDataMiss = true,
+                CultureInfo = site.Data.CultureInfo,
             };
             return stubble.Render(template, data, settings);
         }
-        catch(StubbleException err)
+        catch (StubbleException err)
         {
             run.WriteError($"{templateFile.FullName}: {err.Message}");
 
@@ -188,7 +189,7 @@ class Templates
 class SiteData
 {
     [JsonPropertyName("name")]
-    public string Name{ get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
 
     [JsonPropertyName("summary")]
     public string Summary { get; set; } = string.Empty;
@@ -198,7 +199,7 @@ class SiteData
 
     [JsonPropertyName("short_date_format")]
     public string ShortDateFormat { get; set; } = "g";
-    
+
     [JsonPropertyName("long_date_format")]
     public string LongDateFormat { get; set; } = "G";
 
@@ -257,7 +258,7 @@ class FrontMatter
     public DateTime Date { get; set; } = DateTime.Now;
 
     [JsonPropertyName("tags")]
-    public HashSet<string> Tags {get; set;} = new();
+    public HashSet<string> Tags { get; set; } = new();
 }
 
 // todo(Gustav): add associated files to be generated...
@@ -291,7 +292,7 @@ internal static class Input
 
         var frontmatterJson = new StringBuilder();
         var frontMaterLines = 0;
-        foreach(var line in lines)
+        foreach (var line in lines)
         {
             frontMaterLines += 1;
             var lt = line.Trim();
@@ -302,7 +303,7 @@ internal static class Input
 
         var content = string.Join('\n', lines.Skip(frontMaterLines));
         var frontmatter = JsonUtil.Parse<FrontMatter>(run, file.FullName, frontmatterJson.ToString());
-        if(frontmatter == null) { return null; }
+        if (frontmatter == null) { return null; }
 
         var markdownHtml = Markdig.Markdown.ToHtml(content);
         var markdownText = Markdig.Markdown.ToPlainText(content);
@@ -354,19 +355,19 @@ internal static class Input
         var dirs = LoadDirsWithoutNulls(run, root.GetDirectories()).ToList();
 
         var dirsAsPosts = dirs.Where(dir => dir.Posts.Length == 1 && dir.Posts[0].Name == Constants.INDEX_NAME).ToImmutableArray();
-        
+
         var dirsToRemove = dirsAsPosts.Select(dir => dir.Id).ToHashSet();
         dirs.RemoveAll(dir => dirsToRemove.Contains(dir.Id));
 
         var additionalPostSrcs = dirsAsPosts.Select(dir => dir.Posts[0])
             .Select(post => new PostWithOptionalName(post, post.SourceFile.DirectoryName))
             .ToImmutableArray();
-        foreach(var data in additionalPostSrcs.Where(data => data.Name == null))
+        foreach (var data in additionalPostSrcs.Where(data => data.Name == null))
         {
             run.WriteError($"{data.Post.Name} is missing a directory: {data.Post.SourceFile}");
         }
         var additionalPosts = additionalPostSrcs
-            .Where(data=>data.Name != null)
+            .Where(data => data.Name != null)
             .Select(data => new Post(data.Post.Id, false, data.Post.Front, data.Post.SourceFile, data.Post.SourceFile.DirectoryName!, data.Post.MarkdownHtml, data.Post.MarkdownPlainText))
             ;
 
@@ -391,12 +392,12 @@ internal static class Input
 
         static IEnumerable<Post> LoadPosts(Run run, IEnumerable<FileInfo> files)
         {
-            foreach(var f in files)
+            foreach (var f in files)
             {
                 if (f == null) { continue; }
 
                 var post = ParsePost(run, f);
-                if(post == null) { continue; }
+                if (post == null) { continue; }
 
                 yield return post;
             }
@@ -411,7 +412,7 @@ internal static class Input
 
 public static class Generate
 {
-internal class SummaryForPost
+    internal class SummaryForPost
     {
         public readonly string title;
         public readonly string time_short;
@@ -422,7 +423,7 @@ internal class SummaryForPost
         public readonly string full_text;
 
         public SummaryForPost(Post post, Site site)
-        { 
+        {
             this.title = post.Front.Title;
             this.time_short = site.Data.ShortDateToString(post.Front.Date);
             this.time_long = site.Data.LongDateToString(post.Front.Date);
@@ -492,7 +493,7 @@ internal class SummaryForPost
 
     private static int WritePost(Run run, Site site, ImmutableArray<DirectoryInfo> templateFolders, Post post, ImmutableArray<SummaryForPost> summaries, DirectoryInfo destDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
     {
-        var data = new PageData(site, post, partials.ToDictionary(k => k.Key, k=>k.Value), summaries.ToList());
+        var data = new PageData(site, post, partials.ToDictionary(k => k.Key, k => k.Value), summaries.ToList());
 
         return GenerateAll(site, run, destDir, templates, templateFolders, post, data);
     }
@@ -518,7 +519,7 @@ internal class SummaryForPost
 
             var path = destDir.GetFile("index" + ext);
             var selected = templateFiles.Where(file => file.Content != null).FirstOrDefault();
-            if(selected == null)
+            if (selected == null)
             {
                 var tried = string.Join(' ', templateFiles.Select(x => DisplayNameForFile(x.File)));
                 run.WriteError($"Unable to generate {DisplayNameForFile(post.SourceFile)} to {DisplayNameForFile(path)} for {ext}, tried to use: {tried}");
@@ -526,7 +527,7 @@ internal class SummaryForPost
             }
 
             destDir.Create();
-            
+
             var renderedPage = templates.RenderMustache(run, selected.Content!, selected.File, data, site);
             File.WriteAllText(path.FullName, renderedPage);
             AnsiConsole.MarkupLineInterpolated($"Generated {DisplayNameForFile(path)} from {DisplayNameForFile(post.SourceFile)} and {DisplayNameForFile(selected.File)}");
@@ -584,7 +585,7 @@ public static class FileExtensions
     internal static string? LoadFileOrNull(this FileInfo path, Run run)
     {
         try { return File.ReadAllText(path.FullName); }
-        catch(Exception x)
+        catch (Exception x)
         {
             run.WriteError($"Failed to load {path.FullName}: {x.Message}");
             return null;
@@ -604,8 +605,8 @@ public static class FileExtensions
 public static class DictionaryExtensions
 {
     public static void AddRange<K, V>(this Dictionary<K, V> data, IEnumerable<KeyValuePair<K, V>> list)
-        where K: class
-        where V: class
+        where K : class
+        where V : class
     { foreach (var (k, v) in list) { data.Add(k, v); } }
 }
 
@@ -615,7 +616,7 @@ public static class IterTools
     public static IEnumerable<R> Accumulate<T, R>(this IEnumerable<T> src, R initial, Func<T, R, R> add)
     {
         var current = initial;
-        foreach(var t in src)
+        foreach (var t in src)
         {
             current = add(t, current);
             yield return current;
