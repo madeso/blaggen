@@ -84,7 +84,7 @@ internal sealed class NewPostCommand : Command<NewPostCommand.Settings>
         // todo(Gustav): create _index.md for each directory depending on setting
         var contentFolder = Input.GetContentDirectory(root);
         var relative = Path.GetRelativePath(contentFolder.FullName, path.FullName);
-        if (relative.Contains("..")) { run.WriteError($"Post {path} must be a subpath of {contentFolder}"); return -1; }
+        if (relative.Contains("..")) { run.WriteError($"Post {pathDir} must be a subpath of {contentFolder}"); return -1; }
 
         var title = site.CultureInfo.TextInfo.ToTitleCase(Path.GetFileNameWithoutExtension(path.Name));
         var frontmatter = JsonUtil.Write(new FrontMatter { Title = title });
@@ -94,6 +94,7 @@ internal sealed class NewPostCommand : Command<NewPostCommand.Settings>
         File.WriteAllText(path.FullName, content);
 
         Debug.Assert(run.ErrorCount == 0);
+        AnsiConsole.MarkupLineInterpolated($"Wrote [blue]${path.FullName}[/]");
         return 0;
     }
 }
