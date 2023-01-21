@@ -411,21 +411,7 @@ internal static class Input
 
 public static class Generate
 {
-    internal class CommonData
-    {
-        public readonly string title;
-        public readonly string summary;
-        public readonly string url;
-
-        public CommonData(string title, string summary, string url)
-        {
-            this.title = title;
-            this.summary = summary;
-            this.url = url;
-        }
-    }
-
-    internal class SummaryForPost
+internal class SummaryForPost
     {
         public readonly string title;
         public readonly string time_short;
@@ -447,8 +433,12 @@ public static class Generate
         }
     }
 
-    internal class PageData : CommonData
+    internal class PageData
     {
+        public readonly string title;
+        public readonly string summary;
+        public readonly string url;
+
         public readonly string content_html;
         public readonly string content_text;
         public readonly string time_short;
@@ -457,8 +447,10 @@ public static class Generate
         public readonly List<SummaryForPost> pages;
 
         public PageData(Site site, Post post, Dictionary<string, object> partials, List<SummaryForPost> summaries)
-            : base(post.Front.Title, post.Front.Summary, string.Empty)
         {
+            this.title = post.Front.Title;
+            this.summary = post.Front.Summary;
+            this.url = string.Empty;
             content_html = post.MarkdownHtml;
             content_text = post.MarkdownPlainText;
             time_short = site.Data.ShortDateToString(post.Front.Date);
