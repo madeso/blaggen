@@ -372,13 +372,13 @@ internal static class Input
 
         // "move" those index pages one level up and promote to regular pages
         var additionalPostSrcs = dirsAsPosts.Select(dir => dir.Posts[0])
-            .Select(post => new PostWithOptionalName(post, post.SourceFile.DirectoryName))
+            .Select(post => new PostWithOptionalName(post, post.SourceFile.Directory?.Name))
             .ToImmutableArray();
         foreach (var data in additionalPostSrcs.Where(data => data.Name == null))
             { run.WriteError($"{data.Post.Name} is missing a directory: {data.Post.SourceFile}"); }
         var additionalPosts = additionalPostSrcs
             .Where(data => data.Name != null)
-            .Select(data => new Post(data.Post.Id, false, data.Post.RelativePath.PopBack(),  data.Post.Front, data.Post.SourceFile, data.Post.SourceFile.DirectoryName!, data.Post.MarkdownHtml, data.Post.MarkdownPlainText))
+            .Select(data => new Post(data.Post.Id, false, data.Post.RelativePath.PopBack(),  data.Post.Front, data.Post.SourceFile, data.Name!, data.Post.MarkdownHtml, data.Post.MarkdownPlainText))
             ;
 
         // todo(Gustav): if dir is missing a entry, optionally add a empty _index page
