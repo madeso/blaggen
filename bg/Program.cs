@@ -4,7 +4,6 @@ using Spectre.Console;
 using Spectre.Console.Cli;
 using Stubble.Core;
 using Stubble.Core.Builders;
-using Stubble.Core.Contexts;
 using Stubble.Core.Exceptions;
 using Stubble.Core.Settings;
 using System.Collections.Immutable;
@@ -20,24 +19,29 @@ using System.Text.Json.Serialization;
 // ----------------------------------------------------------------------------------------------------------------------------
 // commandline handling and main runners
 
-var app = new CommandApp();
-app.Configure(config =>
+internal class Program
 {
-    config.AddCommand<InitSiteCommand>("init");
-    config.AddCommand<NewPostCommand>("new");
-    config.AddCommand<GenerateCommand>("generate");
-});
-return app.Run(args);
-
+    private static async Task<int> Main(string[] args)
+    {
+        var app = new CommandApp();
+        app.Configure(config =>
+        {
+            config.AddCommand<InitSiteCommand>("init");
+            config.AddCommand<NewPostCommand>("new");
+            config.AddCommand<GenerateCommand>("generate");
+        });
+        return await app.RunAsync(args);
+    }
+}
 
 [Description("Generate a new site in the curent directory")]
-internal sealed class InitSiteCommand : Command<InitSiteCommand.Settings>
+internal sealed class InitSiteCommand : AsyncCommand<InitSiteCommand.Settings>
 {
     public sealed class Settings : CommandSettings
     {
     }
 
-    public override int Execute([NotNull] CommandContext context, [NotNull] Settings args)
+    public override async Task<int> ExecuteAsync([NotNull] CommandContext context, [NotNull] Settings args)
     {
         var run = new Run();
 
@@ -51,7 +55,7 @@ internal sealed class InitSiteCommand : Command<InitSiteCommand.Settings>
         var site = new SiteData { Name = "My new blog" };
         var json = JsonUtil.Write(site);
         var path = Path.Join(Environment.CurrentDirectory, SiteData.PATH);
-        File.WriteAllText(path, json);
+        await File.WriteAllTextAsync(path, json);
 
         // todo(Gustav): generate basic templates
         return 0;
@@ -59,7 +63,7 @@ internal sealed class InitSiteCommand : Command<InitSiteCommand.Settings>
 }
 
 [Description("Generate a new page")]
-internal sealed class NewPostCommand : Command<NewPostCommand.Settings>
+internal sealed class NewPostCommand : AsyncCommand<NewPostCommand.Settings>
 {
     public sealed class Settings : CommandSettings
     {
@@ -68,7 +72,7 @@ internal sealed class NewPostCommand : Command<NewPostCommand.Settings>
         public string Path { get; init; } = string.Empty;
     }
 
-    public override int Execute([NotNull] CommandContext context, [NotNull] Settings args)
+    public override async Task<int> ExecuteAsync([NotNull] CommandContext context, [NotNull] Settings args)
     {
         var run = new Run();
 
@@ -81,7 +85,7 @@ internal sealed class NewPostCommand : Command<NewPostCommand.Settings>
         var root = SiteData.FindRoot(pathDir);
         if (root == null) { run.WriteError("Unable to find root"); return -1; }
 
-        var site = Input.LoadSiteData(run, root);
+        var site = await Input.LoadSiteData(run, root);
         if (site == null) { return -1; }
 
         // todo(Gustav): create _index.md for each directory depending on setting
@@ -99,7 +103,7 @@ internal sealed class NewPostCommand : Command<NewPostCommand.Settings>
         var content = $"{Input.SOURCE_START}\n{frontmatter}\n{Input.SOURCE_END}\n{Input.FRONTMATTER_SEP}\n# {title}";
 
         path.Directory!.Create();
-        File.WriteAllText(path.FullName, content);
+        await File.WriteAllTextAsync(path.FullName, content);
 
         Debug.Assert(run.ErrorCount == 0);
         AnsiConsole.MarkupLineInterpolated($"Wrote [blue]${path.FullName}[/]");
@@ -108,13 +112,13 @@ internal sealed class NewPostCommand : Command<NewPostCommand.Settings>
 }
 
 [Description("Genrate or publish the site")]
-internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
+internal sealed class GenerateCommand : AsyncCommand<GenerateCommand.Settings>
 {
     public sealed class Settings : CommandSettings
     {
     }
 
-    public override int Execute([NotNull] CommandContext context, [NotNull] Settings args)
+    public override async Task<int> ExecuteAsync([NotNull] CommandContext context, [NotNull] Settings args)
     {
         var run = new Run();
 
@@ -123,7 +127,7 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
 
         var timeStart = DateTime.Now;
 
-        var site = Input.LoadSite(run, root, new Markdown());
+        var site = await Input.LoadSite(run, root, new Markdown());
         if (site == null) { return -1; }
 
         var publicDir = root.GetDir("public");
@@ -134,7 +138,7 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
             .ToImmutableArray()
             ;
 
-        var pagesGenerated = Generate.WriteSite(run, site, publicDir, templates, partials);
+        var pagesGenerated = await Generate.WriteSite(run, site, publicDir, templates, partials);
         // todo(Gustav): copy static files
 
         var timeEnd = DateTime.Now;
@@ -329,26 +333,33 @@ internal static class Input
     public const string SOURCE_END = "```";
     public const string FRONTMATTER_SEP = "***"; // markdown hline
 
-    private static Post? ParsePost(Run run, FileInfo file, ImmutableArray<string> relativePath, Markdown markdown)
+    private static async Task<Post?> ParsePost(Run run, FileInfo file, ImmutableArray<string> relativePath, Markdown markdown)
     {
-        var lines = File.ReadLines(file.FullName).ToImmutableArray();
+        var lines = File.ReadLinesAsync(file.FullName);
 
         var frontmatterJson = new StringBuilder();
-        var frontMaterLines = 0;
-        foreach (var line in lines)
+        var markdownContent = new StringBuilder();
+        var parsingFrontmatter = true;
+        
+        await foreach (var line in lines)
         {
-            frontMaterLines += 1;
-            var lt = line.Trim();
-            if (lt.Contains(FRONTMATTER_SEP)) { break; }
-            if (lt == SOURCE_START || lt == SOURCE_END) { continue; }
-            frontmatterJson.AppendLine(line);
+            if(parsingFrontmatter)
+            {
+                var lt = line.Trim();
+                if (lt.Contains(FRONTMATTER_SEP)) { parsingFrontmatter = false;  continue; }
+                if (lt == SOURCE_START || lt == SOURCE_END) { continue; }
+                frontmatterJson.AppendLine(line);
+            }
+            else
+            {
+                markdownContent.AppendLine(line);
+            }
         }
 
-        var content = string.Join('\n', lines.Skip(frontMaterLines));
         var frontmatter = JsonUtil.Parse<FrontMatter>(run, file.FullName, frontmatterJson.ToString());
         if (frontmatter == null) { return null; }
 
-        var markdownDocument = markdown.Parse(content);
+        var markdownDocument = markdown.Parse(markdownContent.ToString());
         var markdownHtml = markdown.ToHtml(markdownDocument);
         var markdownText = markdown.ToPlainText(markdownDocument);
 
@@ -374,18 +385,18 @@ internal static class Input
         return new Post(Guid.NewGuid(), nameWithoutExtension == Constants.INDEX_NAME, relativePath.Add(nameWithoutExtension), frontmatter, file, nameWithoutExtension, markdownHtml, markdownText);
     }
 
-    public static SiteData? LoadSiteData(Run run, DirectoryInfo root)
+    public static async Task<SiteData?> LoadSiteData(Run run, DirectoryInfo root)
     {
         var path = Path.Join(root.FullName, SiteData.PATH);
-        return JsonUtil.Load<SiteData>(run, path);
+        return await JsonUtil.Load<SiteData>(run, path);
     }
 
-    public static Site? LoadSite(Run run, DirectoryInfo root, Markdown markdown)
+    public static async Task<Site?> LoadSite(Run run, DirectoryInfo root, Markdown markdown)
     {
-        var data = LoadSiteData(run, root);
+        var data = await LoadSiteData(run, root);
         if (data == null) { return null; }
 
-        var content = LoadDir(run, GetContentDirectory(root), ImmutableArray.Create<string>(), true, markdown);
+        var content = await LoadDir(run, GetContentDirectory(root), ImmutableArray.Create<string>(), true, markdown);
         if (content == null) { return null; }
 
         return new Site(data, content);
@@ -393,13 +404,13 @@ internal static class Input
 
     record PostWithOptionalName(Post Post, string? Name);
 
-    private static Dir? LoadDir(Run run, DirectoryInfo root, ImmutableArray<string> relativePaths, bool isContentFolder, Markdown markdown)
+    private static async Task<Dir?> LoadDir(Run run, DirectoryInfo root, ImmutableArray<string> relativePaths, bool isContentFolder, Markdown markdown)
     {
         var name = root.Name;
         var relativePathsIncludingSelf = isContentFolder ? relativePaths : relativePaths.Add(name);
 
-        var postFiles = LoadPosts(run, root.GetFiles("*.md", SearchOption.TopDirectoryOnly), relativePathsIncludingSelf, markdown);
-        var dirs = LoadDirsWithoutNulls(run, root.GetDirectories(), relativePathsIncludingSelf, markdown).ToList();
+        var postFiles = await LoadPosts(run, root.GetFiles("*.md", SearchOption.TopDirectoryOnly), relativePathsIncludingSelf, markdown).ToListAsync();
+        var dirs = await LoadDirsWithoutNulls(run, root.GetDirectories(), relativePathsIncludingSelf, markdown).ToListAsync();
 
         // remove dirs that only contain a index
         var dirsAsPosts = dirs.Where(dir => dir.Posts.Length == 1 && dir.Posts[0].Name == Constants.INDEX_NAME).ToImmutableArray();
@@ -422,26 +433,26 @@ internal static class Input
         var posts = postFiles.Concat(additionalPosts).OrderByDescending(p => p.Front.Date).ToImmutableArray();
         return new Dir(Guid.NewGuid(), name, posts, dirs.ToImmutableArray());
 
-        static IEnumerable<Dir> LoadDirsWithoutNulls(Run run, IEnumerable<DirectoryInfo> dirs, ImmutableArray<string> relativePaths, Markdown markdown)
+        static async IAsyncEnumerable<Dir> LoadDirsWithoutNulls(Run run, IEnumerable<DirectoryInfo> dirs, ImmutableArray<string> relativePaths, Markdown markdown)
         {
             foreach (var d in dirs)
             {
                 if (d == null) { continue; }
 
-                var dir = LoadDir(run, d, relativePaths, false, markdown);
+                var dir = await LoadDir(run, d, relativePaths, false, markdown);
                 if (dir == null) { continue; }
 
                 yield return dir;
             }
         }
 
-        static IEnumerable<Post> LoadPosts(Run run, IEnumerable<FileInfo> files, ImmutableArray<string> relativePaths, Markdown markdown)
+        static async IAsyncEnumerable<Post> LoadPosts(Run run, IEnumerable<FileInfo> files, ImmutableArray<string> relativePaths, Markdown markdown)
         {
             foreach (var f in files)
             {
                 if (f == null) { continue; }
 
-                var post = ParsePost(run, f, relativePaths, markdown);
+                var post = await ParsePost(run, f, relativePaths, markdown);
                 if (post == null) { continue; }
 
                 yield return post;
@@ -512,13 +523,13 @@ public static class Generate
         // todo(Gustav): generate full url
     }
 
-    internal static int WriteSite(Run run, Site site, DirectoryInfo publicDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
+    internal static async Task<int> WriteSite(Run run, Site site, DirectoryInfo publicDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
     {
         var owners = ImmutableArray.Create<Dir>();
-        return WriteDir(run, site, site.Root, publicDir, templates, partials, owners, true);
+        return await WriteDir(run, site, site.Root, publicDir, templates, partials, owners, true);
     }
 
-    private static int WriteDir(Run run, Site site, Dir dir, DirectoryInfo targetDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials, ImmutableArray<Dir> owners, bool isRoot)
+    private static async Task<int> WriteDir(Run run, Site site, Dir dir, DirectoryInfo targetDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials, ImmutableArray<Dir> owners, bool isRoot)
     {
         int count = 0;
         var ownersWithSelf = isRoot ? owners : owners.Add(dir); // if this is root, don't add the "content" folder
@@ -526,31 +537,31 @@ public static class Generate
 
         foreach (var subdir in dir.Dirs)
         {
-            count += WriteDir(run, site, subdir, targetDir.GetDir(subdir.Name), templates, partials, ownersWithSelf, false);
+            count += await WriteDir(run, site, subdir, targetDir.GetDir(subdir.Name), templates, partials, ownersWithSelf, false);
         }
 
         var summaries = dir.Posts.Where(post => post.IsIndex == false).Select(post => new SummaryForPost(post, site)).ToImmutableArray();
         foreach (var post in dir.Posts)
         {
             // todo(Gustav): paginate index using Chunk(size)
-            count += WritePost(run, site, templateFolders, post, summaries, targetDir, templates, partials);
+            count += await WritePost(run, site, templateFolders, post, summaries, targetDir, templates, partials);
         }
 
         return count;
     }
 
-    private static int WritePost(Run run, Site site, ImmutableArray<DirectoryInfo> templateFolders, Post post, ImmutableArray<SummaryForPost> summaries, DirectoryInfo destDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
+    private static async Task<int> WritePost(Run run, Site site, ImmutableArray<DirectoryInfo> templateFolders, Post post, ImmutableArray<SummaryForPost> summaries, DirectoryInfo destDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
     {
         var data = new PageData(site, post, partials.ToDictionary(k => k.Key, k => k.Value), summaries.ToList());
 
-        return GenerateAll(site, run, destDir, templates, templateFolders, post, data);
+        return await GenerateAll(site, run, destDir, templates, templateFolders, post, data);
     }
 
     record FileWithOptionalContent(FileInfo File, string? Content);
 
     private static string DisplayNameForFile(FileInfo file) => Path.GetRelativePath(Environment.CurrentDirectory, file.FullName);
 
-    private static int GenerateAll(Site site, Run run, DirectoryInfo postsDir, Templates templates, ImmutableArray<DirectoryInfo> templateFolders, Post post, PageData data)
+    private static async Task<int> GenerateAll(Site site, Run run, DirectoryInfo postsDir, Templates templates, ImmutableArray<DirectoryInfo> templateFolders, Post post, PageData data)
     {
         int pagesGenerated = 0;
         var templateName = post.IsIndex ? Constants.DIR_TEMPLATE : Constants.POST_TEMPLATE;
@@ -577,7 +588,7 @@ public static class Generate
             destDir.Create();
 
             var renderedPage = templates.RenderMustache(run, selected.Content!, selected.File, data, site);
-            File.WriteAllText(path.FullName, renderedPage);
+            await File.WriteAllTextAsync(path.FullName, renderedPage);
             AnsiConsole.MarkupLineInterpolated($"Generated {DisplayNameForFile(path)} from {DisplayNameForFile(post.SourceFile)} and {DisplayNameForFile(selected.File)}");
             pagesGenerated += 1;
         }
@@ -680,7 +691,22 @@ public static class IterTools
             yield return current;
         }
     }
+
+    public static async Task<List<T>> ToListAsync<T>(this IAsyncEnumerable<T> asyncEnumerable)
+    {
+        if (null == asyncEnumerable)
+            throw new ArgumentNullException(nameof(asyncEnumerable));
+
+        var list = new List<T>();
+        await foreach (var t in asyncEnumerable)
+        {
+            list.Add(t);
+        }
+
+        return list;
+    }
 }
+
 
 public static class JsonUtil
 {
@@ -707,10 +733,10 @@ public static class JsonUtil
         }
     }
 
-    internal static T? Load<T>(Run run, string path)
+    internal static async Task<T?> Load<T>(Run run, string path)
         where T : class
     {
-        var content = File.ReadAllText(path);
+        var content = await File.ReadAllTextAsync(path);
         return Parse<T>(run, path, content);
     }
 
