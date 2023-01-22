@@ -120,6 +120,17 @@ internal sealed class GenerateCommand : AsyncCommand<GenerateCommand.Settings>
 
     public override async Task<int> ExecuteAsync([NotNull] CommandContext context, [NotNull] Settings args)
     {
+        var ret = 0;
+        await AnsiConsole.Status()
+            .StartAsync("Working...", async ctx =>
+            {
+                ret = await Run(ctx, args);
+            });
+        return ret;
+    }
+
+    private async Task<int> Run(StatusContext ctx, Settings args)
+    {
         var run = new Run();
 
         var root = SiteData.FindRootFromCurentDirectory();
@@ -127,6 +138,7 @@ internal sealed class GenerateCommand : AsyncCommand<GenerateCommand.Settings>
 
         var timeStart = DateTime.Now;
 
+        ctx.Status("Parsing directory");
         var site = await Input.LoadSite(run, root, new Markdown());
         if (site == null) { return -1; }
 
@@ -138,6 +150,7 @@ internal sealed class GenerateCommand : AsyncCommand<GenerateCommand.Settings>
             .ToImmutableArray()
             ;
 
+        ctx.Status("Writing data to disk");
         var pagesGenerated = await Generate.WriteSite(run, site, publicDir, templates, partials);
         // todo(Gustav): copy static files
 
