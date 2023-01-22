@@ -118,6 +118,8 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
         var root = SiteData.FindRootFromCurentDirectory();
         if (root == null) { run.WriteError("Unable to find root"); return -1; }
 
+        var timeStart = DateTime.Now;
+
         var site = Input.LoadSite(run, root);
         if (site == null) { return -1; }
 
@@ -128,8 +130,6 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
             .Select(d => new KeyValuePair<string, object>(d.Name, new Func<object>(() => d.Content)))
             .ToImmutableArray()
             ;
-
-        var timeStart = DateTime.Now;
 
         var pagesGenerated = Generate.WriteSite(run, site, publicDir, templates, partials);
         // todo(Gustav): copy static files
