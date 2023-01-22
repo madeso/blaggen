@@ -1,4 +1,5 @@
-﻿using Spectre.Console;
+﻿using Markdig;
+using Spectre.Console;
 using Spectre.Console.Cli;
 using Stubble.Core;
 using Stubble.Core.Builders;
@@ -120,7 +121,7 @@ internal sealed class GenerateCommand : Command<GenerateCommand.Settings>
 
         var timeStart = DateTime.Now;
 
-        var site = Input.LoadSite(run, root);
+        var site = Input.LoadSite(run, root, new Markdown());
         if (site == null) { return -1; }
 
         var publicDir = root.GetDir("public");
@@ -188,6 +189,21 @@ class Templates
             // todo(Gustav): can we switch settings and render a invalid page here? is it worthwhile?
             return "";
         }
+    }
+}
+
+class Markdown
+{
+    private MarkdownPipeline pipeline = new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
+
+    internal string ToHtml(string content)
+    {
+        return Markdig.Markdown.ToHtml(content, pipeline);
+    }
+
+    internal string ToPlainText(string content)
+    {
+        return Markdig.Markdown.ToPlainText(content, pipeline);
     }
 }
 
@@ -294,7 +310,7 @@ internal static class Input
     public const string SOURCE_END = "```";
     public const string FRONTMATTER_SEP = "***"; // markdown hline
 
-    private static Post? ParsePost(Run run, FileInfo file, ImmutableArray<string> relativePath)
+    private static Post? ParsePost(Run run, FileInfo file, ImmutableArray<string> relativePath, Markdown markdown)
     {
         var lines = File.ReadLines(file.FullName).ToImmutableArray();
 
@@ -313,8 +329,8 @@ internal static class Input
         var frontmatter = JsonUtil.Parse<FrontMatter>(run, file.FullName, frontmatterJson.ToString());
         if (frontmatter == null) { return null; }
 
-        var markdownHtml = Markdig.Markdown.ToHtml(content);
-        var markdownText = Markdig.Markdown.ToPlainText(content);
+        var markdownHtml = markdown.ToHtml(content);
+        var markdownText = markdown.ToPlainText(content);
 
         if (string.IsNullOrEmpty(frontmatter.Summary))
         {
@@ -344,12 +360,12 @@ internal static class Input
         return JsonUtil.Load<SiteData>(run, path);
     }
 
-    public static Site? LoadSite(Run run, DirectoryInfo root)
+    public static Site? LoadSite(Run run, DirectoryInfo root, Markdown markdown)
     {
         var data = LoadSiteData(run, root);
         if (data == null) { return null; }
 
-        var content = LoadDir(run, GetContentDirectory(root), ImmutableArray.Create<string>(), true);
+        var content = LoadDir(run, GetContentDirectory(root), ImmutableArray.Create<string>(), true, markdown);
         if (content == null) { return null; }
 
         return new Site(data, content);
@@ -357,13 +373,13 @@ internal static class Input
 
     record PostWithOptionalName(Post Post, string? Name);
 
-    private static Dir? LoadDir(Run run, DirectoryInfo root, ImmutableArray<string> relativePaths, bool isContentFolder)
+    private static Dir? LoadDir(Run run, DirectoryInfo root, ImmutableArray<string> relativePaths, bool isContentFolder, Markdown markdown)
     {
         var name = root.Name;
         var relativePathsIncludingSelf = isContentFolder ? relativePaths : relativePaths.Add(name);
 
-        var postFiles = LoadPosts(run, root.GetFiles("*.md", SearchOption.TopDirectoryOnly), relativePathsIncludingSelf);
-        var dirs = LoadDirsWithoutNulls(run, root.GetDirectories(), relativePathsIncludingSelf).ToList();
+        var postFiles = LoadPosts(run, root.GetFiles("*.md", SearchOption.TopDirectoryOnly), relativePathsIncludingSelf, markdown);
+        var dirs = LoadDirsWithoutNulls(run, root.GetDirectories(), relativePathsIncludingSelf, markdown).ToList();
 
         // remove dirs that only contain a index
         var dirsAsPosts = dirs.Where(dir => dir.Posts.Length == 1 && dir.Posts[0].Name == Constants.INDEX_NAME).ToImmutableArray();
@@ -386,26 +402,26 @@ internal static class Input
         var posts = postFiles.Concat(additionalPosts).OrderByDescending(p => p.Front.Date).ToImmutableArray();
         return new Dir(Guid.NewGuid(), name, posts, dirs.ToImmutableArray());
 
-        static IEnumerable<Dir> LoadDirsWithoutNulls(Run run, IEnumerable<DirectoryInfo> dirs, ImmutableArray<string> relativePaths)
+        static IEnumerable<Dir> LoadDirsWithoutNulls(Run run, IEnumerable<DirectoryInfo> dirs, ImmutableArray<string> relativePaths, Markdown markdown)
         {
             foreach (var d in dirs)
             {
                 if (d == null) { continue; }
 
-                var dir = LoadDir(run, d, relativePaths, false);
+                var dir = LoadDir(run, d, relativePaths, false, markdown);
                 if (dir == null) { continue; }
 
                 yield return dir;
             }
         }
 
-        static IEnumerable<Post> LoadPosts(Run run, IEnumerable<FileInfo> files, ImmutableArray<string> relativePaths)
+        static IEnumerable<Post> LoadPosts(Run run, IEnumerable<FileInfo> files, ImmutableArray<string> relativePaths, Markdown markdown)
         {
             foreach (var f in files)
             {
                 if (f == null) { continue; }
 
-                var post = ParsePost(run, f, relativePaths);
+                var post = ParsePost(run, f, relativePaths, markdown);
                 if (post == null) { continue; }
 
                 yield return post;
