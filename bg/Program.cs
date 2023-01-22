@@ -1,8 +1,10 @@
 ﻿using Markdig;
+using Markdig.Renderers;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using Stubble.Core;
 using Stubble.Core.Builders;
+using Stubble.Core.Contexts;
 using Stubble.Core.Exceptions;
 using Stubble.Core.Settings;
 using System.Collections.Immutable;
@@ -196,14 +198,31 @@ class Markdown
 {
     private MarkdownPipeline pipeline = new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
 
-    internal string ToHtml(string content)
+    internal Markdig.Syntax.MarkdownDocument Parse(string content)
     {
-        return Markdig.Markdown.ToHtml(content, pipeline);
+        return Markdig.Markdown.Parse(content);
     }
 
-    internal string ToPlainText(string content)
+    internal string ToHtml(Markdig.Syntax.MarkdownDocument document)
     {
-        return Markdig.Markdown.ToPlainText(content, pipeline);
+        return document.ToHtml(pipeline);
+    }
+
+    internal string ToPlainText(Markdig.Syntax.MarkdownDocument document)
+    {
+        // stolen from Markdig implementation of ToPlainText since that isn't exposed
+        var writer = new StringWriter();
+        var renderer = new HtmlRenderer(writer)
+        {
+            EnableHtmlForBlock = false,
+            EnableHtmlForInline = false,
+            EnableHtmlEscape = false,
+        };
+        pipeline.Setup(renderer);
+
+        renderer.Render(document);
+        writer.Flush();
+        return writer.ToString();
     }
 }
 
@@ -329,8 +348,9 @@ internal static class Input
         var frontmatter = JsonUtil.Parse<FrontMatter>(run, file.FullName, frontmatterJson.ToString());
         if (frontmatter == null) { return null; }
 
-        var markdownHtml = markdown.ToHtml(content);
-        var markdownText = markdown.ToPlainText(content);
+        var markdownDocument = markdown.Parse(content);
+        var markdownHtml = markdown.ToHtml(markdownDocument);
+        var markdownText = markdown.ToPlainText(markdownDocument);
 
         if (string.IsNullOrEmpty(frontmatter.Summary))
         {
