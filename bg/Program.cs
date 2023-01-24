@@ -112,6 +112,6 @@ internal sealed class GenerateCommand : AsyncCommand<GenerateCommand.Settings>
         var timeTaken = timeEnd - timeStart;
         AnsiConsole.MarkupLineInterpolated($"Wrote [green]{pagesGenerated}[/] files in [blue]{timeTaken}[/]");
 
-        return run.ErrorCount > 0 ? -1 : 0;
+        return run.HasError() ? -1 : 0;
     }
 }

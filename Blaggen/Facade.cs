@@ -30,12 +30,17 @@ public class VfsWrite
 
 public class Run
 {
-    public int ErrorCount { get; set; } = 0;
+    private int errorCount = 0;
 
     public void WriteError(string message)
     {
         AnsiConsole.MarkupLineInterpolated($"[red]ERROR[/]: {message}");
-        ErrorCount += 1;
+        errorCount += 1;
+    }
+
+    public bool HasError()
+    {
+        return errorCount > 0;
     }
 }
 
@@ -90,7 +95,7 @@ public static class Facade
         path.Directory!.Create();
         await vfsWrite.WriteAllTextAsync(path, content);
 
-        Debug.Assert(run.ErrorCount == 0);
+        Debug.Assert(run.HasError() == false);
         AnsiConsole.MarkupLineInterpolated($"Wrote [blue]${path.FullName}[/]");
         return 0;
     }
