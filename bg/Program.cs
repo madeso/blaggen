@@ -503,6 +503,8 @@ public static class Generate
         }
     }
 
+    internal record RootLink(string Name, string Url, bool IsSelected);
+
     internal class PageData
     {
         public readonly string title;
@@ -515,11 +517,14 @@ public static class Generate
         public readonly string time_long;
         public readonly Dictionary<string, object> partial;
         public readonly List<SummaryForPost> pages;
+        public readonly List<RootLink> roots;
 
-        public PageData(Site site, Post post, Dictionary<string, object> partials, List<SummaryForPost> summaries)
+        public PageData(Site site, Post post, ImmutableArray<RootLink> rootLinks, Dictionary<string, object> partials,
+            List<SummaryForPost> summaries)
         {
             this.title = post.Front.Title;
             this.summary = post.Front.Summary;
+            this.roots = rootLinks.ToList();
 
             var rel = post.IsIndex ? post.RelativePath.PopBack() : post.RelativePath;
             var relative = string.Join('/', rel.Add("index"));
@@ -539,10 +544,16 @@ public static class Generate
     internal static async Task<int> WriteSite(Run run, Site site, DirectoryInfo publicDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
     {
         var owners = ImmutableArray.Create<Dir>();
-        return await WriteDir(run, site, site.Root, publicDir, templates, partials, owners, true);
+        var roots = site.Root.Dirs
+            .Select(dir => new RootLink(dir.Name, $"{dir.Name}/index.html", false)).Concat(site.Root.Posts
+            .Select(fil => new RootLink(fil.Name, $"{fil.Name}/index.html", false))).ToImmutableArray()
+            ;
+        return await WriteDir(run, site, roots, site.Root, publicDir, templates, partials, owners, true);
     }
 
-    private static async Task<int> WriteDir(Run run, Site site, Dir dir, DirectoryInfo targetDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials, ImmutableArray<Dir> owners, bool isRoot)
+    private static async Task<int> WriteDir(Run run, Site site, ImmutableArray<RootLink> rootLinksBase, Dir dir,
+        DirectoryInfo targetDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials,
+        ImmutableArray<Dir> owners, bool isRoot)
     {
         int count = 0;
         var ownersWithSelf = isRoot ? owners : owners.Add(dir); // if this is root, don't add the "content" folder
@@ -550,25 +561,45 @@ public static class Generate
 
         foreach (var subdir in dir.Dirs)
         {
-            count += await WriteDir(run, site, subdir, targetDir.GetDir(subdir.Name), templates, partials, ownersWithSelf, false);
+            var rootLinks = isRoot ? rootLinksBase.Select(x => IsSelected(x, subdir.Name)).ToImmutableArray() : rootLinksBase;
+            count += await WriteDir(run, site, rootLinks, subdir, targetDir.GetDir(subdir.Name), templates, partials, ownersWithSelf, false);
         }
 
         var summaries = dir.Posts.Where(post => post.IsIndex == false).Select(post => new SummaryForPost(post, site)).ToImmutableArray();
         foreach (var post in dir.Posts)
         {
+            var rootLinks = isRoot ? rootLinksBase.Select(x => IsSelected(x, post.Name)).ToImmutableArray() : rootLinksBase;
+            var extraSteps = 0;
+            var rootLinksWithLinks = rootLinks.Select(x => StepBack(x, owners.Length + extraSteps)).ToImmutableArray();
             // todo(Gustav): paginate index using Chunk(size)
-            count += await WritePost(run, site, templateFolders, post, summaries, targetDir, templates, partials);
+            count += await WritePost(run, site, rootLinksWithLinks, templateFolders, post, summaries, targetDir, templates, partials);
         }
 
         return count;
+
+        static RootLink IsSelected(RootLink r, string s)
+        {
+            var isSelected = r.Name == s;
+            return new RootLink(r.Name, isSelected ? $"../{r.Url}" : r.Url, isSelected);
+        }
+
+        static RootLink StepBack(RootLink r, int steps)
+        {
+            var sb = new StringBuilder();
+            for(int i=0; i<steps; i+=1)
+            {
+                sb.Append("../");
+            }
+            return new RootLink(r.Name, $"{sb}{r.Url}", r.IsSelected);
+        }
     }
 
-    private static async Task<int> WritePost(Run run, Site site, ImmutableArray<DirectoryInfo> templateFolders, Post post,
-        ImmutableArray<SummaryForPost> summaries, DirectoryInfo postsDir, Templates templates,
-        ImmutableArray<KeyValuePair<string, object>> partials)
+    private static async Task<int> WritePost(Run run, Site site, ImmutableArray<RootLink> rootLinks,
+        ImmutableArray<DirectoryInfo> templateFolders, Post post, ImmutableArray<SummaryForPost> summaries,
+        DirectoryInfo postsDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
     {
         int pagesGenerated = 0;
-        var data = new PageData(site, post, partials.ToDictionary(k => k.Key, k => k.Value), summaries.ToList());
+        var data = new PageData(site, post, rootLinks, partials.ToDictionary(k => k.Key, k => k.Value), summaries.ToList());
         var templateName = post.IsIndex ? Constants.DIR_TEMPLATE : Constants.POST_TEMPLATE;
         var destDir = post.IsIndex ? postsDir : postsDir.GetDir(post.Name);
 
