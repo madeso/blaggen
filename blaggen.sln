@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "bg", "bg\bg.csproj", "{F6BF
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Blaggen", "Blaggen\Blaggen.csproj", "{0F66E647-E827-4AE7-9DE0-DDDB33747DCB}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BlaggenTest", "BlaggenTest\BlaggenTest.csproj", "{9F7898A6-82B4-4DFE-BD53-503830D88CD0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{0F66E647-E827-4AE7-9DE0-DDDB33747DCB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0F66E647-E827-4AE7-9DE0-DDDB33747DCB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0F66E647-E827-4AE7-9DE0-DDDB33747DCB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9F7898A6-82B4-4DFE-BD53-503830D88CD0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9F7898A6-82B4-4DFE-BD53-503830D88CD0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9F7898A6-82B4-4DFE-BD53-503830D88CD0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9F7898A6-82B4-4DFE-BD53-503830D88CD0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
