@@ -143,9 +143,11 @@ internal sealed class GenerateCommand : AsyncCommand<GenerateCommand.Settings>
         if (site == null) { return -1; }
 
         var publicDir = root.GetDir("public");
-        var templates = new Templates(run, root);
-        var partials = root.GetDir("partials").EnumerateFiles()
-            .Select(file => new { Name = Path.GetFileNameWithoutExtension(file.Name), Content = File.ReadAllText(file.FullName) })
+        var templates = await Templates.Load(run, root);
+        var unloadedPartials = root.GetDir("partials").EnumerateFiles()
+            .Select(async file => new { Name = Path.GetFileNameWithoutExtension(file.Name), Content = await File.ReadAllTextAsync(file.FullName)})
+            ;
+        var partials = (await Task.WhenAll(unloadedPartials))
             .Select(d => new KeyValuePair<string, object>(d.Name, new Func<object>(() => d.Content)))
             .ToImmutableArray()
             ;
@@ -164,22 +166,33 @@ internal sealed class GenerateCommand : AsyncCommand<GenerateCommand.Settings>
 
 class Templates
 {
-    public Templates(Run run, DirectoryInfo root)
+    private Templates(DirectoryInfo tf, DirectoryInfo cf, ImmutableDictionary<string, string> td, ImmutableHashSet<string> ex)
     {
-        TemplateFolder = root.GetDir("templates");
-        ContentFolder = Input.GetContentDirectory(root);
+        TemplateFolder = tf;
+        ContentFolder = cf;
         stubble = new StubbleBuilder().Build();
+
+        this.Extensions = ex;
+        this.TemplateDict = td;
+    }
+
+    public static async Task<Templates> Load(Run run, DirectoryInfo root)
+    {
+        var TemplateFolder = root.GetDir("templates");
+        var ContentFolder = Input.GetContentDirectory(root);
 
         var templateFiles = TemplateFolder.EnumerateFiles("*.*", SearchOption.AllDirectories)
             .Where(f => f.Name.Contains(Constants.MUSTACHE_TEMPLATE_POSTFIX))
             .ToImmutableArray();
 
-        this.Extensions = templateFiles.Select(file => file.Extension.ToLowerInvariant()).ToImmutableHashSet();
-        this.TemplateDict = templateFiles
-            .Select(file => new { File = file, Contents = file.LoadFileOrNull(run) })
+        var unloadedFiles = templateFiles
+            .Select(async file => new { File = file, Contents = await file.LoadFileOrNull(run) });
+        var td = (await Task.WhenAll(unloadedFiles))
             .Where(x => x.Contents != null)
-            .ToImmutableDictionary(x => x.File, x => x.Contents!)
+            .ToImmutableDictionary(x => x.File.FullName, x => x.Contents!)
             ;
+        var ext = templateFiles.Select(file => file.Extension.ToLowerInvariant()).ToImmutableHashSet();
+        return new Templates(TemplateFolder, ContentFolder, td, ext);
     }
 
     private readonly StubbleVisitorRenderer stubble;
@@ -187,7 +200,7 @@ class Templates
     public DirectoryInfo TemplateFolder { get; }
     public DirectoryInfo ContentFolder { get; }
     public ImmutableHashSet<string> Extensions { get; }
-    public ImmutableDictionary<FileInfo, string> TemplateDict { get; }
+    public ImmutableDictionary<string, string> TemplateDict { get; } // can't use FileInfo as a key
 
     internal string RenderMustache(Run run, string template, FileInfo templateFile, Generate.PageData data, Site site)
     {
@@ -208,6 +221,15 @@ class Templates
             // todo(Gustav): can we switch settings and render a invalid page here? is it worthwhile?
             return "";
         }
+    }
+
+    internal string? GetTemplateOrNull(FileInfo file)
+    {
+        if(TemplateDict.TryGetValue(file.FullName, out var contents))
+        {
+            return contents;
+        }
+        return null;
     }
 }
 
@@ -607,7 +629,7 @@ public static class Generate
         {
             var templateFiles = templateFolders
                 .Select(dir => dir.GetFile(templateName + ext))
-                .Select(file => new FileWithOptionalContent(file, file.LoadFileSilentOrNull()))
+                .Select(file => new FileWithOptionalContent(file, templates.GetTemplateOrNull(file)))
                 .ToImmutableArray()
                 ;
 
@@ -682,9 +704,9 @@ public static class FileExtensions
         return new FileInfo(Path.Join(dir.FullName, file));
     }
 
-    internal static string? LoadFileOrNull(this FileInfo path, Run run)
+    internal async static Task<string?> LoadFileOrNull(this FileInfo path, Run run)
     {
-        try { return File.ReadAllText(path.FullName); }
+        try { return await File.ReadAllTextAsync(path.FullName); }
         catch (Exception x)
         {
             run.WriteError($"Failed to load {path.FullName}: {x.Message}");
@@ -692,9 +714,9 @@ public static class FileExtensions
         }
     }
 
-    internal static string? LoadFileSilentOrNull(this FileInfo path)
+    internal static async Task<string?> LoadFileSilentOrNull(this FileInfo path)
     {
-        try { return File.ReadAllText(path.FullName); }
+        try { return await File.ReadAllTextAsync(path.FullName); }
         catch
         {
             return null;
