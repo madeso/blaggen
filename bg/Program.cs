@@ -563,23 +563,14 @@ public static class Generate
         return count;
     }
 
-    private static async Task<int> WritePost(Run run, Site site, ImmutableArray<DirectoryInfo> templateFolders, Post post, ImmutableArray<SummaryForPost> summaries, DirectoryInfo destDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
-    {
-        var data = new PageData(site, post, partials.ToDictionary(k => k.Key, k => k.Value), summaries.ToList());
-
-        return await GenerateAll(site, run, destDir, templates, templateFolders, post, data);
-    }
-
-    record FileWithOptionalContent(FileInfo File, string? Content);
-
-    private static string DisplayNameForFile(FileInfo file) => Path.GetRelativePath(Environment.CurrentDirectory, file.FullName);
-
-    private static async Task<int> GenerateAll(Site site, Run run, DirectoryInfo postsDir, Templates templates, ImmutableArray<DirectoryInfo> templateFolders, Post post, PageData data)
+    private static async Task<int> WritePost(Run run, Site site, ImmutableArray<DirectoryInfo> templateFolders, Post post,
+        ImmutableArray<SummaryForPost> summaries, DirectoryInfo postsDir, Templates templates,
+        ImmutableArray<KeyValuePair<string, object>> partials)
     {
         int pagesGenerated = 0;
+        var data = new PageData(site, post, partials.ToDictionary(k => k.Key, k => k.Value), summaries.ToList());
         var templateName = post.IsIndex ? Constants.DIR_TEMPLATE : Constants.POST_TEMPLATE;
         var destDir = post.IsIndex ? postsDir : postsDir.GetDir(post.Name);
-
 
         foreach (var ext in templates.Extensions)
         {
@@ -605,8 +596,14 @@ public static class Generate
             AnsiConsole.MarkupLineInterpolated($"Generated {DisplayNameForFile(path)} from {DisplayNameForFile(post.SourceFile)} and {DisplayNameForFile(selected.File)}");
             pagesGenerated += 1;
         }
+
         return pagesGenerated;
     }
+
+    record FileWithOptionalContent(FileInfo File, string? Content);
+
+    private static string DisplayNameForFile(FileInfo file) => Path.GetRelativePath(Environment.CurrentDirectory, file.FullName);
+
 
     private static ImmutableArray<DirectoryInfo> GenerateTemplateFolders(Templates templates, IEnumerable<Dir> owners)
     {
