@@ -28,7 +28,14 @@ public class VfsWrite
 }
 
 
-public class Run
+public interface Run
+{
+    public void WriteError(string message);
+    public bool HasError();
+    public void Status(string message);
+}
+
+public class RunConsole : Run
 {
     private int errorCount = 0;
 
@@ -41,6 +48,37 @@ public class Run
     public bool HasError()
     {
         return errorCount > 0;
+    }
+
+    public void Status(string message)
+    {
+    }
+}
+
+public class RunConsoleWithContext : Run
+{
+    private int errorCount = 0;
+    private StatusContext context;
+
+    public RunConsoleWithContext(StatusContext ctx)
+    {
+        this.context = ctx;
+    }
+
+    public void WriteError(string message)
+    {
+        AnsiConsole.MarkupLineInterpolated($"[red]ERROR[/]: {message}");
+        errorCount += 1;
+    }
+
+    public bool HasError()
+    {
+        return errorCount > 0;
+    }
+
+    public void Status(string message)
+    {
+        context.Status(message);
     }
 }
 

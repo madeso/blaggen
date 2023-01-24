@@ -34,7 +34,7 @@ internal sealed class InitSiteCommand : AsyncCommand<InitSiteCommand.Settings>
 
     public override async Task<int> ExecuteAsync([NotNull] CommandContext context, [NotNull] Settings args)
     {
-        var run = new Run();
+        var run = new RunConsole();
         var vfs = new VfsWrite();
         return await Facade.InitSite(run, vfs);
     }
@@ -52,7 +52,7 @@ internal sealed class NewPostCommand : AsyncCommand<NewPostCommand.Settings>
 
     public override async Task<int> ExecuteAsync([NotNull] CommandContext context, [NotNull] Settings args)
     {
-        var run = new Run();
+        var run = new RunConsole();
         var vfs = new VfsRead();
         var vfsWrite = new VfsWrite();
         var path = new FileInfo(args.Path);
@@ -73,15 +73,15 @@ internal sealed class GenerateCommand : AsyncCommand<GenerateCommand.Settings>
         await AnsiConsole.Status()
             .StartAsync("Working...", async ctx =>
             {
-                ret = await Run(ctx);
+                var run = new RunConsoleWithContext(ctx);
+                ret = await Run(run);
             });
         return ret;
     }
 
     // todo(Gustav): move to Facade
-    private static async Task<int> Run(StatusContext ctx)
+    private static async Task<int> Run(Run run)
     {
-        var run = new Run();
         var vfs = new VfsRead();
         var vfsWrite = new VfsWrite();
 
@@ -90,7 +90,7 @@ internal sealed class GenerateCommand : AsyncCommand<GenerateCommand.Settings>
 
         var timeStart = DateTime.Now;
 
-        ctx.Status("Parsing directory");
+        run.Status("Parsing directory");
         var site = await Input.LoadSite(run, vfs, root, new Markdown());
         if (site == null) { return -1; }
 
@@ -104,7 +104,7 @@ internal sealed class GenerateCommand : AsyncCommand<GenerateCommand.Settings>
             .ToImmutableArray()
             ;
 
-        ctx.Status("Writing data to disk");
+        run.Status("Writing data to disk");
         var pagesGenerated = await Generate.WriteSite(run, vfsWrite, site, publicDir, templates, partials);
         // todo(Gustav): copy static files
 
