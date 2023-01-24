@@ -74,44 +74,10 @@ internal sealed class GenerateCommand : AsyncCommand<GenerateCommand.Settings>
             .StartAsync("Working...", async ctx =>
             {
                 var run = new RunConsoleWithContext(ctx);
-                ret = await Run(run);
+                var vfs = new VfsRead();
+                var vfsWrite = new VfsWrite();
+                ret = await Facade.GenerateSite(run, vfs, vfsWrite);
             });
         return ret;
-    }
-
-    // todo(Gustav): move to Facade
-    private static async Task<int> Run(Run run)
-    {
-        var vfs = new VfsRead();
-        var vfsWrite = new VfsWrite();
-
-        var root = Input.FindRootFromCurentDirectory();
-        if (root == null) { run.WriteError("Unable to find root"); return -1; }
-
-        var timeStart = DateTime.Now;
-
-        run.Status("Parsing directory");
-        var site = await Input.LoadSite(run, vfs, root, new Markdown());
-        if (site == null) { return -1; }
-
-        var publicDir = root.GetDir("public");
-        var templates = await Templates.Load(run, vfs, root);
-        var unloadedPartials = root.GetDir("partials").EnumerateFiles()
-            .Select(async file => new { Name = Path.GetFileNameWithoutExtension(file.Name), Content = await vfs.ReadAllTextAsync(file)})
-            ;
-        var partials = (await Task.WhenAll(unloadedPartials))
-            .Select(d => new KeyValuePair<string, object>(d.Name, new Func<object>(() => d.Content)))
-            .ToImmutableArray()
-            ;
-
-        run.Status("Writing data to disk");
-        var pagesGenerated = await Generate.WriteSite(run, vfsWrite, site, publicDir, templates, partials);
-        // todo(Gustav): copy static files
-
-        var timeEnd = DateTime.Now;
-        var timeTaken = timeEnd - timeStart;
-        AnsiConsole.MarkupLineInterpolated($"Wrote [green]{pagesGenerated}[/] files in [blue]{timeTaken}[/]");
-
-        return run.HasError() ? -1 : 0;
     }
 }
