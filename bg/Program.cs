@@ -44,6 +44,7 @@ internal sealed class InitSiteCommand : AsyncCommand<InitSiteCommand.Settings>
     public override async Task<int> ExecuteAsync([NotNull] CommandContext context, [NotNull] Settings args)
     {
         var run = new Run();
+        var vfs = new VfsWrite();
 
         var existingSite = SiteData.FindRootFromCurentDirectory();
         if (existingSite != null)
@@ -55,7 +56,7 @@ internal sealed class InitSiteCommand : AsyncCommand<InitSiteCommand.Settings>
         var site = new SiteData { Name = "My new blog" };
         var json = JsonUtil.Write(site);
         var path = Path.Join(Environment.CurrentDirectory, SiteData.PATH);
-        await File.WriteAllTextAsync(path, json);
+        await vfs.WriteAllTextAsync(new FileInfo(path), json);
 
         // todo(Gustav): generate basic templates
         return 0;
@@ -75,6 +76,8 @@ internal sealed class NewPostCommand : AsyncCommand<NewPostCommand.Settings>
     public override async Task<int> ExecuteAsync([NotNull] CommandContext context, [NotNull] Settings args)
     {
         var run = new Run();
+        var vfs = new VfsRead();
+        var vfsWrite = new VfsWrite();
 
         var path = new FileInfo(args.Path);
         if (path.Exists) { run.WriteError($"Post {path} already exit"); return -1; }
@@ -85,7 +88,7 @@ internal sealed class NewPostCommand : AsyncCommand<NewPostCommand.Settings>
         var root = SiteData.FindRoot(pathDir);
         if (root == null) { run.WriteError("Unable to find root"); return -1; }
 
-        var site = await Input.LoadSiteData(run, root);
+        var site = await Input.LoadSiteData(run, vfs, root);
         if (site == null) { return -1; }
 
         // todo(Gustav): create _index.md for each directory depending on setting
@@ -103,7 +106,7 @@ internal sealed class NewPostCommand : AsyncCommand<NewPostCommand.Settings>
         var content = $"{Input.SOURCE_START}\n{frontmatter}\n{Input.SOURCE_END}\n{Input.FRONTMATTER_SEP}\n# {title}";
 
         path.Directory!.Create();
-        await File.WriteAllTextAsync(path.FullName, content);
+        await vfsWrite.WriteAllTextAsync(path, content);
 
         Debug.Assert(run.ErrorCount == 0);
         AnsiConsole.MarkupLineInterpolated($"Wrote [blue]${path.FullName}[/]");
@@ -132,6 +135,8 @@ internal sealed class GenerateCommand : AsyncCommand<GenerateCommand.Settings>
     private async Task<int> Run(StatusContext ctx, Settings args)
     {
         var run = new Run();
+        var vfs = new VfsRead();
+        var vfsWrite = new VfsWrite();
 
         var root = SiteData.FindRootFromCurentDirectory();
         if (root == null) { run.WriteError("Unable to find root"); return -1; }
@@ -139,13 +144,13 @@ internal sealed class GenerateCommand : AsyncCommand<GenerateCommand.Settings>
         var timeStart = DateTime.Now;
 
         ctx.Status("Parsing directory");
-        var site = await Input.LoadSite(run, root, new Markdown());
+        var site = await Input.LoadSite(run, vfs, root, new Markdown());
         if (site == null) { return -1; }
 
         var publicDir = root.GetDir("public");
-        var templates = await Templates.Load(run, root);
+        var templates = await Templates.Load(run, vfs, root);
         var unloadedPartials = root.GetDir("partials").EnumerateFiles()
-            .Select(async file => new { Name = Path.GetFileNameWithoutExtension(file.Name), Content = await File.ReadAllTextAsync(file.FullName)})
+            .Select(async file => new { Name = Path.GetFileNameWithoutExtension(file.Name), Content = await vfs.ReadAllTextAsync(file)})
             ;
         var partials = (await Task.WhenAll(unloadedPartials))
             .Select(d => new KeyValuePair<string, object>(d.Name, new Func<object>(() => d.Content)))
@@ -153,7 +158,7 @@ internal sealed class GenerateCommand : AsyncCommand<GenerateCommand.Settings>
             ;
 
         ctx.Status("Writing data to disk");
-        var pagesGenerated = await Generate.WriteSite(run, site, publicDir, templates, partials);
+        var pagesGenerated = await Generate.WriteSite(run, vfsWrite, site, publicDir, templates, partials);
         // todo(Gustav): copy static files
 
         var timeEnd = DateTime.Now;
@@ -161,6 +166,22 @@ internal sealed class GenerateCommand : AsyncCommand<GenerateCommand.Settings>
         AnsiConsole.MarkupLineInterpolated($"Wrote [green]{pagesGenerated}[/] files in [blue]{timeTaken}[/]");
 
         return run.ErrorCount > 0 ? -1 : 0;
+    }
+}
+
+class VfsRead
+{
+    internal async Task<string> ReadAllTextAsync(FileInfo fullName)
+    {
+        return await File.ReadAllTextAsync(fullName.FullName);
+    }
+}
+
+class VfsWrite
+{
+    public async Task WriteAllTextAsync(FileInfo path, string contents)
+    {
+        await File.WriteAllTextAsync(path.FullName, contents);
     }
 }
 
@@ -176,7 +197,7 @@ class Templates
         this.TemplateDict = td;
     }
 
-    public static async Task<Templates> Load(Run run, DirectoryInfo root)
+    public static async Task<Templates> Load(Run run, VfsRead vfs, DirectoryInfo root)
     {
         var TemplateFolder = root.GetDir("templates");
         var ContentFolder = Input.GetContentDirectory(root);
@@ -186,7 +207,7 @@ class Templates
             .ToImmutableArray();
 
         var unloadedFiles = templateFiles
-            .Select(async file => new { File = file, Contents = await file.LoadFileOrNull(run) });
+            .Select(async file => new { File = file, Contents = await file.LoadFileOrNull(run, vfs) });
         var td = (await Task.WhenAll(unloadedFiles))
             .Where(x => x.Contents != null)
             .ToImmutableDictionary(x => x.File.FullName, x => x.Contents!)
@@ -368,15 +389,15 @@ internal static class Input
     public const string SOURCE_END = "```";
     public const string FRONTMATTER_SEP = "***"; // markdown hline
 
-    private static async Task<Post?> ParsePost(Run run, FileInfo file, ImmutableArray<string> relativePath, Markdown markdown)
+    private static async Task<Post?> ParsePost(Run run, VfsRead vfs, FileInfo file, ImmutableArray<string> relativePath, Markdown markdown)
     {
-        var lines = File.ReadLinesAsync(file.FullName);
+        var lines = (await vfs.ReadAllTextAsync(file)).Split('\n');
 
         var frontmatterJson = new StringBuilder();
         var markdownContent = new StringBuilder();
         var parsingFrontmatter = true;
         
-        await foreach (var line in lines)
+        foreach (var line in lines)
         {
             if(parsingFrontmatter)
             {
@@ -391,7 +412,7 @@ internal static class Input
             }
         }
 
-        var frontmatter = JsonUtil.Parse<FrontMatter>(run, file.FullName, frontmatterJson.ToString());
+        var frontmatter = JsonUtil.Parse<FrontMatter>(run, file, frontmatterJson.ToString());
         if (frontmatter == null) { return null; }
 
         var markdownDocument = markdown.Parse(markdownContent.ToString());
@@ -420,18 +441,18 @@ internal static class Input
         return new Post(Guid.NewGuid(), nameWithoutExtension == Constants.INDEX_NAME, relativePath.Add(nameWithoutExtension), frontmatter, file, nameWithoutExtension, markdownHtml, markdownText);
     }
 
-    public static async Task<SiteData?> LoadSiteData(Run run, DirectoryInfo root)
+    public static async Task<SiteData?> LoadSiteData(Run run, VfsRead vfs, DirectoryInfo root)
     {
-        var path = Path.Join(root.FullName, SiteData.PATH);
-        return await JsonUtil.Load<SiteData>(run, path);
+        var path = root.GetFile(SiteData.PATH);
+        return await JsonUtil.Load<SiteData>(run, vfs, path);
     }
 
-    public static async Task<Site?> LoadSite(Run run, DirectoryInfo root, Markdown markdown)
+    public static async Task<Site?> LoadSite(Run run, VfsRead vfs, DirectoryInfo root, Markdown markdown)
     {
-        var data = await LoadSiteData(run, root);
+        var data = await LoadSiteData(run, vfs, root);
         if (data == null) { return null; }
 
-        var content = await LoadDir(run, GetContentDirectory(root), ImmutableArray.Create<string>(), true, markdown);
+        var content = await LoadDir(run, vfs, GetContentDirectory(root), ImmutableArray.Create<string>(), true, markdown);
         if (content == null) { return null; }
 
         return new Site(data, content);
@@ -439,13 +460,13 @@ internal static class Input
 
     record PostWithOptionalName(Post Post, string? Name);
 
-    private static async Task<Dir?> LoadDir(Run run, DirectoryInfo root, ImmutableArray<string> relativePaths, bool isContentFolder, Markdown markdown)
+    private static async Task<Dir?> LoadDir(Run run, VfsRead vfs, DirectoryInfo root, ImmutableArray<string> relativePaths, bool isContentFolder, Markdown markdown)
     {
         var name = root.Name;
         var relativePathsIncludingSelf = isContentFolder ? relativePaths : relativePaths.Add(name);
 
-        var postFiles = await LoadPosts(run, root.GetFiles("*.md", SearchOption.TopDirectoryOnly), relativePathsIncludingSelf, markdown).ToListAsync();
-        var dirs = await LoadDirsWithoutNulls(run, root.GetDirectories(), relativePathsIncludingSelf, markdown).ToListAsync();
+        var postFiles = await LoadPosts(run, vfs, root.GetFiles("*.md", SearchOption.TopDirectoryOnly), relativePathsIncludingSelf, markdown).ToListAsync();
+        var dirs = await LoadDirsWithoutNulls(run, vfs, root.GetDirectories(), relativePathsIncludingSelf, markdown).ToListAsync();
 
         // remove dirs that only contain a index
         var dirsAsPosts = dirs.Where(dir => dir.Posts.Length == 1 && dir.Posts[0].Name == Constants.INDEX_NAME).ToImmutableArray();
@@ -468,26 +489,26 @@ internal static class Input
         var posts = postFiles.Concat(additionalPosts).OrderByDescending(p => p.Front.Date).ToImmutableArray();
         return new Dir(Guid.NewGuid(), name, posts, dirs.ToImmutableArray());
 
-        static async IAsyncEnumerable<Dir> LoadDirsWithoutNulls(Run run, IEnumerable<DirectoryInfo> dirs, ImmutableArray<string> relativePaths, Markdown markdown)
+        static async IAsyncEnumerable<Dir> LoadDirsWithoutNulls(Run run, VfsRead vfs, IEnumerable<DirectoryInfo> dirs, ImmutableArray<string> relativePaths, Markdown markdown)
         {
             foreach (var d in dirs)
             {
                 if (d == null) { continue; }
 
-                var dir = await LoadDir(run, d, relativePaths, false, markdown);
+                var dir = await LoadDir(run, vfs, d, relativePaths, false, markdown);
                 if (dir == null) { continue; }
 
                 yield return dir;
             }
         }
 
-        static async IAsyncEnumerable<Post> LoadPosts(Run run, IEnumerable<FileInfo> files, ImmutableArray<string> relativePaths, Markdown markdown)
+        static async IAsyncEnumerable<Post> LoadPosts(Run run, VfsRead vfs, IEnumerable<FileInfo> files, ImmutableArray<string> relativePaths, Markdown markdown)
         {
             foreach (var f in files)
             {
                 if (f == null) { continue; }
 
-                var post = await ParsePost(run, f, relativePaths, markdown);
+                var post = await ParsePost(run, vfs, f, relativePaths, markdown);
                 if (post == null) { continue; }
 
                 yield return post;
@@ -563,17 +584,17 @@ public static class Generate
         // todo(Gustav): generate full url
     }
 
-    internal static async Task<int> WriteSite(Run run, Site site, DirectoryInfo publicDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
+    internal static async Task<int> WriteSite(Run run, VfsWrite vfs, Site site, DirectoryInfo publicDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
     {
         var owners = ImmutableArray.Create<Dir>();
         var roots = site.Root.Dirs
             .Select(dir => new RootLink(dir.Name, $"{dir.Name}/index.html", false)).Concat(site.Root.Posts
             .Select(fil => new RootLink(fil.Name, $"{fil.Name}/index.html", false))).ToImmutableArray()
             ;
-        return await WriteDir(run, site, roots, site.Root, publicDir, templates, partials, owners, true);
+        return await WriteDir(run, vfs, site, roots, site.Root, publicDir, templates, partials, owners, true);
     }
 
-    private static async Task<int> WriteDir(Run run, Site site, ImmutableArray<RootLink> rootLinksBase, Dir dir,
+    private static async Task<int> WriteDir(Run run, VfsWrite vfs, Site site, ImmutableArray<RootLink> rootLinksBase, Dir dir,
         DirectoryInfo targetDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials,
         ImmutableArray<Dir> owners, bool isRoot)
     {
@@ -584,7 +605,7 @@ public static class Generate
         foreach (var subdir in dir.Dirs)
         {
             var rootLinks = isRoot ? rootLinksBase.Select(x => IsSelected(x, subdir.Name)).ToImmutableArray() : rootLinksBase;
-            count += await WriteDir(run, site, rootLinks, subdir, targetDir.GetDir(subdir.Name), templates, partials, ownersWithSelf, false);
+            count += await WriteDir(run, vfs, site, rootLinks, subdir, targetDir.GetDir(subdir.Name), templates, partials, ownersWithSelf, false);
         }
 
         var summaries = dir.Posts.Where(post => post.IsIndex == false).Select(post => new SummaryForPost(post, site)).ToImmutableArray();
@@ -594,7 +615,7 @@ public static class Generate
             var extraSteps = 0;
             var rootLinksWithLinks = rootLinks.Select(x => StepBack(x, owners.Length + extraSteps)).ToImmutableArray();
             // todo(Gustav): paginate index using Chunk(size)
-            count += await WritePost(run, site, rootLinksWithLinks, templateFolders, post, summaries, targetDir, templates, partials);
+            count += await WritePost(run, vfs, site, rootLinksWithLinks, templateFolders, post, summaries, targetDir, templates, partials);
         }
 
         return count;
@@ -616,7 +637,7 @@ public static class Generate
         }
     }
 
-    private static async Task<int> WritePost(Run run, Site site, ImmutableArray<RootLink> rootLinks,
+    private static async Task<int> WritePost(Run run, VfsWrite vfs, Site site, ImmutableArray<RootLink> rootLinks,
         ImmutableArray<DirectoryInfo> templateFolders, Post post, ImmutableArray<SummaryForPost> summaries,
         DirectoryInfo postsDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
     {
@@ -645,7 +666,7 @@ public static class Generate
             destDir.Create();
 
             var renderedPage = templates.RenderMustache(run, selected.Content!, selected.File, data, site);
-            await File.WriteAllTextAsync(path.FullName, renderedPage);
+            await vfs.WriteAllTextAsync(path, renderedPage);
             AnsiConsole.MarkupLineInterpolated($"Generated {DisplayNameForFile(path)} from {DisplayNameForFile(post.SourceFile)} and {DisplayNameForFile(selected.File)}");
             pagesGenerated += 1;
         }
@@ -704,9 +725,9 @@ public static class FileExtensions
         return new FileInfo(Path.Join(dir.FullName, file));
     }
 
-    internal async static Task<string?> LoadFileOrNull(this FileInfo path, Run run)
+    internal async static Task<string?> LoadFileOrNull(this FileInfo path, Run run, VfsRead vfs)
     {
-        try { return await File.ReadAllTextAsync(path.FullName); }
+        try { return await vfs.ReadAllTextAsync(path); }
         catch (Exception x)
         {
             run.WriteError($"Failed to load {path.FullName}: {x.Message}");
@@ -714,9 +735,9 @@ public static class FileExtensions
         }
     }
 
-    internal static async Task<string?> LoadFileSilentOrNull(this FileInfo path)
+    internal static async Task<string?> LoadFileSilentOrNull(this FileInfo path, VfsRead vfs)
     {
-        try { return await File.ReadAllTextAsync(path.FullName); }
+        try { return await vfs.ReadAllTextAsync(path); }
         catch
         {
             return null;
@@ -780,7 +801,7 @@ public static class JsonUtil
         AllowTrailingCommas = true,
     };
 
-    public static T? Parse<T>(Run run, string file, string content)
+    public static T? Parse<T>(Run run, FileInfo file, string content)
         where T : class
     {
         try
@@ -796,10 +817,10 @@ public static class JsonUtil
         }
     }
 
-    internal static async Task<T?> Load<T>(Run run, string path)
+    internal static async Task<T?> Load<T>(Run run, VfsRead vfs, FileInfo path)
         where T : class
     {
-        var content = await File.ReadAllTextAsync(path);
+        var content = await vfs.ReadAllTextAsync(path);
         return Parse<T>(run, path, content);
     }
 
