@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
-		<OutputType>Exe</OutputType>
+		<OutputType>Library</OutputType>
 		<TargetFramework>net7.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
@@ -8,9 +8,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="Spectre.Console" Version="0.44.0" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <ProjectReference Include="..\Blaggen\Blaggen.csproj" />
+		<PackageReference Include="Stubble.Core" Version="1.10.8" />
+		<PackageReference Include="Markdig" Version="0.30.4" />
 	</ItemGroup>
 </Project>

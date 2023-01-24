@@ -1,7 +1,7 @@
-bg/obj
-bg/bin
+obj
+bin
 .vs/
-bg/Properties/
+Properties/
 
 public/
 
