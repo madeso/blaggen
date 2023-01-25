@@ -15,14 +15,14 @@ internal class VfsReadTest : VfsRead
 
     private Entry GetEntry(DirectoryInfo dir)
     {
-        if(directories.TryGetValue(dir.FullName, out var entry))
+        if (directories.TryGetValue(dir.FullName, out var entry))
         { return entry; }
 
         entry = new Entry();
         directories[dir.FullName] = entry;
 
         var parent = dir.Parent;
-        if(parent != null)
+        if (parent != null)
         {
             GetEntry(parent).directories.Add(dir.Name, entry);
         }
@@ -43,7 +43,7 @@ internal class VfsReadTest : VfsRead
     public void AddContent(FileInfo file, string content)
     {
         var dir = file.Directory;
-        if(dir != null)
+        if (dir != null)
         {
             GetEntry(dir).files.Add(file);
         }
@@ -69,12 +69,12 @@ internal class VfsReadTest : VfsRead
         {
             foreach (var d in entry.directories.Values)
             {
-                foreach(var f in RecurseFiles(d))
+                foreach (var f in RecurseFiles(d))
                 {
                     yield return f;
                 }
             }
-            foreach(var f in entry.files)
+            foreach (var f in entry.files)
             {
                 yield return f;
             }
@@ -88,7 +88,7 @@ internal class VfsWriteTest : VfsWrite
 
     public Task WriteAllTextAsync(FileInfo path, string contents)
     {
-        return Task.Factory.StartNew( () => { files.Add(path.FullName, contents); } );
+        return Task.Factory.StartNew(() => { files.Add(path.FullName, contents); });
     }
 
     public string GetContent(FileInfo file)

@@ -20,7 +20,7 @@ public class TestNewPost : TestBase
 
         var ret = await Facade.NewPost(run, read, write, postFile);
 
-        using(new AssertionScope())
+        using (new AssertionScope())
         {
             ret.Should().Be(0);
             run.Errors.Should().BeEmpty();
@@ -28,7 +28,7 @@ public class TestNewPost : TestBase
 
         var content = write.GetContent(postFile);
         content.Should().EndWith("\n# Test");
-        
+
         write.RemainingFiles.Should().BeEmpty();
     }
 

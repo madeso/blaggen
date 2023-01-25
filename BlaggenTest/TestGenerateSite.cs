@@ -1,7 +1,6 @@
 ﻿using Blaggen;
-using FluentAssertions.Execution;
 using FluentAssertions;
-using System.ComponentModel.Design.Serialization;
+using FluentAssertions.Execution;
 using Xunit;
 
 namespace BlaggenTest;

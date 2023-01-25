@@ -1,10 +1,10 @@
-﻿using System.Collections.Immutable;
-using System.Text;
-using Spectre.Console;
+﻿using Spectre.Console;
+using Stubble.Core;
 using Stubble.Core.Builders;
 using Stubble.Core.Exceptions;
 using Stubble.Core.Settings;
-using Stubble.Core;
+using System.Collections.Immutable;
+using System.Text;
 
 namespace Blaggen;
 
@@ -86,7 +86,7 @@ public static class Input
     public const string SOURCE_END = "```";
     public const string FRONTMATTER_SEP = "***"; // markdown hline
 
-    
+
     public static DirectoryInfo? FindRoot(VfsRead vfs, DirectoryInfo? start)
     {
         DirectoryInfo? current = start;

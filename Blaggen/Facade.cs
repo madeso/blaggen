@@ -1,11 +1,5 @@
-﻿using System.Collections.Immutable;
-using System.Globalization;
-using System.Text.Json.Serialization;
-using Stubble.Core.Builders;
-using Stubble.Core;
-using Stubble.Core.Settings;
-using Stubble.Core.Exceptions;
-using Spectre.Console;
+﻿using Spectre.Console;
+using System.Collections.Immutable;
 using System.Diagnostics;
 
 namespace Blaggen;
@@ -104,7 +98,7 @@ public static class Facade
         var publicDir = root.GetDir("public");
         var templates = await Templates.Load(run, vfs, root);
 
-        if(templates.Extensions.Count == 0)
+        if (templates.Extensions.Count == 0)
         {
             run.WriteError($"No templates found in {templates.TemplateFolder}");
             return -1;
@@ -122,7 +116,7 @@ public static class Facade
         var pagesGenerated = await Generate.WriteSite(run, vfsWrite, site, publicDir, templates, partials);
         // todo(Gustav): copy static files
 
-        if(pagesGenerated == 0)
+        if (pagesGenerated == 0)
         {
             run.WriteError("No pages were generated.");
             return -1;
