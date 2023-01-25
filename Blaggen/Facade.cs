@@ -11,22 +11,16 @@ using System.Diagnostics;
 namespace Blaggen;
 
 
-public class VfsRead
+public interface VfsRead
 {
-    public async Task<string> ReadAllTextAsync(FileInfo fullName)
-    {
-        return await File.ReadAllTextAsync(fullName.FullName);
-    }
+    bool Exists(FileInfo fileInfo);
+    public Task<string> ReadAllTextAsync(FileInfo fullName);
 }
 
-public class VfsWrite
+public interface VfsWrite
 {
-    public async Task WriteAllTextAsync(FileInfo path, string contents)
-    {
-        await File.WriteAllTextAsync(path.FullName, contents);
-    }
+    public Task WriteAllTextAsync(FileInfo path, string contents);
 }
-
 
 public interface Run
 {
@@ -35,59 +29,13 @@ public interface Run
     public void Status(string message);
 }
 
-public class RunConsole : Run
-{
-    private int errorCount = 0;
-
-    public void WriteError(string message)
-    {
-        AnsiConsole.MarkupLineInterpolated($"[red]ERROR[/]: {message}");
-        errorCount += 1;
-    }
-
-    public bool HasError()
-    {
-        return errorCount > 0;
-    }
-
-    public void Status(string message)
-    {
-    }
-}
-
-public class RunConsoleWithContext : Run
-{
-    private int errorCount = 0;
-    private StatusContext context;
-
-    public RunConsoleWithContext(StatusContext ctx)
-    {
-        this.context = ctx;
-    }
-
-    public void WriteError(string message)
-    {
-        AnsiConsole.MarkupLineInterpolated($"[red]ERROR[/]: {message}");
-        errorCount += 1;
-    }
-
-    public bool HasError()
-    {
-        return errorCount > 0;
-    }
-
-    public void Status(string message)
-    {
-        context.Status(message);
-    }
-}
 
 
 public static class Facade
 {
-    public static async Task<int> InitSite(Run run, VfsWrite vfs)
+    public static async Task<int> InitSite(Run run, VfsRead read, VfsWrite vfs, DirectoryInfo currentDirectory)
     {
-        var existingSite = Input.FindRootFromCurentDirectory();
+        var existingSite = Input.FindRoot(read, currentDirectory);
         if (existingSite != null)
         {
             run.WriteError($"Site already exists at {existingSite.FullName}");
@@ -110,7 +58,7 @@ public static class Facade
         var pathDir = path.Directory;
         if (pathDir == null) { run.WriteError($"Post {path} isn't rooted"); return -1; }
 
-        var root = Input.FindRoot(pathDir);
+        var root = Input.FindRoot(vfs, pathDir);
         if (root == null) { run.WriteError("Unable to find root"); return -1; }
 
         var site = await Input.LoadSiteData(run, vfs, root);
@@ -138,9 +86,9 @@ public static class Facade
         return 0;
     }
 
-    public static async Task<int> GenerateSite(Run run, VfsRead vfs, VfsWrite vfsWrite)
+    public static async Task<int> GenerateSite(Run run, VfsRead vfs, VfsWrite vfsWrite, DirectoryInfo currentDirectory)
     {
-        var root = Input.FindRootFromCurentDirectory();
+        var root = Input.FindRoot(vfs, currentDirectory);
         if (root == null) { run.WriteError("Unable to find root"); return -1; }
 
         var timeStart = DateTime.Now;

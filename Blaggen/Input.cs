@@ -87,17 +87,11 @@ public static class Input
     public const string FRONTMATTER_SEP = "***"; // markdown hline
 
     
-    // find root that contains the root file (or null)
-    public static DirectoryInfo? FindRootFromCurentDirectory()
-    {
-        return FindRoot(new DirectoryInfo(Environment.CurrentDirectory));
-    }
-
-    public static DirectoryInfo? FindRoot(DirectoryInfo? start)
+    public static DirectoryInfo? FindRoot(VfsRead vfs, DirectoryInfo? start)
     {
         DirectoryInfo? current = start;
 
-        while (current != null && current.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION).Exists == false)
+        while (current != null && vfs.Exists(current.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION)) == false)
         {
             current = current.Parent;
         }
