@@ -3,6 +3,10 @@ bin
 .vs/
 Properties/
 
+# live unit tests config
+blaggen.lutconfig
+
 public/
+
 
 example/kodsnack-site/

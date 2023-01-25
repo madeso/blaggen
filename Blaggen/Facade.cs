@@ -53,7 +53,7 @@ public static class Facade
 
     public static async Task<int> NewPost(Run run, VfsRead vfs, VfsWrite vfsWrite, FileInfo path)
     {
-        if (path.Exists) { run.WriteError($"Post {path} already exit"); return -1; }
+        if (vfs.Exists(path)) { run.WriteError($"Post {path} already exist"); return -1; }
 
         var pathDir = path.Directory;
         if (pathDir == null) { run.WriteError($"Post {path} isn't rooted"); return -1; }

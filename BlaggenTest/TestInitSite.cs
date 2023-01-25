@@ -1,13 +1,9 @@
 using Blaggen;
+using FluentAssertions;
+using FluentAssertions.Execution;
 
 namespace BlaggenTest;
 
-public class TestBase
-{
-    internal RunTest run = new();
-    internal VfsReadTest read = new();
-    internal VfsWriteTest write = new();
-}
 
 public class TestInitSite : TestBase
 {
@@ -17,11 +13,15 @@ public class TestInitSite : TestBase
         var cwd = new DirectoryInfo(@"C:\test\");
 
         var ret = await Facade.InitSite(run, read, write, cwd);
-        Assert.Equal(0, ret);
+        using (new AssertionScope())
+        {
+            ret.Should().Be(0);
+            run.Errors.Should().BeEmpty();
+        }
 
         // test content?
         write.GetContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION));
-        Assert.True(write.IsEmpty(), write.GetFileText());
+        write.RemainingFiles.Should().BeEmpty();
     }
 
     [Fact]
@@ -31,8 +31,8 @@ public class TestInitSite : TestBase
         read.AddContent(cwd.Parent!.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
 
         var ret = await Facade.InitSite(run, read, write, cwd);
-        Assert.Equal(-1, ret);
+        ret.Should().Be(-1);
 
-        Assert.True(write.IsEmpty());
+        write.RemainingFiles.Should().BeEmpty();
     }
 }
