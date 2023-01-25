@@ -5,7 +5,31 @@ namespace BlaggenTest;
 
 internal class VfsReadTest : VfsRead
 {
+    class Entry
+    {
+        public readonly Dictionary<string, Entry> directories = new();
+        public readonly List<FileInfo> files = new();
+    }
+
+    private readonly Dictionary<string, Entry> directories = new();
     private readonly Dictionary<string, string> files = new();
+
+    private Entry GetEntry(DirectoryInfo dir)
+    {
+        if(directories.TryGetValue(dir.FullName, out var entry))
+        { return entry; }
+
+        entry = new Entry();
+        directories[dir.FullName] = entry;
+
+        var parent = dir.Parent;
+        if(parent != null)
+        {
+            GetEntry(parent).directories.Add(dir.Name, entry);
+        }
+
+        return entry;
+    }
 
     public bool Exists(FileInfo fileInfo)
     {
@@ -19,7 +43,43 @@ internal class VfsReadTest : VfsRead
 
     public void AddContent(FileInfo file, string content)
     {
+        var dir = file.Directory;
+        if(dir != null)
+        {
+            GetEntry(dir).files.Add(file);
+        }
+
         files.Add(file.FullName, content);
+    }
+
+    public IEnumerable<FileInfo> GetFiles(DirectoryInfo dir)
+    {
+        return GetEntry(dir).files;
+    }
+
+    public IEnumerable<DirectoryInfo> GetDirectories(DirectoryInfo root)
+    {
+        return GetEntry(root).directories.Keys.Select(root.GetDir);
+    }
+
+    public IEnumerable<FileInfo> GetFilesRec(DirectoryInfo dir)
+    {
+        return RecurseFiles(GetEntry(dir));
+
+        static IEnumerable<FileInfo> RecurseFiles(Entry entry)
+        {
+            foreach (var d in entry.directories.Values)
+            {
+                foreach(var f in RecurseFiles(d))
+                {
+                    yield return f;
+                }
+            }
+            foreach(var f in entry.files)
+            {
+                yield return f;
+            }
+        }
     }
 }
 
@@ -40,7 +100,7 @@ internal class VfsWriteTest : VfsWrite
         }
         else
         {
-            throw new FileNotFoundException($"{file.FullName} was not added to container.\n{GetFileText()}");
+            throw new FileNotFoundException($"{file.FullName} was not added to container.\n{GetRemainingFilesAsText()}");
         }
     }
 
@@ -51,7 +111,7 @@ internal class VfsWriteTest : VfsWrite
         return files.Count == 0;
     }
 
-    internal string GetFileText()
+    internal string GetRemainingFilesAsText()
     {
         var fs = string.Join(" ", files.Keys);
         return $"files: [{fs}]";
@@ -69,7 +129,6 @@ internal class RunTest : Run
 
     public void Status(string message)
     {
-        throw new NotImplementedException();
     }
 
     public void WriteError(string message)

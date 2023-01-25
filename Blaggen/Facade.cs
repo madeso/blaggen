@@ -14,7 +14,11 @@ namespace Blaggen;
 public interface VfsRead
 {
     bool Exists(FileInfo fileInfo);
-    public Task<string> ReadAllTextAsync(FileInfo fullName);
+    public Task<string> ReadAllTextAsync(FileInfo path);
+
+    public IEnumerable<FileInfo> GetFiles(DirectoryInfo dir);
+    IEnumerable<DirectoryInfo> GetDirectories(DirectoryInfo root);
+    IEnumerable<FileInfo> GetFilesRec(DirectoryInfo dir);
 }
 
 public interface VfsWrite
@@ -99,7 +103,14 @@ public static class Facade
 
         var publicDir = root.GetDir("public");
         var templates = await Templates.Load(run, vfs, root);
-        var unloadedPartials = root.GetDir("partials").EnumerateFiles()
+
+        if(templates.Extensions.Count == 0)
+        {
+            run.WriteError($"No templates found in {templates.TemplateFolder}");
+            return -1;
+        }
+
+        var unloadedPartials = vfs.GetFiles(root.GetDir("partials"))
             .Select(async file => new { Name = Path.GetFileNameWithoutExtension(file.Name), Content = await vfs.ReadAllTextAsync(file) })
             ;
         var partials = (await Task.WhenAll(unloadedPartials))
@@ -110,6 +121,12 @@ public static class Facade
         run.Status("Writing data to disk");
         var pagesGenerated = await Generate.WriteSite(run, vfsWrite, site, publicDir, templates, partials);
         // todo(Gustav): copy static files
+
+        if(pagesGenerated == 0)
+        {
+            run.WriteError("No pages were generated.");
+            return -1;
+        }
 
         var timeEnd = DateTime.Now;
         var timeTaken = timeEnd - timeStart;

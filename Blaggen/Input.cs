@@ -26,7 +26,7 @@ public class Templates
         var TemplateFolder = root.GetDir("templates");
         var ContentFolder = Input.GetContentDirectory(root);
 
-        var templateFiles = TemplateFolder.EnumerateFiles("*.*", SearchOption.AllDirectories)
+        var templateFiles = vfs.GetFilesRec(TemplateFolder)
             .Where(f => f.Name.Contains(Constants.MUSTACHE_TEMPLATE_POSTFIX))
             .ToImmutableArray();
 
@@ -175,8 +175,8 @@ public static class Input
         var name = root.Name;
         var relativePathsIncludingSelf = isContentFolder ? relativePaths : relativePaths.Add(name);
 
-        var postFiles = await LoadPosts(run, vfs, root.GetFiles("*.md", SearchOption.TopDirectoryOnly), relativePathsIncludingSelf, markdown).ToListAsync();
-        var dirs = await LoadDirsWithoutNulls(run, vfs, root.GetDirectories(), relativePathsIncludingSelf, markdown).ToListAsync();
+        var postFiles = await LoadPosts(run, vfs, vfs.GetFiles(root).Where(f => f.Extension == ".md"), relativePathsIncludingSelf, markdown).ToListAsync();
+        var dirs = await LoadDirsWithoutNulls(run, vfs, vfs.GetDirectories(root), relativePathsIncludingSelf, markdown).ToListAsync();
 
         // remove dirs that only contain a index
         var dirsAsPosts = dirs.Where(dir => dir.Posts.Length == 1 && dir.Posts[0].Name == Constants.INDEX_NAME).ToImmutableArray();

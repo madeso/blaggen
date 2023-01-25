@@ -96,9 +96,24 @@ public class VfsReadFile : VfsRead
         return await File.ReadAllTextAsync(fullName.FullName);
     }
 
+    public IEnumerable<FileInfo> GetFiles(DirectoryInfo dir)
+    {
+        return dir.GetFiles("*", SearchOption.TopDirectoryOnly);
+    }
+
+    public IEnumerable<DirectoryInfo> GetDirectories(DirectoryInfo root)
+    {
+        return root.GetDirectories();
+    }
+
     public static DirectoryInfo GetCurrentDirectory()
     {
         return new DirectoryInfo(Environment.CurrentDirectory);
+    }
+
+    public IEnumerable<FileInfo> GetFilesRec(DirectoryInfo dir)
+    {
+        return dir.EnumerateFiles("*.*", SearchOption.AllDirectories);
     }
 }
 
