@@ -26,6 +26,7 @@ public class SiteData
     public string BaseUrl { get; set; } = string.Empty;
     public string Url => BaseUrl.EndsWith('/') ? BaseUrl.TrimEnd('/') : BaseUrl;
 
+    [JsonIgnore]
     public CultureInfo CultureInfo
     {
         get

@@ -21,7 +21,7 @@ public class TestInitSite : TestBase
 
         // test content?
         write.GetContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION));
-        Assert.True(write.IsEmpty());
+        Assert.True(write.IsEmpty(), write.GetFileText());
     }
 
     [Fact]

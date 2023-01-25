@@ -14,7 +14,7 @@ internal class VfsReadTest : VfsRead
 
     public Task<string> ReadAllTextAsync(FileInfo fullName)
     {
-        return new Task<string>(() => files[fullName.Name]);
+        return Task<string>.Factory.StartNew(() => files[fullName.Name]);
     }
 
     public void AddContent(FileInfo file, string content)
@@ -29,7 +29,7 @@ internal class VfsWriteTest : VfsWrite
 
     public Task WriteAllTextAsync(FileInfo path, string contents)
     {
-        return new Task( () => files.Add(path.FullName, contents) );
+        return Task.Factory.StartNew( () => { files.Add(path.FullName, contents); } );
     }
 
     public string GetContent(FileInfo file)
@@ -40,13 +40,19 @@ internal class VfsWriteTest : VfsWrite
         }
         else
         {
-            throw new FileNotFoundException($"{file.FullName} was not added to container");
+            throw new FileNotFoundException($"{file.FullName} was not added to container.\n{GetFileText()}");
         }
     }
 
     internal bool IsEmpty()
     {
         return files.Count == 0;
+    }
+
+    internal string GetFileText()
+    {
+        var fs = string.Join(" ", files.Keys);
+        return $"files: [{fs}]";
     }
 }
 

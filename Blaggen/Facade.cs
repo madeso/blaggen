@@ -44,8 +44,8 @@ public static class Facade
 
         var site = new SiteData { Name = "My new blog" };
         var json = JsonUtil.Write(site);
-        var path = Path.Join(Environment.CurrentDirectory, Constants.ROOT_FILENAME_WITH_EXTENSION);
-        await vfs.WriteAllTextAsync(new FileInfo(path), json);
+        var path = currentDirectory.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION);
+        await vfs.WriteAllTextAsync(path, json);
 
         // todo(Gustav): generate basic templates
         return 0;
