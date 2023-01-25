@@ -1,6 +1,7 @@
 ﻿using Blaggen;
 using FluentAssertions;
 using FluentAssertions.Execution;
+using Xunit;
 
 namespace BlaggenTest;
 

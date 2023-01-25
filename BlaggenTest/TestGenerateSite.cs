@@ -2,6 +2,7 @@
 using FluentAssertions.Execution;
 using FluentAssertions;
 using System.ComponentModel.Design.Serialization;
+using Xunit;
 
 namespace BlaggenTest;
 
