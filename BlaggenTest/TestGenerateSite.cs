@@ -66,8 +66,52 @@ public class TestGenerateSite : TestBase
             ret.Should().Be(0);
             run.Errors.Should().BeEmpty();
 
-            var post = write.GetContent(publics.GetDir("post").GetFile("index.html"))
+            write.GetContent(publics.GetDir("post").GetFile("index.html"))
                 .Should().Be("This is a post\n");
+        }
+
+        write.RemainingFiles.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async void RootsShouldBeValid()
+    {
+        // todo(Gustav): add url
+        // missing: ({{& Url}})";
+        const string mustache = "{{#roots}}({{& Name}}){{#IsSelected}}-selected{{/IsSelected}};{{/roots}}";
+        read.AddContent(Templates.CalculateTemplateDirectory(cwd).GetFile("_post.mustache.html"), mustache);
+        read.AddContent(Templates.CalculateTemplateDirectory(cwd).GetFile("_dir.mustache.html"), mustache);
+        read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
+
+        read.AddContent(content.GetFile("_index.md"),
+            Facade.GeneratePost("Root", new FrontMatter { Date = new DateTime(2022, 1, 1) }));
+        read.AddContent(content.GetFile("hello.md"),
+            Facade.GeneratePost("Hello", new FrontMatter { Date = new DateTime(2022, 1, 2) }));
+        read.AddContent(content.GetDir("world").GetFile("_index.md"),
+            Facade.GeneratePost("World", new FrontMatter { Date = new DateTime(2022, 1, 3) }));
+
+        var posts = content.GetDir("posts");
+        read.AddContent(posts.GetFile("_index.md"),
+            Facade.GeneratePost("Posts", new FrontMatter { Date = new DateTime(2022, 1, 4) }));
+        read.AddContent(posts.GetFile("lorem.md"),
+            Facade.GeneratePost("Lorem", new FrontMatter { Date = new DateTime(2022, 1, 5) }));
+
+        var ret = await Facade.GenerateSite(run, read, write, cwd);
+        using (new AssertionScope())
+        {
+            ret.Should().Be(0);
+            run.Errors.Should().BeEmpty();
+
+            write.GetContent(publics.GetFile("index.html"))
+                .Should().Be("(posts);(World);(Hello);");
+            write.GetContent(publics.GetDir("hello").GetFile("index.html"))
+                .Should().Be("(posts);(World);(Hello)-selected;");
+            write.GetContent(publics.GetDir("world").GetFile("index.html"))
+                .Should().Be("(posts);(World)-selected;(Hello);");
+            write.GetContent(publics.GetDir("posts").GetFile("index.html"))
+                .Should().Be("(posts)-selected;(World);(Hello);");
+            write.GetContent(publics.GetSubDirs("posts", "lorem").GetFile("index.html"))
+                .Should().Be("(posts)-selected;(World);(Hello);");
         }
 
         write.RemainingFiles.Should().BeEmpty();

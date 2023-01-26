@@ -66,12 +66,14 @@ public static class Generate
         // todo(Gustav): generate full url
     }
 
-    public static async Task<int> WriteSite(Run run, VfsWrite vfs, Site site, DirectoryInfo publicDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
+    public static async Task<int> WriteSite(Run run, VfsWrite vfs, Site site, DirectoryInfo publicDir, Templates templates,
+        ImmutableArray<KeyValuePair<string, object>> partials)
     {
         var owners = ImmutableArray.Create<Dir>();
         var roots = site.Root.Dirs
-            .Select(dir => new RootLink(dir.Name, $"{dir.Name}/index.html", false)).Concat(site.Root.Posts
-            .Select(fil => new RootLink(fil.Name, $"{fil.Name}/index.html", false))).ToImmutableArray()
+            .Select(dir => new RootLink(dir.Title, $"{dir.Name}/index.html", false)).Concat(
+            site.Root.Posts.Where(x => x.IsIndex == false) // exclude root _index
+            .Select(fil => new RootLink(fil.Front.Title, $"{fil.Name}/index.html", false))).ToImmutableArray()
             ;
         return await WriteDir(run, vfs, site, roots, site.Root, publicDir, templates, partials, owners, true);
     }
@@ -86,14 +88,14 @@ public static class Generate
 
         foreach (var subdir in dir.Dirs)
         {
-            var rootLinks = isRoot ? rootLinksBase.Select(x => IsSelected(x, subdir.Name)).ToImmutableArray() : rootLinksBase;
+            var rootLinks = isRoot ? rootLinksBase.Select(x => IsSelected(x, subdir.Title)).ToImmutableArray() : rootLinksBase;
             count += await WriteDir(run, vfs, site, rootLinks, subdir, targetDir.GetDir(subdir.Name), templates, partials, ownersWithSelf, false);
         }
 
         var summaries = dir.Posts.Where(post => post.IsIndex == false).Select(post => new SummaryForPost(post, site)).ToImmutableArray();
         foreach (var post in dir.Posts)
         {
-            var rootLinks = isRoot ? rootLinksBase.Select(x => IsSelected(x, post.Name)).ToImmutableArray() : rootLinksBase;
+            var rootLinks = isRoot ? rootLinksBase.Select(x => IsPostSelected(x, post.Front.Title)).ToImmutableArray() : rootLinksBase;
             var extraSteps = 0;
             var rootLinksWithLinks = rootLinks.Select(x => StepBack(x, owners.Length + extraSteps)).ToImmutableArray();
             // todo(Gustav): paginate index using Chunk(size)
@@ -101,6 +103,11 @@ public static class Generate
         }
 
         return count;
+
+        static RootLink IsPostSelected(RootLink r, string s)
+        {
+            return IsSelected(r, s);
+        }
 
         static RootLink IsSelected(RootLink r, string s)
         {

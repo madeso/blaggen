@@ -201,8 +201,9 @@ public static class Input
 
         // todo(Gustav): if dir is missing a entry, optionally add a empty _index page
 
+        // todo(Gustav): figure out a better Dir title
         var posts = postFiles.Concat(additionalPosts).OrderByDescending(p => p.Front.Date).ToImmutableArray();
-        return new Dir(Guid.NewGuid(), name, posts, dirs.ToImmutableArray());
+        return new Dir(Guid.NewGuid(), name, name, posts, dirs.ToImmutableArray());
 
         static async IAsyncEnumerable<Dir> LoadDirsWithoutNulls(Run run, VfsRead vfs, IEnumerable<DirectoryInfo> dirs, ImmutableArray<string> relativePaths, Markdown markdown)
         {

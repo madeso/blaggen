@@ -15,6 +15,11 @@ public static class FileExtensions
         return sub.Aggregate(dir, (current, name) => current.GetDir(name));
     }
 
+    public static DirectoryInfo GetSubDirs(this DirectoryInfo dir, params string[] sub)
+    {
+        return sub.Aggregate(dir, (current, name) => current.GetDir(name));
+    }
+
     public static FileInfo GetFile(this DirectoryInfo dir, string file)
     {
         return new FileInfo(Path.Join(dir.FullName, file));

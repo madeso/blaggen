@@ -63,5 +63,5 @@ public class FrontMatter
 
 // todo(Gustav): add associated files to be generated...
 public record Post(Guid Id, bool IsIndex, ImmutableArray<string> RelativePath, FrontMatter Front, FileInfo SourceFile, string Name, string MarkdownHtml, string MarkdownPlainText);
-public record Dir(Guid Id, string Name, ImmutableArray<Post> Posts, ImmutableArray<Dir> Dirs);
+public record Dir(Guid Id, string Title, string Name, ImmutableArray<Post> Posts, ImmutableArray<Dir> Dirs);
 public record Site(SiteData Data, Dir Root);

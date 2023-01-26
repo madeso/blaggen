@@ -49,6 +49,14 @@ public static class Facade
         return 0;
     }
 
+    public static string GeneratePost(string title, FrontMatter fm)
+    {
+        fm.Title = title;
+        var frontmatter = JsonUtil.Write(fm);
+        var content = $"{Input.SOURCE_START}\n{frontmatter}\n{Input.SOURCE_END}\n{Input.FRONTMATTER_SEP}\n# {title}";
+        return content;
+    }
+
     public static async Task<int> NewPost(Run run, VfsRead vfs, VfsWrite vfsWrite, FileInfo path)
     {
         if (vfs.Exists(path)) { run.WriteError($"Post {path} already exist"); return -1; }
@@ -73,8 +81,7 @@ public static class Facade
             postNameBase = path.Directory!.Name;
         }
         var title = site.CultureInfo.TextInfo.ToTitleCase(postNameBase.Replace('-', ' ').Replace('_', ' '));
-        var frontmatter = JsonUtil.Write(new FrontMatter { Title = title });
-        var content = $"{Input.SOURCE_START}\n{frontmatter}\n{Input.SOURCE_END}\n{Input.FRONTMATTER_SEP}\n# {title}";
+        var content = GeneratePost(title, new FrontMatter());
 
         path.Directory!.Create();
         await vfsWrite.WriteAllTextAsync(path, content);
