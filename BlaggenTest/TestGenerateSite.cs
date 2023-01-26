@@ -35,17 +35,11 @@ public class TestGenerateSite : TestBase
         write.RemainingFiles.Should().BeEmpty();
     }
 
-    private void AddBasicTemplates()
-    {
-        var templates = cwd.GetDir("templates");
-        read.AddContent(templates.GetFile("_post.mustache.html"), "{{content_text}}");
-    }
-
     [Fact]
     public async void ErrorWhithNoPosts()
     {
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
-        AddBasicTemplates();
+        read.AddContent(Templates.CalculateTemplateDirectory(cwd).GetFile("_post.mustache.html"), "{{content_text}}");
 
         var ret = await Facade.GenerateSite(run, read, write, cwd);
         using (new AssertionScope())
@@ -61,7 +55,7 @@ public class TestGenerateSite : TestBase
     [Fact]
     public async void SimpleRun()
     {
-        AddBasicTemplates();
+        read.AddContent(Templates.CalculateTemplateDirectory(cwd).GetFile("_post.mustache.html"), "{{content_text}}");
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
 
         read.AddContent(content.GetFile("post.md"), "{}\n***\nThis is a post");
