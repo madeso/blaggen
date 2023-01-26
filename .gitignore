@@ -6,6 +6,9 @@ Properties/
 # live unit tests config
 blaggen.lutconfig
 
+# resharper
+*.DotSettings.user
+
 public/
 
 
