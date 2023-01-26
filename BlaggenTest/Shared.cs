@@ -103,6 +103,8 @@ internal class VfsWriteTest : VfsWrite
         }
     }
 
+    public string[] GetLines(FileInfo file) => GetContent(file).Split('\n', StringSplitOptions.TrimEntries);
+
     public IEnumerable<string> RemainingFiles => files.Keys;
 
     internal bool IsEmpty()
