@@ -29,7 +29,7 @@ public class TestGenerateSite : TestBase
         {
             ret.Should().Be(-1);
             run.Errors.Should().ContainSingle().Which
-                .Should().Be("No templates found in C:\\test\\templates");
+                .Should().Be($"No templates found in {Templates.CalculateTemplateDirectory(cwd)}");
         }
 
         write.RemainingFiles.Should().BeEmpty();

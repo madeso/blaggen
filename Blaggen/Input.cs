@@ -23,7 +23,7 @@ public class Templates
 
     public static async Task<Templates> Load(Run run, VfsRead vfs, DirectoryInfo root)
     {
-        var TemplateFolder = root.GetDir("templates");
+        var TemplateFolder = CalculateTemplateDirectory(root);
         var ContentFolder = Input.GetContentDirectory(root);
 
         var templateFiles = vfs.GetFilesRec(TemplateFolder)
@@ -38,6 +38,11 @@ public class Templates
             ;
         var ext = templateFiles.Select(file => file.Extension.ToLowerInvariant()).ToImmutableHashSet();
         return new Templates(TemplateFolder, ContentFolder, td, ext);
+    }
+
+    public static DirectoryInfo CalculateTemplateDirectory(DirectoryInfo root)
+    {
+        return root.GetDir("templates");
     }
 
     private readonly StubbleVisitorRenderer stubble;
