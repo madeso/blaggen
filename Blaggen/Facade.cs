@@ -120,10 +120,11 @@ public static class Facade
             ;
 
         run.Status("Writing data to disk");
-        var pagesGenerated = await Generate.WriteSite(run, vfsWrite, site, publicDir, templates, partials);
+        var pages = Generate.ListPagesForSite(site, publicDir, templates).ToImmutableArray();
+        var numberOfPagesGenerated = await Generate.WritePages(pages, run, vfsWrite, site, publicDir, templates, partials);
         // todo(Gustav): copy static files
 
-        if (pagesGenerated == 0)
+        if (numberOfPagesGenerated == 0)
         {
             run.WriteError("No pages were generated.");
             return -1;
@@ -131,7 +132,7 @@ public static class Facade
 
         var timeEnd = DateTime.Now;
         var timeTaken = timeEnd - timeStart;
-        AnsiConsole.MarkupLineInterpolated($"Wrote [green]{pagesGenerated}[/] files in [blue]{timeTaken}[/]");
+        AnsiConsole.MarkupLineInterpolated($"Wrote [green]{numberOfPagesGenerated}[/] files in [blue]{timeTaken}[/]");
 
         return run.HasError() ? -1 : 0;
     }

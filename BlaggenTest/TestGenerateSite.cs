@@ -78,7 +78,7 @@ public class TestGenerateSite : TestBase
     {
         // todo(Gustav): add url
         // missing: ({{& Url}})";
-        const string mustache = "{{#roots}}{{& Name}}{{#IsSelected}} (selected){{/IsSelected}}\n{{/roots}}";
+        const string mustache = "{{#roots}}{{& Name}}: {{& Url}}{{#IsSelected}} (selected){{/IsSelected}}\n{{/roots}}";
         read.AddContent(Templates.CalculateTemplateDirectory(cwd).GetFile("_post.mustache.html"), mustache);
         read.AddContent(Templates.CalculateTemplateDirectory(cwd).GetFile("_dir.mustache.html"), mustache);
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
@@ -103,15 +103,32 @@ public class TestGenerateSite : TestBase
             run.Errors.Should().BeEmpty();
 
             write.GetLines(publics.GetFile("index.html"))
-                .Should().BeEquivalentTo("posts","World","Hello");
+                .Should().BeEquivalentTo(
+                    "Posts: posts/index.html",
+                    "World: world/index.html",
+                    "Hello: hello/index.html");
+
             write.GetLines(publics.GetDir("hello").GetFile("index.html"))
-                .Should().BeEquivalentTo("posts", "World","Hello (selected)");
+                .Should().BeEquivalentTo(
+                    "Posts: ../posts/index.html",
+                    "World: ../world/index.html",
+                    "Hello: index.html (selected)");
             write.GetLines(publics.GetDir("world").GetFile("index.html"))
-                .Should().BeEquivalentTo("posts", "World (selected)", "Hello");
+                .Should().BeEquivalentTo(
+                    "Posts: ../posts/index.html",
+                    "World: index.html (selected)",
+                    "Hello: ../hello/index.html");
+
             write.GetLines(publics.GetDir("posts").GetFile("index.html"))
-                .Should().BeEquivalentTo("posts (selected)","World", "Hello");
+                .Should().BeEquivalentTo(
+                    "Posts: index.html (selected)",
+                    "World: ../world/index.html",
+                    "Hello: ../hello/index.html");
             write.GetLines(publics.GetSubDirs("posts", "lorem").GetFile("index.html"))
-                .Should().BeEquivalentTo("posts (selected)", "World", "Hello");
+                .Should().BeEquivalentTo(
+                    "Posts: ../index.html (selected)",
+                    "World: ../../world/index.html",
+                    "Hello: ../../hello/index.html");
         }
 
         write.RemainingFiles.Should().BeEmpty();

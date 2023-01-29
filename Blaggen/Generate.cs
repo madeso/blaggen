@@ -66,74 +66,90 @@ public static class Generate
         // todo(Gustav): generate full url
     }
 
-    public static async Task<int> WriteSite(Run run, VfsWrite vfs, Site site, DirectoryInfo publicDir, Templates templates,
-        ImmutableArray<KeyValuePair<string, object>> partials)
+    public static IEnumerable<PageToWrite> ListPagesForSite(Site site, DirectoryInfo publicDir, Templates templates)
     {
         var owners = ImmutableArray.Create<Dir>();
-        var roots = site.Root.Dirs
-            .Select(dir => new RootLink(dir.Title, $"{dir.Name}/index.html", false)).Concat(
-            site.Root.Posts.Where(x => x.IsIndex == false) // exclude root _index
-            .Select(fil => new RootLink(fil.Front.Title, $"{fil.Name}/index.html", false))).ToImmutableArray()
-            ;
-        return await WriteDir(run, vfs, site, roots, site.Root, publicDir, templates, partials, owners, true);
+        return ListPagesInDir(site, site.Root, publicDir, templates, owners, true);
     }
 
-    private static async Task<int> WriteDir(Run run, VfsWrite vfs, Site site, ImmutableArray<RootLink> rootLinksBase, Dir dir,
-        DirectoryInfo targetDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials,
+    private static IEnumerable<PageToWrite> ListPagesInDir(Site site, Dir dir,
+        DirectoryInfo targetDir, Templates templates,
         ImmutableArray<Dir> owners, bool isRoot)
     {
-        int count = 0;
         var ownersWithSelf = isRoot ? owners : owners.Add(dir); // if this is root, don't add the "content" folder
         var templateFolders = GenerateTemplateFolders(templates, ownersWithSelf);
 
         foreach (var subdir in dir.Dirs)
         {
-            var rootLinks = isRoot ? rootLinksBase.Select(x => IsSelected(x, subdir.Title)).ToImmutableArray() : rootLinksBase;
-            count += await WriteDir(run, vfs, site, rootLinks, subdir, targetDir.GetDir(subdir.Name), templates, partials, ownersWithSelf, false);
+            foreach (var p in ListPagesInDir(site, subdir, targetDir.GetDir(subdir.Name), templates, ownersWithSelf, false))
+            {
+                yield return p;
+            }
         }
 
-        var summaries = dir.Posts.Where(post => post.IsIndex == false).Select(post => new SummaryForPost(post, site)).ToImmutableArray();
+        var summaries = dir.Posts.Where(post => post.IsIndex == false)
+            .Select(post => new SummaryForPost(post, site))
+            .ToImmutableArray();
         foreach (var post in dir.Posts)
         {
-            var rootLinks = isRoot ? rootLinksBase.Select(x => IsPostSelected(x, post.Front.Title)).ToImmutableArray() : rootLinksBase;
-            var extraSteps = 0;
-            var rootLinksWithLinks = rootLinks.Select(x => StepBack(x, owners.Length + extraSteps)).ToImmutableArray();
             // todo(Gustav): paginate index using Chunk(size)
-            count += await WritePost(run, vfs, site, rootLinksWithLinks, templateFolders, post, summaries, targetDir, templates, partials);
+            var destDir = post.IsIndex ? targetDir : targetDir.GetDir(post.Name);
+            yield return new PageToWrite(templateFolders, post, summaries, destDir);
+        }
+    }
+
+    public static async Task<int> WritePages(ImmutableArray<PageToWrite> pageToWrites, Run run, VfsWrite vfsWrite,
+        Site site,
+        DirectoryInfo publicDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
+    {
+        int count = 0;
+
+        var roots = pageToWrites
+            .Where(x => GetRelativePath(publicDir, x).Count() == 1)
+            .ToImmutableArray()
+            ;
+
+        foreach (var page in pageToWrites)
+        {
+            var rootLinks = roots
+                .Select(x => new RootLink(x.Post.Front.Title, GetIndexPath(GetRelativePath(page.DestDir, x)), GetIndexPath(GetRelativePath(publicDir, x)) == GetIndexPath(GetRelativePath(publicDir, page).Take(1))))
+                .ToImmutableArray()
+                ;
+            count += await WritePost(run, vfsWrite, site, rootLinks, page.TemplateFolders, page.Post,
+                page.Summaries, page.DestDir, templates, partials);
         }
 
         return count;
 
-        static RootLink IsPostSelected(RootLink r, string s)
+        static IEnumerable<string> GetRelativePath(DirectoryInfo publicDir, PageToWrite x)
         {
-            return IsSelected(r, s);
+            var rel = Path.GetRelativePath(publicDir.FullName, x.DestDir.FullName);
+            var split = rel.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var fin = split.Where(dir => dir != ".");
+            return fin;
         }
 
-        static RootLink IsSelected(RootLink r, string s)
+        static string GetIndexPath(IEnumerable<string> rel)
         {
-            var isSelected = r.Name == s;
-            return new RootLink(r.Name, isSelected ? $"../{r.Url}" : r.Url, isSelected);
-        }
-
-        static RootLink StepBack(RootLink r, int steps)
-        {
-            var sb = new StringBuilder();
-            for (int i = 0; i < steps; i += 1)
-            {
-                sb.Append("../");
-            }
-            return new RootLink(r.Name, $"{sb}{r.Url}", r.IsSelected);
+            return string.Join("/", rel.Concat(new[] { "index.html" }));
         }
     }
 
+    public record PageToWrite
+    (
+        ImmutableArray<DirectoryInfo> TemplateFolders,
+        Post Post,
+        ImmutableArray<SummaryForPost> Summaries,
+        DirectoryInfo DestDir
+    );
+
     private static async Task<int> WritePost(Run run, VfsWrite vfs, Site site, ImmutableArray<RootLink> rootLinks,
         ImmutableArray<DirectoryInfo> templateFolders, Post post, ImmutableArray<SummaryForPost> summaries,
-        DirectoryInfo postsDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
+        DirectoryInfo destDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
     {
         int pagesGenerated = 0;
         var data = new PageData(site, post, rootLinks, partials.ToDictionary(k => k.Key, k => k.Value), summaries.ToList());
         var templateName = post.IsIndex ? Constants.DIR_TEMPLATE : Constants.POST_TEMPLATE;
-        var destDir = post.IsIndex ? postsDir : postsDir.GetDir(post.Name);
 
         foreach (var ext in templates.Extensions)
         {
@@ -144,7 +160,7 @@ public static class Generate
                 ;
 
             var path = destDir.GetFile("index" + ext);
-            var selected = templateFiles.Where(file => file.Content != null).FirstOrDefault();
+            var selected = templateFiles.FirstOrDefault(file => file.Content != null);
             if (selected == null)
             {
                 var tried = string.Join(' ', templateFiles.Select(x => DisplayNameForFile(x.File)));

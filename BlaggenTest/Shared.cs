@@ -103,7 +103,7 @@ internal class VfsWriteTest : VfsWrite
         }
     }
 
-    public string[] GetLines(FileInfo file) => GetContent(file).Split('\n', StringSplitOptions.TrimEntries);
+    public IEnumerable<string> GetLines(FileInfo file) => GetContent(file).Split('\n', StringSplitOptions.TrimEntries).Where(s => string.IsNullOrWhiteSpace(s) == false);
 
     public IEnumerable<string> RemainingFiles => files.Keys;
 
