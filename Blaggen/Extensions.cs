@@ -25,7 +25,7 @@ public static class FileExtensions
         return new FileInfo(Path.Join(dir.FullName, file));
     }
 
-    public async static Task<string?> LoadFileOrNull(this FileInfo path, Run run, VfsRead vfs)
+    public static async Task<string?> LoadFileOrNull(this FileInfo path, Run run, VfsRead vfs)
     {
         try { return await vfs.ReadAllTextAsync(path); }
         catch (Exception x)
@@ -34,23 +34,6 @@ public static class FileExtensions
             return null;
         }
     }
-
-    public static async Task<string?> LoadFileSilentOrNull(this FileInfo path, VfsRead vfs)
-    {
-        try { return await vfs.ReadAllTextAsync(path); }
-        catch
-        {
-            return null;
-        }
-    }
-}
-
-public static class DictionaryExtensions
-{
-    public static void AddRange<K, V>(this Dictionary<K, V> data, IEnumerable<KeyValuePair<K, V>> list)
-        where K : class
-        where V : class
-    { foreach (var (k, v) in list) { data.Add(k, v); } }
 }
 
 public static class ImmutableArrayExtensions

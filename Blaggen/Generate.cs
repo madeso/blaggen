@@ -79,12 +79,11 @@ public static class Generate
         var ownersWithSelf = isRoot ? owners : owners.Add(dir); // if this is root, don't add the "content" folder
         var templateFolders = GenerateTemplateFolders(templates, ownersWithSelf);
 
-        foreach (var subdir in dir.Dirs)
+        var pages = dir.Dirs.SelectMany(subdir =>
+            ListPagesInDir(site, subdir, targetDir.GetDir(subdir.Name), templates, ownersWithSelf, false));
+        foreach (var p in pages)
         {
-            foreach (var p in ListPagesInDir(site, subdir, targetDir.GetDir(subdir.Name), templates, ownersWithSelf, false))
-            {
-                yield return p;
-            }
+            yield return p;
         }
 
         var summaries = dir.Posts.Where(post => post.IsIndex == false)
@@ -102,7 +101,7 @@ public static class Generate
         Site site,
         DirectoryInfo publicDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
     {
-        int count = 0;
+        var count = 0;
 
         var roots = pageToWrites
             .Where(x => GetRelativePath(publicDir, x).Count() == 1)
@@ -147,7 +146,7 @@ public static class Generate
         ImmutableArray<DirectoryInfo> templateFolders, Post post, ImmutableArray<SummaryForPost> summaries,
         DirectoryInfo destDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
     {
-        int pagesGenerated = 0;
+        var pagesGenerated = 0;
         var data = new PageData(site, post, rootLinks, partials.ToDictionary(k => k.Key, k => k.Value), summaries.ToList());
         var templateName = post.IsIndex ? Constants.DIR_TEMPLATE : Constants.POST_TEMPLATE;
 
@@ -186,7 +185,7 @@ public static class Generate
 
     private static ImmutableArray<DirectoryInfo> GenerateTemplateFolders(Templates templates, IEnumerable<Dir> owners)
     {
-        var root = new DirectoryInfo[] { templates.TemplateFolder };
+        var root = new[] { templates.TemplateFolder };
         var children = owners
             // template paths going from current dir to root
             .Accumulate(ImmutableArray.Create<string>(), (dir, arr) => arr.Add(dir.Name))

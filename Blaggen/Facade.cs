@@ -1,6 +1,7 @@
 ﻿using Spectre.Console;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.IO;
 
 namespace Blaggen;
 
@@ -49,11 +50,16 @@ public static class Facade
         return 0;
     }
 
-    public static string GeneratePost(string title, FrontMatter fm)
+    public static string GeneratePostWithTitle(string title, FrontMatter fm)
     {
         fm.Title = title;
+        return GeneratePost($"# {title}", fm);
+    }
+
+    public static string GeneratePost(string markdown, FrontMatter fm)
+    {
         var frontmatter = JsonUtil.Write(fm);
-        var content = $"{Input.SOURCE_START}\n{frontmatter}\n{Input.SOURCE_END}\n{Input.FRONTMATTER_SEP}\n# {title}";
+        var content = $"{Input.SOURCE_START}\n{frontmatter}\n{Input.SOURCE_END}\n{Input.FRONTMATTER_SEP}\n{markdown}";
         return content;
     }
 
@@ -81,7 +87,7 @@ public static class Facade
             postNameBase = path.Directory!.Name;
         }
         var title = site.CultureInfo.TextInfo.ToTitleCase(postNameBase.Replace('-', ' ').Replace('_', ' '));
-        var content = GeneratePost(title, new FrontMatter());
+        var content = GeneratePostWithTitle(title, new FrontMatter());
 
         path.Directory!.Create();
         await vfsWrite.WriteAllTextAsync(path, content);
@@ -89,6 +95,38 @@ public static class Facade
         Debug.Assert(run.HasError() == false);
         AnsiConsole.MarkupLineInterpolated($"Wrote [blue]${path.FullName}[/]");
         return 0;
+    }
+
+
+    public static Task<int> MigrateFromHugo(Run run, VfsRead vfsRead, VfsWrite vfsWrite, DirectoryInfo currentDirectory)
+    {
+        var root = Input.FindRoot(vfsRead, currentDirectory);
+        if (root == null) { run.WriteError("Unable to find root"); return Task.FromResult(-1); }
+
+        run.Status("Finding files");
+        var contentFolder = Input.GetContentDirectory(root);
+        var files = vfsRead.GetFilesRec(contentFolder)
+            .Where(file => file.Extension == ".md")
+            .ToImmutableArray()
+            ;
+
+        run.Status("Migrating hugo markdowns");
+        var writeTasks = files.Select(async file =>
+        {
+            var lines = (await vfsRead.ReadAllTextAsync(file)).Split('\n');
+            if (false == Hugo.LooksLikeHugoMarkdown(lines))
+            {
+                AnsiConsole.MarkupLineInterpolated($"Ignored [red]${file.FullName}[/]");
+                return;
+            }
+            var (frontMatter, markdown) = Hugo.ParseHugoYaml(lines, file);
+            var newContent = GeneratePost(markdown, frontMatter);
+            await vfsWrite.WriteAllTextAsync(file, newContent);
+            AnsiConsole.MarkupLineInterpolated($"Updated [blue]${file.FullName}[/]");
+        });
+        Task.WaitAll(writeTasks.ToArray());
+
+        return Task.FromResult(0);
     }
 
     public static async Task<int> GenerateSite(Run run, VfsRead vfs, VfsWrite vfsWrite, DirectoryInfo currentDirectory)

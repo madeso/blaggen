@@ -1,5 +1,4 @@
-﻿using Spectre.Console;
-using Stubble.Core;
+﻿using Stubble.Core;
 using Stubble.Core.Builders;
 using Stubble.Core.Exceptions;
 using Stubble.Core.Settings;
@@ -104,33 +103,33 @@ public static class Input
         return current;
     }
 
-    private static async Task<Post?> ParsePost(Run run, VfsRead vfs, FileInfo file, ImmutableArray<string> relativePath, Markdown markdown)
+    private static Post? ParsePost(Run run, IEnumerable<string> lines, FileInfo file, ImmutableArray<string> relativePath, Markdown markdown)
     {
-        var lines = (await vfs.ReadAllTextAsync(file)).Split('\n');
+        var (frontmatter, markdownContent) = ParsePostToTuple(run, lines, file);
 
-        var frontmatterJson = new StringBuilder();
-        var markdownContent = new StringBuilder();
-        var parsingFrontmatter = true;
-
-        foreach (var line in lines)
+        if (frontmatter == null)
         {
-            if (parsingFrontmatter)
-            {
-                var lt = line.Trim();
-                if (lt.Contains(FRONTMATTER_SEP)) { parsingFrontmatter = false; continue; }
-                if (lt == SOURCE_START || lt == SOURCE_END) { continue; }
-                frontmatterJson.AppendLine(line);
-            }
-            else
-            {
-                markdownContent.AppendLine(line);
-            }
+            return null;
         }
 
-        var frontmatter = JsonUtil.Parse<FrontMatter>(run, file, frontmatterJson.ToString());
-        if (frontmatter == null) { return null; }
+        return CreatePost(file, relativePath, markdown, markdownContent, frontmatter);
+    }
 
-        var markdownDocument = markdown.Parse(markdownContent.ToString());
+    public static (FrontMatter? frontmatter, string markdownContent) ParsePostToTuple(Run run,
+        IEnumerable<string> lines,
+        FileInfo file)
+    {
+        var (frontmatterSource, markdownSource) = ParseGenericPostData(lines, file, FRONTMATTER_SEP,
+            lt => lt is SOURCE_START or SOURCE_END, skips: 0);
+
+        var frontmatter = JsonUtil.Parse<FrontMatter>(run, file, frontmatterSource);
+        return (frontmatter, markdownSource);
+    }
+
+    internal static Post CreatePost(FileInfo file, ImmutableArray<string> relativePath, Markdown markdown, string markdownContent,
+        FrontMatter frontmatter)
+    {
+        var markdownDocument = markdown.Parse(markdownContent);
         var markdownHtml = markdown.ToHtml(markdownDocument);
         var markdownText = markdown.ToPlainText(markdownDocument);
 
@@ -141,19 +140,54 @@ public static class Input
             const int WORDS_IN_AUTO_SUMMARY = 25;
 
             var linesWithoutEndingDot = markdownText
-                .Split('\n', StringSplitOptions.TrimEntries).Select(x => x.TrimEnd('.').Trim()); // split into lines and remove ending dot
+                .Split('\n', StringSplitOptions.TrimEntries)
+                .Select(x => x.TrimEnd('.').Trim()); // split into lines and remove ending dot
             // todo(Gustav): normalize whitespace
-            var sentances = string.Join(". ", linesWithoutEndingDot); // join into a long string again with a dot at the end
-            var summary = string.Join(' ', sentances.Split(' ').Take(WORDS_IN_AUTO_SUMMARY)) + ELLIPSIS;
+            var sentences = string.Join(". ", linesWithoutEndingDot); // join into a long string again with a dot at the end
+            var summary = string.Join(' ', sentences.Split(' ').Take(WORDS_IN_AUTO_SUMMARY)) + ELLIPSIS;
             frontmatter.Summary = summary.Length < markdownText.Length
-                ? summary
-                : markdownText
+                    ? summary
+                    : markdownText
                 ;
         }
 
         var nameWithoutExtension = Path.GetFileNameWithoutExtension(file.Name);
 
-        return new Post(Guid.NewGuid(), nameWithoutExtension == Constants.INDEX_NAME, relativePath.Add(nameWithoutExtension), frontmatter, file, nameWithoutExtension, markdownHtml, markdownText);
+        return new Post(Guid.NewGuid(), nameWithoutExtension == Constants.INDEX_NAME,
+            relativePath.Add(nameWithoutExtension), frontmatter, file, nameWithoutExtension, markdownHtml, markdownText);
+    }
+
+    internal static (string frontmatter, string markdown) ParseGenericPostData(IEnumerable<string> lines, FileInfo file, string contentSeparator, Func<string, bool> frontMatterIgnores, int skips)
+    {
+        var frontmatterJson = new StringBuilder();
+        var markdownContent = new StringBuilder();
+        var parsingFrontmatter = true;
+
+        foreach (var line in lines.Skip(skips))
+        {
+            if (parsingFrontmatter)
+            {
+                var lt = line.Trim();
+                if (lt.Contains(contentSeparator))
+                {
+                    parsingFrontmatter = false;
+                    continue;
+                }
+
+                if (frontMatterIgnores(lt))
+                {
+                    continue;
+                }
+
+                frontmatterJson.AppendLine(line);
+            }
+            else
+            {
+                markdownContent.AppendLine(line);
+            }
+        }
+
+        return (frontmatterJson.ToString(), markdownContent.ToString());
     }
 
     public static async Task<SiteData?> LoadSiteData(Run run, VfsRead vfs, DirectoryInfo root)
@@ -173,7 +207,7 @@ public static class Input
         return new Site(data, content);
     }
 
-    record PostWithOptionalName(Post Post, string? Name);
+    private record PostWithOptionalName(Post Post, string? Name);
 
     private static async Task<Dir?> LoadDir(Run run, VfsRead vfs, DirectoryInfo root, ImmutableArray<string> relativePaths, bool isContentFolder, Markdown markdown)
     {
@@ -222,9 +256,7 @@ public static class Input
         {
             foreach (var f in files)
             {
-                if (f == null) { continue; }
-
-                var post = await ParsePost(run, vfs, f, relativePaths, markdown);
+                var post = ParsePost(run, (await vfs.ReadAllTextAsync(f)).Split('\n'), f, relativePaths, markdown);
                 if (post == null) { continue; }
 
                 yield return post;

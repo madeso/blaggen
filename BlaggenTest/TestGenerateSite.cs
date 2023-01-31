@@ -20,7 +20,7 @@ public class TestGenerateSite : TestBase
     }
 
     [Fact]
-    public async void ErrorWhithNoTemplates()
+    public async void ErrorWithNoTemplates()
     {
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
 
@@ -84,17 +84,17 @@ public class TestGenerateSite : TestBase
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
 
         read.AddContent(content.GetFile("_index.md"),
-            Facade.GeneratePost("Root", new FrontMatter { Date = new DateTime(2022, 1, 1) }));
+            Facade.GeneratePostWithTitle("Root", new FrontMatter { Date = new DateTime(2022, 1, 1) }));
         read.AddContent(content.GetFile("hello.md"),
-            Facade.GeneratePost("Hello", new FrontMatter { Date = new DateTime(2022, 1, 2) }));
+            Facade.GeneratePostWithTitle("Hello", new FrontMatter { Date = new DateTime(2022, 1, 2) }));
         read.AddContent(content.GetDir("world").GetFile("_index.md"),
-            Facade.GeneratePost("World", new FrontMatter { Date = new DateTime(2022, 1, 3) }));
+            Facade.GeneratePostWithTitle("World", new FrontMatter { Date = new DateTime(2022, 1, 3) }));
 
         var posts = content.GetDir("posts");
         read.AddContent(posts.GetFile("_index.md"),
-            Facade.GeneratePost("Posts", new FrontMatter { Date = new DateTime(2022, 1, 4) }));
+            Facade.GeneratePostWithTitle("Posts", new FrontMatter { Date = new DateTime(2022, 1, 4) }));
         read.AddContent(posts.GetFile("lorem.md"),
-            Facade.GeneratePost("Lorem", new FrontMatter { Date = new DateTime(2022, 1, 5) }));
+            Facade.GeneratePostWithTitle("Lorem", new FrontMatter { Date = new DateTime(2022, 1, 5) }));
 
         var ret = await Facade.GenerateSite(run, read, write, cwd);
         using (new AssertionScope())
