@@ -21,7 +21,7 @@ public static class Hugo
     internal static (FrontMatter fm, string markdownContent) ParseHugoYaml(IEnumerable<string> lines, FileInfo file)
     {
         var (frontmatterYaml, markdownContent) =
-            Input.ReadPostData(lines, file, TOML_CONTENT_SEPARATOR, _ => false, skips: 1);
+            Input.ParseGenericPostData(lines, file, TOML_CONTENT_SEPARATOR, _ => false, skips: 1);
 
         var parsed = Toml.Parse(frontmatterYaml);
         var root = parsed.IterChildren().First();

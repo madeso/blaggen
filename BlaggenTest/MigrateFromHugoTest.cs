@@ -63,13 +63,13 @@ public class MigrateFromHugoTest : TestBase
             var world = ReadAndParseFile(content.GetDir("posts").GetFile("world.md"));
             world.frontmatter.Should().NotBeNull();
             world.frontmatter?.Title.Should().Be("World");
-            hello.frontmatter?.Date.Should().Be(new DateTime(2015, 12, 30, 20, 23, 30));
+            world.frontmatter?.Date.Should().Be(new DateTime(2015, 04, 21, 10, 26, 14));
             world.markdownContent.Trim().Should().Be("World!");
 
             var cool = ReadAndParseFile(content.GetFile("cool.md"));
             cool.frontmatter.Should().NotBeNull();
             cool.frontmatter?.Title.Should().Be("Cool");
-            hello.frontmatter?.Date.Should().Be(new DateTime(2015, 12, 30, 20, 23, 30));
+            cool.frontmatter?.Date.Should().Be(new DateTime(2022, 09, 27, 05, 26, 12));
             cool.markdownContent.Trim().Should().Be("Cool!");
 
             write.RemainingFiles.Should().BeEmpty();
