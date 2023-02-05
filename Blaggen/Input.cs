@@ -16,16 +16,16 @@ public class Templates
         ContentFolder = cf;
         stubble = new StubbleBuilder().Build();
 
-        this.Extensions = ex;
-        this.TemplateDict = td;
+        Extensions = ex;
+        TemplateDict = td;
     }
 
     public static async Task<Templates> Load(Run run, VfsRead vfs, DirectoryInfo root)
     {
-        var TemplateFolder = CalculateTemplateDirectory(root);
-        var ContentFolder = Input.GetContentDirectory(root);
+        var templateFolder = CalculateTemplateDirectory(root);
+        var contentFolder = Input.GetContentDirectory(root);
 
-        var templateFiles = vfs.GetFilesRec(TemplateFolder)
+        var templateFiles = vfs.GetFilesRec(templateFolder)
             .Where(f => f.Name.Contains(Constants.MUSTACHE_TEMPLATE_POSTFIX))
             .ToImmutableArray();
 
@@ -36,7 +36,7 @@ public class Templates
             .ToImmutableDictionary(x => x.File.FullName, x => x.Contents!)
             ;
         var ext = templateFiles.Select(file => file.Extension.ToLowerInvariant()).ToImmutableHashSet();
-        return new Templates(TemplateFolder, ContentFolder, td, ext);
+        return new Templates(templateFolder, contentFolder, td, ext);
     }
 
     public static DirectoryInfo CalculateTemplateDirectory(DirectoryInfo root)

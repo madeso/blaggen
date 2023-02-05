@@ -3,7 +3,11 @@
   "title": "About",
   "description": "",
   "date": "2023-01-22T18:17:56.5942895+01:00",
-  "tags": []
+  "tags": {},
+
+  "test": {"hello": 3},
+  "null": null,
+  "number": 42,
 }
 ```
 ***

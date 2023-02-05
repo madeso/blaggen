@@ -58,18 +58,22 @@ public class MigrateFromHugoTest : TestBase
             hello.frontmatter.Should().NotBeNull();
             hello.frontmatter?.Title.Should().Be("Hello");
             hello.frontmatter?.Date.Should().Be(new DateTime(2015, 12, 30, 20, 23, 30));
+            hello.frontmatter?.ExtensionData!["draft"].GetBoolean().Should().BeFalse();
             hello.markdownContent.Trim().Should().Be("Hello?");
 
             var world = ReadAndParseFile(content.GetDir("posts").GetFile("world.md"));
             world.frontmatter.Should().NotBeNull();
             world.frontmatter?.Title.Should().Be("World");
             world.frontmatter?.Date.Should().Be(new DateTime(2015, 04, 21, 10, 26, 14));
+            world.frontmatter?.ExtensionData!["slug"].ToString().Should().Be("world");
+            world.frontmatter?.ExtensionData!["draft"].GetBoolean().Should().BeFalse();
             world.markdownContent.Trim().Should().Be("World!");
 
             var cool = ReadAndParseFile(content.GetFile("cool.md"));
             cool.frontmatter.Should().NotBeNull();
             cool.frontmatter?.Title.Should().Be("Cool");
             cool.frontmatter?.Date.Should().Be(new DateTime(2022, 09, 27, 05, 26, 12));
+            cool.frontmatter?.ExtensionData!["draft"].GetBoolean().Should().BeFalse();
             cool.markdownContent.Trim().Should().Be("Cool!");
 
             write.RemainingFiles.Should().BeEmpty();

@@ -1,5 +1,7 @@
 ﻿using System.Collections.Immutable;
 using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace Blaggen;
@@ -27,13 +29,7 @@ public class SiteData
     public string Url => BaseUrl.EndsWith('/') ? BaseUrl.TrimEnd('/') : BaseUrl;
 
     [JsonIgnore]
-    public CultureInfo CultureInfo
-    {
-        get
-        {
-            return new CultureInfo(Culture, false);
-        }
-    }
+    public CultureInfo CultureInfo => new CultureInfo(Culture, false);
 
     public string ShortDateToString(DateTime dt)
     {
@@ -44,6 +40,9 @@ public class SiteData
     {
         return dt.ToString(ShortDateFormat, this.CultureInfo);
     }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }
 
 public class FrontMatter
@@ -58,7 +57,10 @@ public class FrontMatter
     public DateTime Date { get; set; } = DateTime.Now;
 
     [JsonPropertyName("tags")]
-    public HashSet<string> Tags { get; set; } = new();
+    public Dictionary<string, HashSet<string>> TagData { get; set; } = new();
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }
 
 // todo(Gustav): add associated files to be generated...

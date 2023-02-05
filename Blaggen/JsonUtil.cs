@@ -9,6 +9,7 @@ public static class JsonUtil
         WriteIndented = true,
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true,
+        IgnoreReadOnlyProperties = true,
     };
 
     public static T? Parse<T>(Run run, FileInfo file, string content)
