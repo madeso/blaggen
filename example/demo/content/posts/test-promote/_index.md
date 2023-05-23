@@ -3,7 +3,7 @@
   "title": "Test Promote",
   "description": "",
   "date": "2023-01-21T22:34:01.1335691+01:00",
-  "tags": []
+  "tags": {}
 }
 ```
 ***

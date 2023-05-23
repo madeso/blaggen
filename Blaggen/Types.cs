@@ -56,6 +56,8 @@ public class FrontMatter
     [JsonPropertyName("date")]
     public DateTime Date { get; set; } = DateTime.Now;
 
+    // a dictionary since there is a difference between tags the concept and "tags" the tag
+    // a site could also choose to tag posts with "authors", group or whatever tags may fit the content
     [JsonPropertyName("tags")]
     public Dictionary<string, HashSet<string>> TagData { get; set; } = new();
 
