@@ -36,7 +36,7 @@ public class TestGenerateSite : TestBase
     }
 
     [Fact]
-    public async void ErrorWhithNoPosts()
+    public async void ErrorWithNoPosts()
     {
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
         read.AddContent(Templates.CalculateTemplateDirectory(cwd).GetFile("_post.mustache.html"), "{{content_text}}");
