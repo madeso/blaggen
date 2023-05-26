@@ -113,6 +113,12 @@ public static class Generate
             .ToImmutableArray()
             ;
 
+        // create all directories first, to avoid race conditions
+        foreach (var dir in pageToWrites.Select(page => page.DestDir).Distinct())
+        {
+            dir.Create();
+        }
+
         var writeTasks = pageToWrites.Select(page =>
             WritePost(run, vfsWrite, site, roots, templates, partials, page, publicDir));
         
@@ -170,8 +176,6 @@ public static class Generate
                 run.WriteError($"Unable to generate {DisplayNameForFile(page.Post.SourceFile)} to {DisplayNameForFile(path)} for {ext}, tried to use: {tried}");
                 continue;
             }
-
-            page.DestDir.Create();
 
             var renderedPage = RenderMustache(run, selected.Content!, selected.File, data, site);
             await vfs.WriteAllTextAsync(path, renderedPage);
