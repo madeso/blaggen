@@ -16,6 +16,13 @@ Perhaps there is some order in this list but it's mostly so I can remember what 
   - generate tag pages
   - command to list tags to use
   - interactive command to add tags to existing posts?
+* Implement a custom mustache
+  - so we can compile templates and get "typesafety" but types should be created at runtime
+  - we can remove "classes" with semantic members that only act as data containers
+  - arguments to "functions"
+  - functional templates?
+  - less exceptions/better errors when generating
+  - better handling of includes
 * Watch mode/Hot-reload
   - Generate files when saved
   - Create a webserver
