@@ -1,7 +1,6 @@
 ﻿using Spectre.Console;
 using System.Collections.Immutable;
 using System.Diagnostics;
-using System.IO;
 
 namespace Blaggen;
 
@@ -77,7 +76,7 @@ public static class Facade
         if (site == null) { return -1; }
 
         // todo(Gustav): create _index.md for each directory depending on setting
-        var contentFolder = Input.GetContentDirectory(root);
+        var contentFolder = Constants.GetContentDirectory(root);
         var relative = Path.GetRelativePath(contentFolder.FullName, path.FullName);
         if (relative.Contains("..")) { run.WriteError($"Post {pathDir} must be a subpath of {contentFolder}"); return -1; }
 
@@ -104,7 +103,7 @@ public static class Facade
         if (root == null) { run.WriteError("Unable to find root"); return Task.FromResult(-1); }
 
         run.Status("Finding files");
-        var contentFolder = Input.GetContentDirectory(root);
+        var contentFolder = Constants.GetContentDirectory(root);
         var files = vfsRead.GetFilesRec(contentFolder)
             .Where(file => file.Extension == ".md")
             .ToImmutableArray()

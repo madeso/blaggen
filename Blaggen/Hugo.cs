@@ -1,12 +1,5 @@
-﻿using System;
-using System.Collections.Immutable;
-using System.ComponentModel.DataAnnotations;
-using System.Net;
-using System.Reflection.Metadata.Ecma335;
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Xml.Linq;
-using Spectre.Console;
 using Tomlyn;
 using Tomlyn.Syntax;
 
@@ -35,11 +28,7 @@ public static class Hugo
             .Where(s => s != null).Select(s => s!)
             .ToArray();
 
-        var fm = new FrontMatter()
-        {
-            // Date = parsed.Date,
-            // Title = parsed.Title
-        };
+        var fm = new FrontMatter();
 
         foreach (var kv in rc)
         {
@@ -86,20 +75,10 @@ public static class Hugo
                     fm.ExtensionData.Add(kv.KeyString(), json);
                     break;
             }
-
-            AnsiConsole.WriteLine($"{kv}...");
         }
 
         return (fm, markdownContent);
     }
-
-    internal static Post ParseHugoYamlToPost(IEnumerable<string> lines, FileInfo file,
-        ImmutableArray<string> relativePath, Markdown markdown)
-    {
-        var (fm, markdownContent) = ParseHugoYaml(lines, file);
-        return Input.CreatePost(file, relativePath, markdown, markdownContent, fm);
-    }
-
 }
 
 public static class TomlExtensions

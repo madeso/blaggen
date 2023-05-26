@@ -59,6 +59,21 @@ public static class IterTools
         }
     }
 
+    public static IEnumerable<T> Where<T>(this IEnumerable<T> src, Func<T, bool> predicate, Action<T> fail)
+    {
+        foreach (var t in src)
+        {
+            if (predicate(t))
+            {
+                yield return t;
+            }
+            else
+            {
+                fail(t);
+            }
+        }
+    }
+
     public static async Task<List<T>> ToListAsync<T>(this IAsyncEnumerable<T> asyncEnumerable)
     {
         if (null == asyncEnumerable)

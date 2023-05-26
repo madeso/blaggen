@@ -1,11 +1,13 @@
-﻿using Spectre.Console;
+﻿using Stubble.Core.Builders;
+using Stubble.Core.Exceptions;
+using Stubble.Core.Settings;
 using System.Collections.Immutable;
-using System.Text;
 
 namespace Blaggen;
 
 public static class Generate
 {
+    // data to mustache
     public class SummaryForPost
     {
         public readonly string title;
@@ -28,8 +30,12 @@ public static class Generate
         }
     }
 
+
+    // data to mustache
     public record RootLink(string Name, string Url, bool IsSelected);
 
+
+    // data to mustache
     public class PageData
     {
         public readonly string title;
@@ -66,73 +72,63 @@ public static class Generate
         // todo(Gustav): generate full url
     }
 
+
     public static IEnumerable<PageToWrite> ListPagesForSite(Site site, DirectoryInfo publicDir, Templates templates)
     {
         var owners = ImmutableArray.Create<Dir>();
         return ListPagesInDir(site, site.Root, publicDir, templates, owners, true);
+
+        static IEnumerable<PageToWrite> ListPagesInDir(Site site, Dir dir,
+            DirectoryInfo targetDir, Templates templates,
+            ImmutableArray<Dir> owners, bool isRoot)
+        {
+            var ownersWithSelf = isRoot ? owners : owners.Add(dir); // if this is root, don't add the "content" folder
+            var templateFolders = GenerateTemplateFolders(templates, ownersWithSelf);
+
+            var pages = dir.Dirs.SelectMany(subdir =>
+                ListPagesInDir(site, subdir, targetDir.GetDir(subdir.Name), templates, ownersWithSelf, false));
+            foreach (var p in pages)
+            {
+                yield return p;
+            }
+
+            var summaries = dir.Posts.Where(post => post.IsIndex == false)
+                .Select(post => new SummaryForPost(post, site))
+                .ToImmutableArray();
+            foreach (var post in dir.Posts)
+            {
+                // todo(Gustav): paginate index using Chunk(size)
+                var destDir = post.IsIndex ? targetDir : targetDir.GetDir(post.Name);
+                yield return new PageToWrite(templateFolders, post, summaries, destDir);
+            }
+        }
     }
 
-    private static IEnumerable<PageToWrite> ListPagesInDir(Site site, Dir dir,
-        DirectoryInfo targetDir, Templates templates,
-        ImmutableArray<Dir> owners, bool isRoot)
-    {
-        var ownersWithSelf = isRoot ? owners : owners.Add(dir); // if this is root, don't add the "content" folder
-        var templateFolders = GenerateTemplateFolders(templates, ownersWithSelf);
-
-        var pages = dir.Dirs.SelectMany(subdir =>
-            ListPagesInDir(site, subdir, targetDir.GetDir(subdir.Name), templates, ownersWithSelf, false));
-        foreach (var p in pages)
-        {
-            yield return p;
-        }
-
-        var summaries = dir.Posts.Where(post => post.IsIndex == false)
-            .Select(post => new SummaryForPost(post, site))
-            .ToImmutableArray();
-        foreach (var post in dir.Posts)
-        {
-            // todo(Gustav): paginate index using Chunk(size)
-            var destDir = post.IsIndex ? targetDir : targetDir.GetDir(post.Name);
-            yield return new PageToWrite(templateFolders, post, summaries, destDir);
-        }
-    }
 
     public static async Task<int> WritePages(ImmutableArray<PageToWrite> pageToWrites, Run run, VfsWrite vfsWrite,
-        Site site,
-        DirectoryInfo publicDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
+        Site site, DirectoryInfo publicDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
     {
-        var count = 0;
-
         var roots = pageToWrites
             .Where(x => GetRelativePath(publicDir, x).Count() == 1)
             .ToImmutableArray()
             ;
 
-        foreach (var page in pageToWrites)
-        {
-            var rootLinks = roots
-                .Select(x => new RootLink(x.Post.Front.Title, GetIndexPath(GetRelativePath(page.DestDir, x)), GetIndexPath(GetRelativePath(publicDir, x)) == GetIndexPath(GetRelativePath(publicDir, page).Take(1))))
-                .ToImmutableArray()
-                ;
-            count += await WritePost(run, vfsWrite, site, rootLinks, page.TemplateFolders, page.Post,
-                page.Summaries, page.DestDir, templates, partials);
-        }
-
-        return count;
-
-        static IEnumerable<string> GetRelativePath(DirectoryInfo publicDir, PageToWrite x)
-        {
-            var rel = Path.GetRelativePath(publicDir.FullName, x.DestDir.FullName);
-            var split = rel.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            var fin = split.Where(dir => dir != ".");
-            return fin;
-        }
-
-        static string GetIndexPath(IEnumerable<string> rel)
-        {
-            return string.Join("/", rel.Concat(new[] { "index.html" }));
-        }
+        var writeTasks = pageToWrites.Select(page =>
+            WritePost(run, vfsWrite, site, roots, templates, partials, page, publicDir));
+        
+        var counts = await Task.WhenAll(writeTasks);
+        return counts.Sum();
     }
+
+
+    private static IEnumerable<string> GetRelativePath(DirectoryInfo publicDir, PageToWrite x)
+    {
+        var rel = Path.GetRelativePath(publicDir.FullName, x.DestDir.FullName);
+        var split = rel.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var fin = split.Where(dir => dir != ".");
+        return fin;
+    }
+
 
     public record PageToWrite
     (
@@ -142,43 +138,78 @@ public static class Generate
         DirectoryInfo DestDir
     );
 
-    private static async Task<int> WritePost(Run run, VfsWrite vfs, Site site, ImmutableArray<RootLink> rootLinks,
-        ImmutableArray<DirectoryInfo> templateFolders, Post post, ImmutableArray<SummaryForPost> summaries,
-        DirectoryInfo destDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
+
+    private static async Task<int> WritePost(Run run, VfsWrite vfs, Site site, ImmutableArray<PageToWrite> roots,
+        Templates templates, ImmutableArray<KeyValuePair<string, object>> partials,
+        PageToWrite page, DirectoryInfo publicDir)
     {
+        var rootLinks = roots
+                .Select(x => new RootLink(x.Post.Front.Title,
+                    GetIndexPath(GetRelativePath(page.DestDir, x)),
+                    GetIndexPath(GetRelativePath(publicDir, x)) == GetIndexPath(GetRelativePath(publicDir, page).Take(1))
+                ))
+                .ToImmutableArray()
+            ;
         var pagesGenerated = 0;
-        var data = new PageData(site, post, rootLinks, partials.ToDictionary(k => k.Key, k => k.Value), summaries.ToList());
-        var templateName = post.IsIndex ? Constants.DIR_TEMPLATE : Constants.POST_TEMPLATE;
+        var data = new PageData(site, page.Post, rootLinks, partials.ToDictionary(k => k.Key, k => k.Value), page.Summaries.ToList());
+        var templateName = page.Post.IsIndex ? Constants.DIR_TEMPLATE : Constants.POST_TEMPLATE;
 
         foreach (var ext in templates.Extensions)
         {
-            var templateFiles = templateFolders
+            var templateFiles = page.TemplateFolders
                 .Select(dir => dir.GetFile(templateName + ext))
-                .Select(file => new FileWithOptionalContent(file, templates.GetTemplateOrNull(file)))
+                .Select(file => new {File=file, Content = templates.GetTemplateOrNull(file)})
                 .ToImmutableArray()
                 ;
 
-            var path = destDir.GetFile("index" + ext);
+            var path = page.DestDir.GetFile("index" + ext);
             var selected = templateFiles.FirstOrDefault(file => file.Content != null);
             if (selected == null)
             {
                 var tried = string.Join(' ', templateFiles.Select(x => DisplayNameForFile(x.File)));
-                run.WriteError($"Unable to generate {DisplayNameForFile(post.SourceFile)} to {DisplayNameForFile(path)} for {ext}, tried to use: {tried}");
+                run.WriteError($"Unable to generate {DisplayNameForFile(page.Post.SourceFile)} to {DisplayNameForFile(path)} for {ext}, tried to use: {tried}");
                 continue;
             }
 
-            destDir.Create();
+            page.DestDir.Create();
 
-            var renderedPage = templates.RenderMustache(run, selected.Content!, selected.File, data, site);
+            var renderedPage = RenderMustache(run, selected.Content!, selected.File, data, site);
             await vfs.WriteAllTextAsync(path, renderedPage);
-            AnsiConsole.MarkupLineInterpolated($"Generated {DisplayNameForFile(path)} from {DisplayNameForFile(post.SourceFile)} and {DisplayNameForFile(selected.File)}");
+            run.Status($"Generated {DisplayNameForFile(path)} from {DisplayNameForFile(page.Post.SourceFile)} and {DisplayNameForFile(selected.File)}");
             pagesGenerated += 1;
         }
 
         return pagesGenerated;
+
+        static string RenderMustache(Run run, string template, FileInfo templateFile, PageData data, Site site)
+        {
+            // todo(Gustav): switch to compiled patterns? config?
+            try
+            {
+                var settings = new RenderSettings
+                {
+                    ThrowOnDataMiss = true,
+                    CultureInfo = site.Data.CultureInfo,
+                };
+
+                return new StubbleBuilder().Build().Render(template, data, settings);
+            }
+            catch (StubbleException err)
+            {
+                run.WriteError($"{templateFile.FullName}: {err.Message}");
+
+                // todo(Gustav): can we switch settings and render a invalid page here? is it worthwhile?
+                // if extension is html, output a basic error page?
+                return "";
+            }
+        }
+
+        static string GetIndexPath(IEnumerable<string> rel)
+        {
+            return string.Join("/", rel.Concat(new[] { "index.html" }));
+        }
     }
 
-    record FileWithOptionalContent(FileInfo File, string? Content);
 
     private static string DisplayNameForFile(FileInfo file) => Path.GetRelativePath(Environment.CurrentDirectory, file.FullName);
 

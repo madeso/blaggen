@@ -5,7 +5,7 @@ namespace Blaggen;
 
 public class Markdown
 {
-    private MarkdownPipeline pipeline = new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
+    private readonly MarkdownPipeline pipeline = new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
 
     public Markdig.Syntax.MarkdownDocument Parse(string content)
     {

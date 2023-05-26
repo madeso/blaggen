@@ -10,75 +10,40 @@ namespace Blaggen;
 
 public class Templates
 {
+    public DirectoryInfo TemplateFolder { get; }
+    public DirectoryInfo ContentFolder { get; }
+    public ImmutableHashSet<string> Extensions { get; }
+    public ImmutableDictionary<string, string> TemplateDict { get; } // can't use FileInfo as a key
+    public string? GetTemplateOrNull(FileInfo file) =>  TemplateDict.TryGetValue(file.FullName, out var contents) ? contents : null;
+
+
     private Templates(DirectoryInfo tf, DirectoryInfo cf, ImmutableDictionary<string, string> td, ImmutableHashSet<string> ex)
     {
         TemplateFolder = tf;
         ContentFolder = cf;
-        stubble = new StubbleBuilder().Build();
-
         Extensions = ex;
         TemplateDict = td;
     }
 
+
     public static async Task<Templates> Load(Run run, VfsRead vfs, DirectoryInfo root)
     {
-        var templateFolder = CalculateTemplateDirectory(root);
-        var contentFolder = Input.GetContentDirectory(root);
+        var templateFolder = Constants.CalculateTemplateDirectory(root);
+        var contentFolder = Constants.GetContentDirectory(root);
 
+        // todo(Gustav): warn if template files are missing
         var templateFiles = vfs.GetFilesRec(templateFolder)
             .Where(f => f.Name.Contains(Constants.MUSTACHE_TEMPLATE_POSTFIX))
             .ToImmutableArray();
 
         var unloadedFiles = templateFiles
             .Select(async file => new { File = file, Contents = await file.LoadFileOrNull(run, vfs) });
-        var td = (await Task.WhenAll(unloadedFiles))
+        var templateDict = (await Task.WhenAll(unloadedFiles))
             .Where(x => x.Contents != null)
             .ToImmutableDictionary(x => x.File.FullName, x => x.Contents!)
             ;
-        var ext = templateFiles.Select(file => file.Extension.ToLowerInvariant()).ToImmutableHashSet();
-        return new Templates(templateFolder, contentFolder, td, ext);
-    }
-
-    public static DirectoryInfo CalculateTemplateDirectory(DirectoryInfo root)
-    {
-        return root.GetDir("templates");
-    }
-
-    private readonly StubbleVisitorRenderer stubble;
-
-    public DirectoryInfo TemplateFolder { get; }
-    public DirectoryInfo ContentFolder { get; }
-    public ImmutableHashSet<string> Extensions { get; }
-    public ImmutableDictionary<string, string> TemplateDict { get; } // can't use FileInfo as a key
-
-    public string RenderMustache(Run run, string template, FileInfo templateFile, Generate.PageData data, Site site)
-    {
-        // todo(Gustav): switch to compiled patterns? config?
-        try
-        {
-            var settings = new RenderSettings
-            {
-                ThrowOnDataMiss = true,
-                CultureInfo = site.Data.CultureInfo,
-            };
-            return stubble.Render(template, data, settings);
-        }
-        catch (StubbleException err)
-        {
-            run.WriteError($"{templateFile.FullName}: {err.Message}");
-
-            // todo(Gustav): can we switch settings and render a invalid page here? is it worthwhile?
-            return "";
-        }
-    }
-
-    public string? GetTemplateOrNull(FileInfo file)
-    {
-        if (TemplateDict.TryGetValue(file.FullName, out var contents))
-        {
-            return contents;
-        }
-        return null;
+        var extensions = templateFiles.Select(file => file.Extension.ToLowerInvariant()).ToImmutableHashSet();
+        return new Templates(templateFolder, contentFolder, templateDict, extensions);
     }
 }
 
@@ -93,7 +58,7 @@ public static class Input
 
     public static DirectoryInfo? FindRoot(VfsRead vfs, DirectoryInfo? start)
     {
-        DirectoryInfo? current = start;
+        var current = start;
 
         while (current != null && vfs.Exists(current.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION)) == false)
         {
@@ -102,6 +67,7 @@ public static class Input
 
         return current;
     }
+
 
     private static Post? ParsePost(Run run, IEnumerable<string> lines, FileInfo file, ImmutableArray<string> relativePath, Markdown markdown)
     {
@@ -115,6 +81,7 @@ public static class Input
         return CreatePost(file, relativePath, markdown, markdownContent, frontmatter);
     }
 
+
     public static (FrontMatter? frontmatter, string markdownContent) ParsePostToTuple(Run run,
         IEnumerable<string> lines,
         FileInfo file)
@@ -125,6 +92,7 @@ public static class Input
         var frontmatter = JsonUtil.Parse<FrontMatter>(run, file, frontmatterSource);
         return (frontmatter, markdownSource);
     }
+
 
     internal static Post CreatePost(FileInfo file, ImmutableArray<string> relativePath, Markdown markdown, string markdownContent,
         FrontMatter frontmatter)
@@ -156,6 +124,7 @@ public static class Input
         return new Post(Guid.NewGuid(), nameWithoutExtension == Constants.INDEX_NAME,
             relativePath.Add(nameWithoutExtension), frontmatter, file, nameWithoutExtension, markdownHtml, markdownText);
     }
+
 
     internal static (string frontmatter, string markdown) ParseGenericPostData(IEnumerable<string> lines, FileInfo file, string contentSeparator, Func<string, bool> frontMatterIgnores, int skips)
     {
@@ -190,47 +159,45 @@ public static class Input
         return (frontmatterJson.ToString(), markdownContent.ToString());
     }
 
+
     public static async Task<SiteData?> LoadSiteData(Run run, VfsRead vfs, DirectoryInfo root)
     {
         var path = root.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION);
         return await JsonUtil.Load<SiteData>(run, vfs, path);
     }
 
+
     public static async Task<Site?> LoadSite(Run run, VfsRead vfs, DirectoryInfo root, Markdown markdown)
     {
         var data = await LoadSiteData(run, vfs, root);
         if (data == null) { return null; }
 
-        var content = await LoadDir(run, vfs, GetContentDirectory(root), ImmutableArray.Create<string>(), true, markdown);
+        var content = await LoadDir(run, vfs, Constants.GetContentDirectory(root), ImmutableArray.Create<string>(), true, markdown);
         if (content == null) { return null; }
 
         return new Site(data, content);
     }
 
-    private record PostWithOptionalName(Post Post, string? Name);
 
     private static async Task<Dir?> LoadDir(Run run, VfsRead vfs, DirectoryInfo root, ImmutableArray<string> relativePaths, bool isContentFolder, Markdown markdown)
     {
         var name = root.Name;
         var relativePathsIncludingSelf = isContentFolder ? relativePaths : relativePaths.Add(name);
 
-        var postFiles = await LoadPosts(run, vfs, vfs.GetFiles(root).Where(f => f.Extension == ".md"), relativePathsIncludingSelf, markdown).ToListAsync();
+        var markdownFiles = vfs.GetFiles(root).Where(f => f.Extension == ".md");
+        var postFiles = await LoadPosts(run, vfs, markdownFiles, relativePathsIncludingSelf, markdown).ToListAsync();
         var dirs = await LoadDirsWithoutNulls(run, vfs, vfs.GetDirectories(root), relativePathsIncludingSelf, markdown).ToListAsync();
 
         // remove dirs that only contain a index
         var dirsAsPosts = dirs.Where(dir => dir.Posts.Length == 1 && dir.Posts[0].Name == Constants.INDEX_NAME).ToImmutableArray();
-        var dirsToRemove = dirsAsPosts.Select(dir => dir.Id).ToHashSet();
+        var dirsToRemove = dirsAsPosts.Select(dir => dir.Id).ToImmutableHashSet();
         dirs.RemoveAll(dir => dirsToRemove.Contains(dir.Id));
 
         // "move" those index pages one level up and promote to regular pages
-        var additionalPostSrcs = dirsAsPosts.Select(dir => dir.Posts[0])
-            .Select(post => new PostWithOptionalName(post, post.SourceFile.Directory?.Name))
-            .ToImmutableArray();
-        foreach (var data in additionalPostSrcs.Where(data => data.Name == null))
-        { run.WriteError($"{data.Post.Name} is missing a directory: {data.Post.SourceFile}"); }
-        var additionalPosts = additionalPostSrcs
-            .Where(data => data.Name != null)
-            .Select(data => new Post(data.Post.Id, false, data.Post.RelativePath.PopBack(), data.Post.Front, data.Post.SourceFile, data.Name!, data.Post.MarkdownHtml, data.Post.MarkdownPlainText))
+        var additionalPosts = dirsAsPosts.Select(dir => dir.Posts[0])
+            .Select(post => new {Post=post, Name=post.SourceFile.Directory?.Name})
+            .Where(data => data.Name != null, data => run.WriteError($"{data.Post.Name} is missing a directory: {data.Post.SourceFile}"))
+            .Select(data => data.Post with { IsIndex = false, RelativePath = data.Post.RelativePath.PopBack(), Name = data.Name! })
             ;
 
         // todo(Gustav): if dir is missing a entry, optionally add a empty _index page
@@ -262,10 +229,5 @@ public static class Input
                 yield return post;
             }
         }
-    }
-
-    public static DirectoryInfo GetContentDirectory(DirectoryInfo root)
-    {
-        return root.GetDir("content");
     }
 }
