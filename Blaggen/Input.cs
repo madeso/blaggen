@@ -8,29 +8,22 @@ using System.Text;
 namespace Blaggen;
 
 
-public class Templates
+public class TemplateDictionary
 {
-    public DirectoryInfo TemplateFolder { get; }
-    public DirectoryInfo ContentFolder { get; }
     public ImmutableHashSet<string> Extensions { get; }
-    public ImmutableDictionary<string, string> TemplateDict { get; } // can't use FileInfo as a key
-    public string? GetTemplateOrNull(FileInfo file) =>  TemplateDict.TryGetValue(file.FullName, out var contents) ? contents : null;
+    private ImmutableDictionary<string, string> LoadedTemplates { get; } // can't use FileInfo as a key
+    public string? GetTemplateOrNull(FileInfo file) =>  LoadedTemplates.TryGetValue(file.FullName, out var contents) ? contents : null;
 
 
-    private Templates(DirectoryInfo tf, DirectoryInfo cf, ImmutableDictionary<string, string> td, ImmutableHashSet<string> ex)
+    private TemplateDictionary(ImmutableDictionary<string, string> td, ImmutableHashSet<string> ex)
     {
-        TemplateFolder = tf;
-        ContentFolder = cf;
         Extensions = ex;
-        TemplateDict = td;
+        LoadedTemplates = td;
     }
 
 
-    public static async Task<Templates> Load(Run run, VfsRead vfs, DirectoryInfo root)
+    public static async Task<TemplateDictionary> Load(Run run, VfsRead vfs, DirectoryInfo root, DirectoryInfo templateFolder)
     {
-        var templateFolder = Constants.CalculateTemplateDirectory(root);
-        var contentFolder = Constants.GetContentDirectory(root);
-
         // todo(Gustav): warn if template files are missing
         var templateFiles = vfs.GetFilesRec(templateFolder)
             .Where(f => f.Name.Contains(Constants.MUSTACHE_TEMPLATE_POSTFIX))
@@ -43,7 +36,7 @@ public class Templates
             .ToImmutableDictionary(x => x.File.FullName, x => x.Contents!)
             ;
         var extensions = templateFiles.Select(file => file.Extension.ToLowerInvariant()).ToImmutableHashSet();
-        return new Templates(templateFolder, contentFolder, templateDict, extensions);
+        return new TemplateDictionary(templateDict, extensions);
     }
 }
 

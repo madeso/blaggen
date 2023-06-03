@@ -140,11 +140,12 @@ public static class Facade
         if (site == null) { return -1; }
 
         var publicDir = root.GetDir("public");
-        var templates = await Templates.Load(run, vfs, root);
+        var templateFolder = Constants.CalculateTemplateDirectory(root);
+        var templates = await TemplateDictionary.Load(run, vfs, root, templateFolder);
 
         if (templates.Extensions.Count == 0)
         {
-            run.WriteError($"No templates found in {templates.TemplateFolder}");
+            run.WriteError($"No templates found in {templateFolder}");
             return -1;
         }
 
@@ -157,7 +158,7 @@ public static class Facade
             ;
 
         run.Status("Writing data to disk");
-        var pages = Generate.ListPagesForSite(site, publicDir, templates).ToImmutableArray();
+        var pages = Generate.ListPagesForSite(site, publicDir, templateFolder).ToImmutableArray();
         var numberOfPagesGenerated = await Generate.WritePages(pages, run, vfsWrite, site, publicDir, templates, partials);
         // todo(Gustav): copy static files
 

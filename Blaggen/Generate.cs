@@ -73,13 +73,13 @@ public static class Generate
     }
 
 
-    public static IEnumerable<PageToWrite> ListPagesForSite(Site site, DirectoryInfo publicDir, Templates templates)
+    public static IEnumerable<PageToWrite> ListPagesForSite(Site site, DirectoryInfo publicDir, DirectoryInfo templates)
     {
         var owners = ImmutableArray.Create<Dir>();
         return ListPagesInDir(site, site.Root, publicDir, templates, owners, true);
 
         static IEnumerable<PageToWrite> ListPagesInDir(Site site, Dir dir,
-            DirectoryInfo targetDir, Templates templates,
+            DirectoryInfo targetDir, DirectoryInfo templates,
             ImmutableArray<Dir> owners, bool isRoot)
         {
             var ownersWithSelf = isRoot ? owners : owners.Add(dir); // if this is root, don't add the "content" folder
@@ -106,7 +106,7 @@ public static class Generate
 
 
     public static async Task<int> WritePages(ImmutableArray<PageToWrite> pageToWrites, Run run, VfsWrite vfsWrite,
-        Site site, DirectoryInfo publicDir, Templates templates, ImmutableArray<KeyValuePair<string, object>> partials)
+        Site site, DirectoryInfo publicDir, TemplateDictionary templates, ImmutableArray<KeyValuePair<string, object>> partials)
     {
         var roots = pageToWrites
             .Where(x => GetRelativePath(publicDir, x).Count() == 1)
@@ -146,7 +146,7 @@ public static class Generate
 
 
     private static async Task<int> WritePost(Run run, VfsWrite vfs, Site site, ImmutableArray<PageToWrite> roots,
-        Templates templates, ImmutableArray<KeyValuePair<string, object>> partials,
+        TemplateDictionary templates, ImmutableArray<KeyValuePair<string, object>> partials,
         PageToWrite page, DirectoryInfo publicDir)
     {
         var rootLinks = roots
@@ -218,15 +218,15 @@ public static class Generate
     private static string DisplayNameForFile(FileInfo file) => Path.GetRelativePath(Environment.CurrentDirectory, file.FullName);
 
 
-    private static ImmutableArray<DirectoryInfo> GenerateTemplateFolders(Templates templates, IEnumerable<Dir> owners)
+    private static ImmutableArray<DirectoryInfo> GenerateTemplateFolders(DirectoryInfo templateFolder, IEnumerable<Dir> owners)
     {
-        var root = new[] { templates.TemplateFolder };
+        var root = new[] { templateFolder };
         var children = owners
             // template paths going from current dir to root
             .Accumulate(ImmutableArray.Create<string>(), (dir, arr) => arr.Add(dir.Name))
             .Reverse()
             // convert to actual directory
-            .Select(arr => templates.TemplateFolder.GetSubDirs(arr))
+            .Select(arr => templateFolder.GetSubDirs(arr))
             ;
         var ret = children.Concat(root).ToImmutableArray();
         return ret;
