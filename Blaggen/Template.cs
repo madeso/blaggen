@@ -1,5 +1,7 @@
 ﻿using System.Globalization;
 using System.Text;
+using System.Xml.Linq;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Blaggen;
 
@@ -49,89 +51,39 @@ public class Template
 
     // --------------------------------------------------------------------------------------------
 
-    private abstract class Node
+    private record Node
     {
-        public abstract string Evaluate(Dictionary<string, Func> functions, Dictionary<string, string> data);
-    }
+        private Node() {}
 
-    private class Text : Node
-    {
-        private readonly string value;
-        public Text(string value)
+        internal record Text(string Value) : Node();
+        internal record Attribute(string Name) : Node();
+        internal record FunctionCall(string Name, List<Node> Args) : Node();
+        internal record Group(List<Node> Nodes) : Node();
+
+        public string Evaluate(Dictionary<string, Func> functions, Dictionary<string, string> data)
         {
-            this.value = value;
-        }
-
-        public override string Evaluate(Dictionary<string, Func> functions, Dictionary<string, string> data)
-        {
-            return value;
-        }
-
-        public override string ToString()
-        {
-            return value;
-        }
-    }
-
-    private class Attribute : Node
-    {
-        private readonly string name;
-        public Attribute(string name)
-        {
-            this.name = name;
-        }
-
-        public override string Evaluate(Dictionary<string, Func> functions, Dictionary<string, string> data)
-        {
-            return data.TryGetValue(name, out var value) ? value : string.Empty;
-        }
-
-        public override string ToString()
-        {
-            return "%" + name + "%";
-        }
-    }
-
-    private class FunctionCall : Node
-    {
-        private readonly string name;
-        readonly List<Node> args;
-
-        public FunctionCall(string name, IEnumerable<Node> arguments)
-        {
-            this.name = name;
-            args = arguments.ToList();
-        }
-
-        public override string Evaluate(Dictionary<string, Func> functions, Dictionary<string, string> data)
-        {
-            if (functions.ContainsKey(name))
+            return this switch
             {
-                var values = args.Select(a => a.Evaluate(functions, data)).ToList();
-                return functions[name](values);
-            }
-
-            throw new MissingFunction(name);
+                Text text => text.Value,
+                Attribute attribute => data.TryGetValue(attribute.Name, out var value)
+                    ? value
+                    : string.Empty,
+                FunctionCall fc => functions.TryGetValue(fc.Name, out var func)
+                    ? func(fc.Args.Select(a => a.Evaluate(functions, data)).ToList())
+                    : throw new MissingFunction(fc.Name),
+                Group gr => string.Join("", gr.Nodes.Select(n => n.Evaluate(functions, data)))
+            };
         }
 
         public override string ToString()
         {
-            return $"${name}({string.Join(",", args.Select(x => x.ToString()))})";
-        }
-    }
-
-    private class Group : Node
-    {
-        readonly List<Node> nodes;
-        public Group(List<Node> nodes)
-        {
-            this.nodes = nodes;
-
-        }
-
-        public override string Evaluate(Dictionary<string, Func> functions, Dictionary<string, string> data)
-        {
-            return string.Join("", nodes.Select(n => n.Evaluate(functions, data)));
+            return this switch
+            {
+                Text text => text.Value,
+                Attribute attribute => "%" + attribute.Name + "%",
+                FunctionCall fc => $"${fc.Name}({string.Join(",", fc.Args.Select(x => x.ToString()))})",
+                Group gr => string.Join("", gr.Nodes.Select(n => n.ToString()))
+            };
         }
     }
 
@@ -242,16 +194,16 @@ public class Template
             void AddText()
             {
                 if (mem != "")
-                    nodes.Add(new Text(mem));
+                    nodes.Add(new Node.Text(mem));
                 mem = "";
             }
 
             void AddVar()
             {
                 if (mem != "")
-                    nodes.Add(new Attribute(mem));
+                    nodes.Add(new Node.Attribute(mem));
                 else
-                    nodes.Add(new Text(Syntax.VAR_SIGN.ToString()));
+                    nodes.Add(new Node.Text(Syntax.VAR_SIGN.ToString()));
                 mem = "";
             }
 
@@ -259,7 +211,7 @@ public class Template
             {
                 if (arguments == null)
                     throw new SyntaxError("weird func call");
-                nodes.Add(new FunctionCall(mem, arguments.Select(CompilePatternToNode)));
+                nodes.Add(new Node.FunctionCall(mem, arguments.Select(CompilePatternToNode).ToList()));
                 mem = "";
             }
 
@@ -315,7 +267,7 @@ public class Template
 
     private static Node CompilePatternToNode(string pattern)
     {
-        return new Group(Parser.Parse(pattern));
+        return new Node.Group(Parser.Parse(pattern));
     }
 
     readonly Node list;
