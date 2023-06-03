@@ -51,16 +51,16 @@ public class Template
 
     // --------------------------------------------------------------------------------------------
 
-    private record Node
+    public record Node
     {
         private Node() {}
 
         internal record Text(string Value) : Node();
         internal record Attribute(string Name) : Node();
-        internal record FunctionCall(string Name, List<Node> Args) : Node();
+        internal record FunctionCall(string Name, Func Function, List<Node> Args) : Node();
         internal record Group(List<Node> Nodes) : Node();
 
-        public string Evaluate(Dictionary<string, Func> functions, Dictionary<string, string> data)
+        public string Evaluate(Dictionary<string, string> data)
         {
             return this switch
             {
@@ -68,10 +68,8 @@ public class Template
                 Attribute attribute => data.TryGetValue(attribute.Name, out var value)
                     ? value
                     : string.Empty,
-                FunctionCall fc => functions.TryGetValue(fc.Name, out var func)
-                    ? func(fc.Args.Select(a => a.Evaluate(functions, data)).ToList())
-                    : throw new MissingFunction(fc.Name),
-                Group gr => string.Join("", gr.Nodes.Select(n => n.Evaluate(functions, data)))
+                FunctionCall fc => fc.Function(fc.Args.Select(a => a.Evaluate(data)).ToList()),
+                Group gr => string.Join("", gr.Nodes.Select(n => n.Evaluate(data))),
             };
         }
 
@@ -82,7 +80,7 @@ public class Template
                 Text text => text.Value,
                 Attribute attribute => "%" + attribute.Name + "%",
                 FunctionCall fc => $"${fc.Name}({string.Join(",", fc.Args.Select(x => x.ToString()))})",
-                Group gr => string.Join("", gr.Nodes.Select(n => n.ToString()))
+                Group gr => string.Join("", gr.Nodes.Select(n => n.ToString())),
             };
         }
     }
@@ -103,7 +101,7 @@ public class Template
             Text, Var, Func
         }
 
-        public static List<Node> Parse(string pattern)
+        public static Node Parse(string pattern, Dictionary<string, Func> functions)
         {
             var mem = "";
             var nodes = new List<Node>();
@@ -174,7 +172,7 @@ public class Template
                 }
             }
 
-            if (mem == "") return nodes;
+            if (mem == "") return new Node.Group(nodes);
             
             switch (state)
             {
@@ -189,7 +187,7 @@ public class Template
                 default:
                     throw new ArgumentOutOfRangeException();
             }
-            return nodes;
+            return new Node.Group(nodes);
 
             void AddText()
             {
@@ -209,9 +207,9 @@ public class Template
 
             void AddFunc(List<string> arguments)
             {
-                if (arguments == null)
-                    throw new SyntaxError("weird func call");
-                nodes.Add(new Node.FunctionCall(mem, arguments.Select(CompilePatternToNode).ToList()));
+                var functionName = mem;
+                if (false == functions.TryGetValue(functionName, out var function)) { throw new MissingFunction(functionName); }
+                nodes.Add(new Node.FunctionCall(functionName, function, arguments.Select(x => Parse(x, functions)).ToList()));
                 mem = "";
             }
 
@@ -265,24 +263,9 @@ public class Template
         }
     }
 
-    private static Node CompilePatternToNode(string pattern)
+    public static Node Compile(string pattern, Dictionary<string, Func> functions)
     {
-        return new Node.Group(Parser.Parse(pattern));
-    }
-
-    readonly Node list;
-    private Template(string pattern)
-    {
-        list = CompilePatternToNode(pattern);
-    }
-    public string Evaluate(Dictionary<string, Func> funcs, Dictionary<string, string> data)
-    {
-        return list.Evaluate(funcs, data);
-    }
-
-    public static Template Compile(string pattern)
-    {
-        return new Template(pattern);
+        return Parser.Parse(pattern, functions);
     }
 
     public static Dictionary<string, Func> DefaultFunctions()

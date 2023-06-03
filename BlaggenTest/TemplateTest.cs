@@ -19,8 +19,8 @@ public class TemplateTest
         };
         var f = Template.DefaultFunctions();
 
-        Template.Compile("%artist% - %title% (%album%)").Evaluate(f, data).Should().Be("ABBA - dancing queen (Arrival)");
-        Template.Compile("%artist% - $title(%title%) (%album%)").Evaluate(f, data).Should().Be("ABBA - Dancing Queen (Arrival)");
-        Template.Compile("$zfill(%track%,3). $title(%title%)").Evaluate(f, data).Should().Be("002. Dancing Queen");
+        Template.Compile("%artist% - %title% (%album%)", f).Evaluate(data).Should().Be("ABBA - dancing queen (Arrival)");
+        Template.Compile("%artist% - $title(%title%) (%album%)", f).Evaluate(data).Should().Be("ABBA - Dancing Queen (Arrival)");
+        Template.Compile("$zfill(%track%,3). $title(%title%)", f).Evaluate(data).Should().Be("002. Dancing Queen");
     }
 }
