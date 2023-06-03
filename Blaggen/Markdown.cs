@@ -1,5 +1,6 @@
 ﻿using Markdig;
 using Markdig.Renderers;
+using Markdig.Syntax;
 
 namespace Blaggen;
 
@@ -7,17 +8,17 @@ public class Markdown
 {
     private readonly MarkdownPipeline pipeline = new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
 
-    public Markdig.Syntax.MarkdownDocument Parse(string content)
+    public MarkdownDocument Parse(string content)
     {
         return Markdig.Markdown.Parse(content);
     }
 
-    public string ToHtml(Markdig.Syntax.MarkdownDocument document)
+    public string ToHtml(MarkdownDocument document)
     {
         return document.ToHtml(pipeline);
     }
 
-    public string ToPlainText(Markdig.Syntax.MarkdownDocument document)
+    public string ToPlainText(MarkdownDocument document)
     {
         // stolen from Markdig implementation of ToPlainText since that isn't exposed
         var writer = new StringWriter();

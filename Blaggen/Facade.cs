@@ -1,6 +1,6 @@
-﻿using Spectre.Console;
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Diagnostics;
+using Spectre.Console;
 
 namespace Blaggen;
 

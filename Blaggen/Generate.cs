@@ -151,8 +151,8 @@ public static class Generate
     {
         var rootLinks = roots
                 .Select(x => new RootLink(x.Post.Front.Title,
-                    GetIndexPath(GetRelativePath(page.DestDir, x)),
-                    GetIndexPath(GetRelativePath(publicDir, x)) == GetIndexPath(GetRelativePath(publicDir, page).Take(1))
+                    ConcatWithIndex(GetRelativePath(page.DestDir, x)),
+                    ConcatWithIndex(GetRelativePath(publicDir, x)) == ConcatWithIndex(GetRelativePath(publicDir, page).Take(1))
                 ))
                 .ToImmutableArray()
             ;
@@ -208,7 +208,7 @@ public static class Generate
             }
         }
 
-        static string GetIndexPath(IEnumerable<string> rel)
+        static string ConcatWithIndex(IEnumerable<string> rel)
         {
             return string.Join("/", rel.Concat(new[] { "index.html" }));
         }

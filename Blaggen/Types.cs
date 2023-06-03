@@ -1,7 +1,6 @@
 ﻿using System.Collections.Immutable;
 using System.Globalization;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace Blaggen;
@@ -33,12 +32,12 @@ public class SiteData
 
     public string ShortDateToString(DateTime dt)
     {
-        return dt.ToString(ShortDateFormat, this.CultureInfo);
+        return dt.ToString(ShortDateFormat, CultureInfo);
     }
 
     public string LongDateToString(DateTime dt)
     {
-        return dt.ToString(ShortDateFormat, this.CultureInfo);
+        return dt.ToString(ShortDateFormat, CultureInfo);
     }
 
     [JsonExtensionData]

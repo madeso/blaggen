@@ -37,6 +37,6 @@ public static class JsonUtil
 
     public static string Write<T>(T self)
     {
-        return JsonSerializer.Serialize<T>(self, Options);
+        return JsonSerializer.Serialize(self, Options);
     }
 }
