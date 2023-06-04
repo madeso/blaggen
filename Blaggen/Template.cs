@@ -25,7 +25,7 @@ public static class Template
     public record Location(int Line, int Offset);
     public record Error(Location Location, string Message);
 
-    public record Node
+    public abstract record Node
     {
         private Node() {}
 
@@ -120,8 +120,8 @@ public static class Template
     private enum TokenType
     {
         Text,
-        Begin, End,
-        BeginTrim, EndTrim,
+        BeginCode, EndCode,
+        BeginCodeTrim, EndCodeTrim,
         Ident,
         Dot,
         Comma,
@@ -177,11 +177,11 @@ public static class Template
                     var c = Advance();
                     if (c == '{' && Match('{'))
                     {
-                        var beginType = TokenType.Begin;
+                        var beginType = TokenType.BeginCode;
                         if (Peek() == '-')
                         {
                             Advance();
-                            beginType = TokenType.BeginTrim;
+                            beginType = TokenType.BeginCodeTrim;
                         }
                         var afterStart = current;
                         var text = AddToken(TokenType.Text, null, start, beforeStart);
@@ -225,7 +225,7 @@ public static class Template
                     }
 
                     inside = false;
-                    return AddToken(TokenType.EndTrim);
+                    return AddToken(TokenType.EndCodeTrim);
                 case '}':
                     if (!Match('}'))
                     {
@@ -234,7 +234,7 @@ public static class Template
                     }
 
                     inside = false;
-                    return AddToken(TokenType.End);
+                    return AddToken(TokenType.EndCode);
                 case '|': return AddToken(TokenType.Pipe);
                 case ',': return AddToken(TokenType.Comma);
                 case '(': return AddToken(TokenType.LeftParen);
@@ -395,16 +395,16 @@ public static class Template
             {
                 switch (tok.Type)
                 {
-                    case TokenType.BeginTrim:
+                    case TokenType.BeginCodeTrim:
                         if (lastToken is { Type: TokenType.Text })
                         {
                             yield return lastToken with { Value = lastToken.Value.TrimEnd() };
                         }
 
-                        lastToken = tok with { Type = TokenType.Begin };
+                        lastToken = tok with { Type = TokenType.BeginCode };
                         break;
-                    case TokenType.Text when lastToken is { Type: TokenType.EndTrim }:
-                        yield return lastToken with { Type = TokenType.End };
+                    case TokenType.Text when lastToken is { Type: TokenType.EndCodeTrim }:
+                        yield return lastToken with { Type = TokenType.EndCode };
                         lastToken = tok with { Value = tok.Value.TrimStart() };
                         break;
                     default:
@@ -429,7 +429,7 @@ public static class Template
             Token? lastToken = null;
             foreach (var tok in tokens)
             {
-                if (lastToken is { Type: TokenType.Begin} && tok.Type == TokenType.End)
+                if (lastToken is { Type: TokenType.BeginCode} && tok.Type == TokenType.EndCode)
                 {
                     lastToken = null;
                     continue;
@@ -520,7 +520,7 @@ public static class Template
 
             while (!IsAtEnd())
             {
-                if (Previous().Type == TokenType.End) return;
+                if (Previous().Type == TokenType.EndCode) return;
 
                 switch (Peek().Type)
                 {
@@ -559,7 +559,7 @@ public static class Template
         {
             switch (Peek().Type)
             {
-                case TokenType.Begin:
+                case TokenType.BeginCode:
                     Advance();
                     if (Peek().Type != TokenType.Ident)
                     {
@@ -600,7 +600,7 @@ public static class Template
                     }
                     nodes.Add(node);
 
-                    Consume(TokenType.End, $"Expected end token but found {TokenToMessage(Peek())}");
+                    Consume(TokenType.EndCode, $"Expected end token but found {TokenToMessage(Peek())}");
                     break;
                 case TokenType.Text:
                     var text = Advance();
