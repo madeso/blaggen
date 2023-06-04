@@ -397,9 +397,47 @@ public static class Template
 
 
     private class ParseError : Exception { }
-    private static (Node, ImmutableArray<Error>) Parse(ImmutableArray<Token> tokens, Dictionary<string, Func> functions)
+    private static (Node, ImmutableArray<Error>) Parse(IEnumerable<Token> itok, Dictionary<string, Func> functions)
     {
-        // todo(Gustav): merge similar "empty" tokens, and replace trims with regular begin/end
+        static IEnumerable<Token> TrimTextTokens(IEnumerable<Token> tokens)
+        {
+            Token? lastToken = null;
+            foreach (var tok in tokens)
+            {
+                switch (tok.Type)
+                {
+                    case TokenType.BeginTrim:
+                        if (lastToken is { Type: TokenType.Text })
+                        {
+                            yield return lastToken with { Value = lastToken.Value.TrimEnd() };
+                        }
+
+                        lastToken = tok with { Type = TokenType.Begin };
+                        break;
+                    case TokenType.Text when lastToken is { Type: TokenType.EndTrim }:
+                        yield return lastToken with { Type = TokenType.End };
+                        lastToken = tok with { Value = tok.Value.TrimStart() };
+                        break;
+                    default:
+                        if (lastToken != null)
+                        {
+                            yield return lastToken;
+                        }
+
+                        lastToken = tok;
+                        break;
+                }
+            }
+
+            if (lastToken != null)
+            {
+                yield return lastToken;
+            }
+        }
+
+        var tokens = TrimTextTokens(itok).ToImmutableArray();
+        // todo(Gustav): merge empty begin/end
+
         var current = 0;
 
         var nodes = new List<Node>();
