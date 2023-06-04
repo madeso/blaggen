@@ -1,17 +1,6 @@
-﻿using Spectre.Console;
-using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Data.SqlTypes;
-using System.Diagnostics.CodeAnalysis;
-using System.Drawing;
+﻿using System.Collections.Immutable;
 using System.Globalization;
-using System.Runtime.CompilerServices;
-using System.Security.Claims;
 using System.Text;
-using System.Xml.Linq;
-using static Blaggen.Template;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Blaggen;
 
@@ -68,8 +57,8 @@ public static class Template
             };
         }
     }
-
-    public enum TokenType
+    
+    private enum TokenType
     {
         Text,
         Begin, End,
@@ -85,12 +74,12 @@ public static class Template
     }
 
     public record Location(int Line, int Offset);
-    public record Token(TokenType Type, string Lexeme, Location Location, string Value);
-    private record ScannerLocation(int Line, int Offset, int Index);
-
     public record Error(Location Location, string Message);
 
-    public static (ImmutableArray<Token>, ImmutableArray<Error>) Scanner(string source)
+    private record Token(TokenType Type, string Lexeme, Location Location, string Value);
+    private record ScannerLocation(int Line, int Offset, int Index);
+
+    private static (ImmutableArray<Token>, ImmutableArray<Error>) Scanner(string source)
     {
         var start = new ScannerLocation(1, 0, 0);
         var current = start;
@@ -521,7 +510,6 @@ public static class Template
         var culture = new CultureInfo("en-US", false);
 
         var t = new Dictionary<string, Func>();
-        //t.Add("title", args => args[0].title());
         t.Add("capitalize", args => Capitalize(args[0], true));
         t.Add("lower", args => culture.TextInfo.ToLower(args[0]));
         t.Add("upper", args => culture.TextInfo.ToUpper(args[0]));
