@@ -46,17 +46,6 @@ public static class Template
                 Group gr => string.Join("", gr.Nodes.Select(n => n.Evaluate(data))),
             };
         }
-
-        public override string ToString()
-        {
-            return this switch
-            {
-                Text text => text.Value,
-                Attribute attribute => "%" + attribute.Name + "%",
-                FunctionCall fc => $"${fc.Name}({string.Join(",", fc.Args.Select(x => x.ToString()))})",
-                Group gr => string.Join("", gr.Nodes.Select(n => n.ToString())),
-            };
-        }
     }
     
 
