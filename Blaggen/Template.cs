@@ -22,7 +22,8 @@ public static class Template
 {
     public delegate string Func(List<string> args);
 
-    // --------------------------------------------------------------------------------------------
+    public record Location(int Line, int Offset);
+    public record Error(Location Location, string Message);
 
     public record Node
     {
@@ -58,6 +59,75 @@ public static class Template
         }
     }
     
+
+    public static (Node, ImmutableArray<Error>) Parse(string source, Dictionary<string, Func> functions)
+    {
+        var (tokens, lexerErrors) = Scanner(source);
+        if (lexerErrors.Length > 0)
+        {
+            return (new Node.Text("Lexing failed"), lexerErrors);
+        }
+
+        return Parse(tokens, functions);
+    }
+
+
+    public static Dictionary<string, Func> DefaultFunctions()
+    {
+        var culture = new CultureInfo("en-US", false);
+
+        var t = new Dictionary<string, Func>();
+        t.Add("capitalize", args => Capitalize(args[0], true));
+        t.Add("lower", args => culture.TextInfo.ToLower(args[0]));
+        t.Add("upper", args => culture.TextInfo.ToUpper(args[0]));
+        t.Add("title", args => culture.TextInfo.ToTitleCase(args[0]));
+        t.Add("rtrim", args => args[0].TrimEnd(GetOptionalValue(args, 1).ToCharArray()));
+        t.Add("ltrim", args => args[0].TrimStart(GetOptionalValue(args, 1).ToCharArray()));
+        t.Add("trim", args => args[0].Trim(GetOptionalValue(args, 1).ToCharArray()));
+        t.Add("zfill", args => zfill(args[0], GetOptionalValue(args, 1, "3")));
+        t.Add("replace", args => args[0].Replace(args[1], args[2]));
+        t.Add("substr", args => args[0].Substring(int.Parse(args[1]), int.Parse(GetOptionalValue(args, 2))));
+        return t;
+
+        static string GetOptionalValue(List<string> args, int i, string d = "")
+        {
+            if (args.Count > i)
+            {
+                return args[i];
+            }
+
+            return d;
+        }
+
+        static string Capitalize(string p, bool alsoFirstChar)
+        {
+            bool cap = alsoFirstChar;
+            StringBuilder sb = new StringBuilder();
+            foreach (char h in p.ToLower())
+            {
+                char c = h;
+                if (char.IsLetter(c) && cap)
+                {
+                    c = char.ToUpper(c);
+                    cap = false;
+                }
+                if (char.IsWhiteSpace(c)) cap = true;
+                sb.Append(c);
+            }
+            return sb.ToString();
+        }
+
+        static string zfill(string str, string scount)
+        {
+            int i = int.Parse(scount);
+            return str.PadLeft(i, '0');
+        }
+    }
+
+
+    // --------------------------------------------------------------------------------------------
+
+
     private enum TokenType
     {
         Text,
@@ -72,13 +142,10 @@ public static class Template
         Slash,
         Eof,
     }
-
-    public record Location(int Line, int Offset);
-    public record Error(Location Location, string Message);
-
     private record Token(TokenType Type, string Lexeme, Location Location, string Value);
+    
+    
     private record ScannerLocation(int Line, int Offset, int Index);
-
     private static (ImmutableArray<Token>, ImmutableArray<Error>) Scanner(string source)
     {
         var start = new ScannerLocation(1, 0, 0);
@@ -328,19 +395,8 @@ public static class Template
         }
     }
 
+
     private class ParseError : Exception { }
-
-    public static (Node, ImmutableArray<Error>) Parse(string source, Dictionary<string, Func> functions)
-    {
-        var (tokens, lexerErrors) = Scanner(source);
-        if (lexerErrors.Length > 0)
-        {
-            return (new Node.Text("Lexing failed"), lexerErrors);
-        }
-
-        return Parse(tokens, functions);
-    }
-
     private static (Node, ImmutableArray<Error>) Parse(ImmutableArray<Token> tokens, Dictionary<string, Func> functions)
     {
         // todo(Gustav): merge similar "empty" tokens, and replace trims with regular begin/end
@@ -502,58 +558,6 @@ public static class Template
                 default:
                     throw ReportError(Peek().Location, $"Unexpected token {TokenToMessage(Peek())}");
             }
-        }
-    }
-
-    public static Dictionary<string, Func> DefaultFunctions()
-    {
-        var culture = new CultureInfo("en-US", false);
-
-        var t = new Dictionary<string, Func>();
-        t.Add("capitalize", args => Capitalize(args[0], true));
-        t.Add("lower", args => culture.TextInfo.ToLower(args[0]));
-        t.Add("upper", args => culture.TextInfo.ToUpper(args[0]));
-        t.Add("title", args => culture.TextInfo.ToTitleCase(args[0]));
-        t.Add("rtrim", args => args[0].TrimEnd(GetOptionalValue(args, 1).ToCharArray()));
-        t.Add("ltrim", args => args[0].TrimStart(GetOptionalValue(args, 1).ToCharArray()));
-        t.Add("trim", args => args[0].Trim(GetOptionalValue(args, 1).ToCharArray()));
-        t.Add("zfill", args => zfill(args[0], GetOptionalValue(args, 1, "3")));
-        t.Add("replace", args => args[0].Replace(args[1], args[2]));
-        t.Add("substr", args => args[0].Substring(int.Parse(args[1]), int.Parse(GetOptionalValue(args, 2))));
-        return t;
-
-        static string GetOptionalValue(List<string> args, int i, string d = "")
-        {
-            if (args.Count > i)
-            {
-                return args[i];
-            }
-
-            return d;
-        }
-
-        static string Capitalize(string p, bool alsoFirstChar)
-        {
-            bool cap = alsoFirstChar;
-            StringBuilder sb = new StringBuilder();
-            foreach (char h in p.ToLower())
-            {
-                char c = h;
-                if (char.IsLetter(c) && cap)
-                {
-                    c = char.ToUpper(c);
-                    cap = false;
-                }
-                if (char.IsWhiteSpace(c)) cap = true;
-                sb.Append(c);
-            }
-            return sb.ToString();
-        }
-
-        static string zfill(string str, string scount)
-        {
-            int i = int.Parse(scount);
-            return str.PadLeft(i, '0');
         }
     }
 }
