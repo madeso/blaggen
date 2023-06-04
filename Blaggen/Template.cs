@@ -255,7 +255,7 @@ public static class Template
 
                 case '/':
                     if(!Match('*')) {return AddToken(TokenType.Slash);}
-                    while (Peek() != '*' && PeekNext() != '/'  && !IsAtEnd())
+                    while (!(Peek() == '*' && PeekNext() == '/')  && !IsAtEnd())
                     {
                         Advance();
                     }
@@ -435,8 +435,32 @@ public static class Template
             }
         }
 
-        var tokens = TrimTextTokens(itok).ToImmutableArray();
-        // todo(Gustav): merge empty begin/end
+        static IEnumerable<Token> TrimEmptyStartEnd(IEnumerable<Token> tokens)
+        {
+            Token? lastToken = null;
+            foreach (var tok in tokens)
+            {
+                if (lastToken is { Type: TokenType.Begin} && tok.Type == TokenType.End)
+                {
+                    lastToken = null;
+                    continue;
+                }
+
+                if (lastToken != null)
+                {
+                    yield return lastToken;
+                }
+
+                lastToken = tok;
+            }
+
+            if (lastToken != null)
+            {
+                yield return lastToken;
+            }
+        }
+
+        var tokens = TrimEmptyStartEnd(TrimTextTokens(itok)).ToImmutableArray();
 
         var current = 0;
 

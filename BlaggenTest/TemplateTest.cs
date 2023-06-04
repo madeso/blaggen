@@ -31,7 +31,7 @@ public class TemplateTest
     {
         using (new AssertionScope())
         {
-            var (node, errors) = Template.Parse("{{artist}} - {{title | title}} ({{album}})", Template.DefaultFunctions());
+            var (node, errors) = Template.Parse("{{artist}} - {{title | title}} ( {{- album -}} )", Template.DefaultFunctions());
             node.Evaluate(abba).Should().Be("ABBA - Dancing Queen (Arrival)");
             errors.Should().BeEquivalentTo(new Template.Error[] { });
         }
@@ -42,7 +42,7 @@ public class TemplateTest
     {
         using (new AssertionScope())
         {
-            var (node, errors) = Template.Parse("{{track | zfill(3)}}. {{title | title}}", Template.DefaultFunctions());
+            var (node, errors) = Template.Parse("{{track | zfill(3)}} {{- /** a comment **/ -}}  . {{title | title}}", Template.DefaultFunctions());
             node.Evaluate(abba).Should().Be("002. Dancing Queen");
 
             errors.Should().BeEquivalentTo(new Template.Error[] { });
