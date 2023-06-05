@@ -1,6 +1,7 @@
 ﻿using System.Collections.Immutable;
 using System.Globalization;
 using System.Text;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Blaggen;
 
@@ -25,29 +26,42 @@ public static class Template
     public record Location(int Line, int Offset);
     public record Error(Location Location, string Message);
 
+    public record Data(Dictionary<string, string> Values, Dictionary<string, List<Data>> NamedArrayOfData);
+
     public abstract record Node
     {
         private Node() {}
 
         internal record Text(string Value) : Node();
         internal record Attribute(string Name) : Node();
+        internal record Iterate(string Name, Node Body) : Node();
         internal record FunctionCall(string Name, Func Function, List<Node> Args) : Node();
         internal record Group(List<Node> Nodes) : Node();
 
-        public string Evaluate(Dictionary<string, string> data)
+        public string Evaluate(Data data)
         {
             return this switch
             {
                 Text text => text.Value,
-                Attribute attribute => data.TryGetValue(attribute.Name, out var value)
+                Attribute attribute => data.Values.TryGetValue(attribute.Name, out var value)
                     ? value
-                    : string.Empty,
+                    : $"Missing attribute ${attribute.Name}",
+                Iterate iter => data.NamedArrayOfData.TryGetValue(iter.Name, out var childNodes)
+                    ? string.Join("", childNodes.Select(childData => iter.Body.Evaluate(childData)))
+                    : $"Missing array {iter.Name}: {MatchStrings(data.NamedArrayOfData.Keys)}",
                 FunctionCall fc => fc.Function(fc.Args.Select(a => a.Evaluate(data)).ToList()),
                 Group gr => string.Join("", gr.Nodes.Select(n => n.Evaluate(data))),
             };
         }
     }
-    
+
+
+    private static string MatchStrings(IEnumerable<string> candidates)
+    {
+        var c = candidates.ToImmutableArray();
+        var s = string.Join(", ", c);
+        return $"{c.Length}: [{s}]";
+    }
 
     public static (Node, ImmutableArray<Error>) Parse(string source, Dictionary<string, Func> functions)
     {
@@ -129,7 +143,9 @@ public static class Template
         LeftParen, RightParen,
         Hash,
         Slash,
+        QuestionMark,
         Eof,
+        KeywordIf, KeywordRange, KeywordEnd
     }
     private record Token(TokenType Type, string Lexeme, Location Location, string Value);
     
@@ -139,7 +155,7 @@ public static class Template
     {
         var start = new ScannerLocation(1, 0, 0);
         var current = start;
-        var inside = false;
+        var insideCodeBlock = false;
 
         var errors = new List<Error>();
         var ret = new List<Token>();
@@ -164,14 +180,14 @@ public static class Template
 
         IEnumerable<Token> ScanToken()
         {
-            if (inside)
+            if (insideCodeBlock)
             {
-                var tok = ScanInsideToken();
+                var tok = ScanCodeToken();
                 if (tok != null) yield return tok;
             }
             else
             {
-                while (inside == false && false == IsAtEnd())
+                while (insideCodeBlock == false && false == IsAtEnd())
                 {
                     var beforeStart = current;
                     var c = Advance();
@@ -184,20 +200,20 @@ public static class Template
                             beginType = TokenType.BeginCodeTrim;
                         }
                         var afterStart = current;
-                        var text = AddToken(TokenType.Text, null, start, beforeStart);
+                        var text = CreateToken(TokenType.Text, null, start, beforeStart);
                         if(text.Value.Length > 0)
                         {
                             yield return text;
                         }
-                        inside = true;
+                        insideCodeBlock = true;
 
-                        yield return AddToken(beginType, null, beforeStart, current);
+                        yield return CreateToken(beginType, null, beforeStart, current);
                     }
                 }
 
                 if (IsAtEnd())
                 {
-                    var text = AddToken(TokenType.Text);
+                    var text = CreateToken(TokenType.Text);
                     if (text.Value.Length > 0)
                     {
                         yield return text;
@@ -206,7 +222,7 @@ public static class Template
             }
         }
 
-        Token? ScanInsideToken()
+        Token? ScanCodeToken()
         {
             var c = Advance();
             switch (c)
@@ -214,36 +230,37 @@ public static class Template
                 case '-':
                     if (!Match('}'))
                     {
-                        ReportError(StartLocation(), "Detected rouge -");
+                        ReportError(GetStartLocation(), "Detected rouge -");
                         return null;
                     }
 
                     if (!Match('}'))
                     {
-                        ReportError(StartLocation(), "Detected rouge -}");
+                        ReportError(GetStartLocation(), "Detected rouge -}");
                         return null;
                     }
 
-                    inside = false;
-                    return AddToken(TokenType.EndCodeTrim);
+                    insideCodeBlock = false;
+                    return CreateToken(TokenType.EndCodeTrim);
                 case '}':
                     if (!Match('}'))
                     {
-                        ReportError(StartLocation(), "Detected rouge {");
+                        ReportError(GetStartLocation(), "Detected rouge {");
                         return null;
                     }
 
-                    inside = false;
-                    return AddToken(TokenType.EndCode);
-                case '|': return AddToken(TokenType.Pipe);
-                case ',': return AddToken(TokenType.Comma);
-                case '(': return AddToken(TokenType.LeftParen);
-                case ')': return AddToken(TokenType.RightParen);
-                case '#': return AddToken(TokenType.Hash);
-                case '.': return AddToken(TokenType.Dot);
+                    insideCodeBlock = false;
+                    return CreateToken(TokenType.EndCode);
+                case '|': return CreateToken(TokenType.Pipe);
+                case ',': return CreateToken(TokenType.Comma);
+                case '(': return CreateToken(TokenType.LeftParen);
+                case ')': return CreateToken(TokenType.RightParen);
+                case '#': return CreateToken(TokenType.Hash);
+                case '.': return CreateToken(TokenType.Dot);
+                case '?': return CreateToken(TokenType.QuestionMark);
 
                 case '/':
-                    if(!Match('*')) {return AddToken(TokenType.Slash);}
+                    if(!Match('*')) {return CreateToken(TokenType.Slash);}
                     while (!(Peek() == '*' && PeekNext() == '/')  && !IsAtEnd())
                     {
                         Advance();
@@ -266,7 +283,7 @@ public static class Template
 
                     if (IsAtEnd())
                     {
-                        ReportError(StartLocation(), "Unterminated string.");
+                        ReportError(GetStartLocation(), "Unterminated string.");
                         return null;
                     }
 
@@ -275,7 +292,7 @@ public static class Template
 
                     // Trim the surrounding quotes.
                     var value = source.Substring(start.Index + 1, current.Index - start.Index - 2);
-                    return AddToken(TokenType.Ident, value);
+                    return CreateToken(TokenType.Ident, value);
 
                 case ' ':
                 case '\r':
@@ -297,17 +314,26 @@ public static class Template
                             while (IsDigit(Peek())) Advance();
                         }
 
-                        return AddToken(TokenType.Ident);
+                        return CreateToken(TokenType.Ident);
                     }
                     else if (IsAlpha(c))
                     {
                         while (IsAlphaNumeric(Peek())) Advance();
+                        var ident = CreateToken(TokenType.Ident);
 
-                        return AddToken(TokenType.Ident);
+                        // check keywords
+                        switch (ident.Value)
+                        {
+                            case "has": return ident with { Type = TokenType.KeywordIf };
+                            case "range": return ident with { Type = TokenType.KeywordRange };
+                            case "end": return ident with { Type = TokenType.KeywordEnd };
+                        }
+
+                        return ident;
                     }
                     else
                     {
-                        ReportError(StartLocation(), $"Unexpected character {c}");
+                        ReportError(GetStartLocation(), $"Unexpected character {c}");
                         return null;
                     }
             }
@@ -364,18 +390,18 @@ public static class Template
             return ret;
         }
 
-        Location StartLocation(ScannerLocation? stt = null)
+        Location GetStartLocation(ScannerLocation? stt = null)
         {
             var st = stt ?? start;
             return new Location(st.Line, st.Offset);
         }
 
-        Token AddToken(TokenType tt, string? value = null, ScannerLocation? begin = null, ScannerLocation? end = null)
+        Token CreateToken(TokenType tt, string? value = null, ScannerLocation? begin = null, ScannerLocation? end = null)
         {
             var st = begin ?? start;
             var cu = end ?? current;
             var text = source.Substring(st.Index, cu.Index-st.Index);
-            return new Token(tt, text, StartLocation(st), value ?? text);
+            return new Token(tt, text, GetStartLocation(st), value ?? text);
         }
 
         bool IsAtEnd()
@@ -449,29 +475,86 @@ public static class Template
             }
         }
 
-        var tokens = TrimEmptyStartEnd(TrimTextTokens(itok)).ToImmutableArray();
+        static IEnumerable<Token> TransformSingleCharsToKeywords(IEnumerable<Token> tokens)
+        {
+            var eatIdent = false;
+            Token? lastToken = null;
+            foreach (var tok in tokens)
+            {
+                if (tok.Type == TokenType.Ident && eatIdent)
+                {
+                    eatIdent = false;
+                    continue;
+                }
+
+                switch (tok.Type)
+                {
+                    case TokenType.Slash when lastToken is { Type: TokenType.BeginCode }:
+                        yield return lastToken;
+                        lastToken = tok with { Type = TokenType.KeywordEnd };
+                        eatIdent = true;
+                        break;
+                    case TokenType.Hash when lastToken is { Type:TokenType.BeginCode }:
+                        yield return lastToken;
+                        lastToken = tok with { Type = TokenType.KeywordRange };
+                        break;
+                    case TokenType.QuestionMark when lastToken is { Type: TokenType.BeginCode }:
+                        yield return lastToken;
+                        lastToken = tok with { Type = TokenType.KeywordIf };
+                        break;
+                    default:
+                        if (lastToken != null)
+                        {
+                            yield return lastToken;
+                        }
+
+                        lastToken = tok;
+                        break;
+                }
+            }
+
+            if (lastToken != null)
+            {
+                yield return lastToken;
+            }
+        }
+
+        var tokens = TransformSingleCharsToKeywords(TrimEmptyStartEnd(TrimTextTokens(itok))).ToImmutableArray();
 
         var current = 0;
 
-        var nodes = new List<Node>();
         var errors = new List<Error>();
 
-        while (!IsAtEnd())
+        var rootNode = ParseGroup();
+
+        if (!IsAtEnd())
         {
-            try
-            {
-                ParseNode();
-            }
-            catch (ParseError)
-            {
-                Synchronize();
-            }
+            ReportError(Peek().Location, ExpectedMessage("EOF"));
         }
 
-        if(errors.Count == 0) {
-            return (new Node.Group(nodes), errors.ToImmutableArray());
+        if (errors.Count == 0)
+        {
+            return (rootNode, errors.ToImmutableArray());
         }
         return (new Node.Text("Parsing failed"),  errors.ToImmutableArray());
+
+        Node ParseGroup()
+        {
+            var nodes = new List<Node>();
+            while (!IsAtEnd() && !(Peek().Type == TokenType.BeginCode && PeekNext() == TokenType.KeywordEnd))
+            {
+                try
+                {
+                    ParseNode(nodes);
+                }
+                catch (ParseError)
+                {
+                    Synchronize();
+                }
+            }
+
+            return new Node.Group(nodes);
+        }
 
         ParseError ReportError(Location loc, string message)
         {
@@ -507,6 +590,12 @@ public static class Template
         Token Peek()
         {
             return tokens[current];
+        }
+
+        TokenType PeekNext()
+        {
+            if (current + 1 >= tokens.Length) return TokenType.Eof;
+            return tokens[current + 1].Type;
         }
 
         Token Previous()
@@ -549,58 +638,46 @@ public static class Template
         {
             if(Peek().Type != TokenType.Ident)
             {
-                throw ReportError(Peek().Location, $"Expected identifier but found {TokenToMessage(Peek())}");
+                throw ReportError(Peek().Location, ExpectedMessage("identifier"));
             }
 
             return new Node.Text(Advance().Value);
         }
 
-        void ParseNode()
+        string ExtractAttributeName()
+        {
+            var ident = Consume(TokenType.Ident, ExpectedMessage("IDENT"));
+            return ident.Value;
+        }
+
+        string ExpectedMessage(string what)
+        {
+            return $"Expected {what} but found {TokenToMessage(Peek())}";
+        }
+
+        void ParseNode(List<Node> nodes)
         {
             switch (Peek().Type)
             {
                 case TokenType.BeginCode:
                     Advance();
-                    if (Peek().Type != TokenType.Ident)
+
+                    if (Match(TokenType.KeywordRange))
                     {
-                        throw ReportError(Peek().Location, $"Expected IDENT, found {TokenToMessage(Peek())}");
+                        var attribute = ExtractAttributeName();
+                        Consume(TokenType.EndCode, ExpectedMessage("}}"));
+
+                        var group = ParseGroup();
+                        Consume(TokenType.BeginCode, ExpectedMessage("{{"));
+                        Consume(TokenType.KeywordEnd, ExpectedMessage("keyword end"));
+                        Consume(TokenType.EndCode, ExpectedMessage("}}"));
+
+                        nodes.Add(new Node.Iterate(attribute, group));
                     }
-
-                    Node node = new Node.Attribute(Advance().Value);
-
-                    while (Peek().Type == TokenType.Pipe)
+                    else
                     {
-                        Advance();
-                        var name = Consume(TokenType.Ident, $"Expected function name but found {TokenToMessage(Peek())}");
-                        var arguments = new List<Node> { node };
-
-                        if (Match(TokenType.LeftParen))
-                        {
-                            while (Peek().Type != TokenType.RightParen && !IsAtEnd())
-                            {
-                                arguments.Add(ParseFunctionArg());
-
-                                if (Peek().Type != TokenType.RightParen)
-                                {
-                                    Consume(TokenType.Comma, $"Expected comma for the next function argument but found {TokenToMessage(Peek())}");
-                                }
-                            }
-
-                            Consume(TokenType.RightParen, $"Expected ) to end function but found {TokenToMessage(Peek())}");
-                        }
-
-                        if (functions.TryGetValue(name.Value, out var f))
-                        {
-                            node = new Node.FunctionCall(name.Value, f, arguments);
-                        }
-                        else
-                        {
-                            ReportError(name.Location, $"Unknown function named {name.Value}");
-                        }
+                        ParseAttributeToEnd(nodes);
                     }
-                    nodes.Add(node);
-
-                    Consume(TokenType.EndCode, $"Expected end token but found {TokenToMessage(Peek())}");
                     break;
                 case TokenType.Text:
                     var text = Advance();
@@ -609,6 +686,45 @@ public static class Template
                 default:
                     throw ReportError(Peek().Location, $"Unexpected token {TokenToMessage(Peek())}");
             }
+        }
+
+        void ParseAttributeToEnd(List<Node> nodes)
+        {
+            Node node = new Node.Attribute(ExtractAttributeName());
+
+            while (Peek().Type == TokenType.Pipe)
+            {
+                Advance();
+                var name = Consume(TokenType.Ident, ExpectedMessage("function name"));
+                var arguments = new List<Node> { node };
+
+                if (Match(TokenType.LeftParen))
+                {
+                    while (Peek().Type != TokenType.RightParen && !IsAtEnd())
+                    {
+                        arguments.Add(ParseFunctionArg());
+
+                        if (Peek().Type != TokenType.RightParen)
+                        {
+                            Consume(TokenType.Comma, ExpectedMessage("comma for the next function argument"));
+                        }
+                    }
+
+                    Consume(TokenType.RightParen, ExpectedMessage(") to end function"));
+                }
+
+                if (functions.TryGetValue(name.Value, out var f))
+                {
+                    node = new Node.FunctionCall(name.Value, f, arguments);
+                }
+                else
+                {
+                    ReportError(name.Location, $"Unknown function named {name.Value}");
+                }
+            }
+            nodes.Add(node);
+
+            Consume(TokenType.EndCode, ExpectedMessage("end token"));
         }
     }
 }
