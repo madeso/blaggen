@@ -1,22 +1,8 @@
 ﻿using System.Collections.Immutable;
 using System.Globalization;
 using System.Text;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Blaggen;
-
-/*
-API GOAL:
-var file = ParseFile(...);
-vqr generator = file.ForType(
-    new Definition<Foo>()
-        .addVar("x", foo=>foo.x)
-        .addBool("b", foo=>foo.b)
-        .addList<Bar>("l", foo=>foo.bar, new Definition<Bar>());
-);
-
-var str = generator(foo);
-*/
 
 
 public static class Template
@@ -25,8 +11,89 @@ public static class Template
 
     public record Location(int Line, int Offset);
     public record Error(Location Location, string Message);
+    
+    public class Definition<TParent>
+    {
+        private readonly Dictionary<string, Func<TParent, string>> attributes = new ();
+        private readonly Dictionary<string, Func<Node, (Func<TParent, string>, ImmutableArray<Error>)>> children = new();
 
-    public record Data(Dictionary<string, string> Values, Dictionary<string, List<Data>> NamedArrayOfData);
+        public Definition<TParent> AddVar(string name, Func<TParent, string> getter)
+        {
+            attributes.Add(name, getter);
+            return this;
+        }
+
+        public Definition<TParent> AddList<TChild>(string name, Func<TParent, IEnumerable<TChild>> childSelector, Definition<TChild> childDef)
+        {
+            // todo(Gustav): implement Add
+            children.Add(name, node =>
+            {
+                var (getter, errors) = childDef.Validate(node);
+                if (errors.Length > 0) { return (SyntaxError, errors); }
+
+                return (parent => string.Join("", childSelector(parent).Select(getter)), NoErrors());
+            });
+            return this;
+        }
+
+        private static string SyntaxError(TParent _) => "Syntax error";
+        private static ImmutableArray<Error> NoErrors() => ImmutableArray<Error>.Empty;
+
+        public (Func<TParent, string>, ImmutableArray<Error>) Validate(Node node)
+        {
+            // todo(Gustav): replace location with actual location
+            var unknownLocation = new Location(-1, -1);
+
+            switch (node)
+            {
+                case Node.Text text:
+                    return (_ => text.Value, NoErrors());
+                case Node.Attribute attribute:
+                {
+                    if (false == attributes.TryGetValue(attribute.Name, out var getter))
+                    {
+                        return (SyntaxError, new ImmutableArray<Error>() { new Error(
+                                unknownLocation,
+                                $"Missing attribute ${attribute.Name}"
+                            )});
+                    }
+                    return (parent => getter(parent), NoErrors());
+                }
+                case Node.Iterate iterate:
+                {
+                    if (false == children.TryGetValue(iterate.Name, out var validator))
+                    {
+                        return (SyntaxError, new ImmutableArray<Error>() { new Error(
+                                unknownLocation,
+                                $"Missing array {iterate.Name}: {MatchStrings(children.Keys)}"
+                            )});
+                    }
+                    return validator(iterate.Body);
+                }
+                case Node.FunctionCall fc:
+                {
+                    var validatedArgs = fc.Args.Select(Validate).ToImmutableArray();
+                    var errors = validatedArgs.SelectMany(x => x.Item2).Distinct().ToImmutableArray();
+                    if (errors.Length > 0) { return (SyntaxError, errors); }
+
+                    var getters = validatedArgs.Select(x => x.Item1).ToImmutableArray();
+                    return (parent => fc.Function(getters.Select(x => x(parent)).ToList()), NoErrors());
+                }
+                case Node.Group gr:
+                {
+                    var validatedArgs = gr.Nodes.Select(Validate).ToImmutableArray();
+                    var errors = validatedArgs.SelectMany(x => x.Item2).Distinct().ToImmutableArray();
+                    if (errors.Length > 0) { return (SyntaxError, errors); }
+
+                    var getters = validatedArgs.Select(x => x.Item1).ToImmutableArray();
+                    return (parent => string.Join("", getters.Select(x => x(parent)).ToList()), NoErrors());
+                }
+
+                default:
+                    throw new Exception("Unhandled state");
+            }
+        }
+    }
 
     public abstract record Node
     {
@@ -37,22 +104,6 @@ public static class Template
         internal record Iterate(string Name, Node Body) : Node();
         internal record FunctionCall(string Name, Func Function, List<Node> Args) : Node();
         internal record Group(List<Node> Nodes) : Node();
-
-        public string Evaluate(Data data)
-        {
-            return this switch
-            {
-                Text text => text.Value,
-                Attribute attribute => data.Values.TryGetValue(attribute.Name, out var value)
-                    ? value
-                    : $"Missing attribute ${attribute.Name}",
-                Iterate iter => data.NamedArrayOfData.TryGetValue(iter.Name, out var childNodes)
-                    ? string.Join("", childNodes.Select(childData => iter.Body.Evaluate(childData)))
-                    : $"Missing array {iter.Name}: {MatchStrings(data.NamedArrayOfData.Keys)}",
-                FunctionCall fc => fc.Function(fc.Args.Select(a => a.Evaluate(data)).ToList()),
-                Group gr => string.Join("", gr.Nodes.Select(n => n.Evaluate(data))),
-            };
-        }
     }
 
 
@@ -62,18 +113,20 @@ public static class Template
         var s = string.Join(", ", c);
         return $"{c.Length}: [{s}]";
     }
+    
 
-    public static (Node, ImmutableArray<Error>) Parse(string source, Dictionary<string, Func> functions)
+    public static (Func<T, string>, ImmutableArray<Error>) Parse<T>(string source, Dictionary<string, Func> functions, Definition<T> definition)
     {
         var (tokens, lexerErrors) = Scanner(source);
         if (lexerErrors.Length > 0)
-        {
-            return (new Node.Text("Lexing failed"), lexerErrors);
-        }
+        { return (_ => "Lexing failed", lexerErrors); }
 
-        return Parse(tokens, functions);
+        var (node, parseErrors) = Parse(tokens, functions);
+        if (parseErrors.Length > 0)
+        { return (_ => "Parsing failed", parseErrors); }
+
+        return definition.Validate(node);
     }
-
 
     public static Dictionary<string, Func> DefaultFunctions()
     {

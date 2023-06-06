@@ -1,4 +1,6 @@
-﻿using Blaggen;
+﻿using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
+using Blaggen;
 using FluentAssertions;
 using FluentAssertions.Execution;
 using Xunit;
@@ -7,39 +9,32 @@ namespace BlaggenTest;
 
 public class TemplateTest
 {
-    private static Template.Data MakeSong(string artist, string title, string album, string trackNumber) =>
-        new(new Dictionary<string, string>()
-        {
-            {"artist", artist},
-            {"title", title},
-            {"album", album},
-            { "track", trackNumber}
-        }, new());
+    private record Song(string Artist, string Title, string Album, int Track);
+    private static Template.Definition<Song> MakeSongDef() => new Template.Definition<Song>()
+        .AddVar("artist", song => song.Artist)
+        .AddVar("title", song => song.Title)
+        .AddVar("album", song => song.Album)
+        .AddVar("track", song => song.Track.ToString())
+        ;
 
-    private readonly Template.Data abba = MakeSong("ABBA", "dancing queen", "Arrival", "2");
+    private record MixTape(ImmutableArray<Song> Songs);
+    private static Template.Definition<MixTape> MakeMixTapeDef() => new Template.Definition<MixTape>()
+        .AddList("songs", mt => mt.Songs, MakeSongDef())
+        ;
 
-    private readonly Template.Data songs = new(
-        new(),
-        new()
-        {
-            {
-                "songs",
-                new()
-                {
-                    MakeSong("Gloria Gaynor", "I Will Survive", "Nevermind", "1"),
-                    MakeSong("Nirvana", "Smells Like Teen Spirit", "Love Tracks", "5")
-                }
-            }
-        }
-    );
+    private readonly Song AbbaSong = new("ABBA", "dancing queen", "Arrival", 2);
+    private static readonly MixTape AwesomeMix = new(ImmutableArray.Create (
+        new Song("Gloria Gaynor", "I Will Survive", "Nevermind", 1),
+        new Song("Nirvana", "Smells Like Teen Spirit", "Love Tracks", 5)
+    ));
 
     [Fact]
     public void Test1()
     {
         using (new AssertionScope())
         {
-            var (node, errors) = Template.Parse("{{artist}} - {{title}} ({{album}})", Template.DefaultFunctions());
-            node.Evaluate(abba).Should().Be("ABBA - dancing queen (Arrival)");
+            var (evaluator, errors) = Template.Parse("{{artist}} - {{title}} ({{album}})", Template.DefaultFunctions(), MakeSongDef());
+            evaluator(AbbaSong).Should().Be("ABBA - dancing queen (Arrival)");
             errors.Should().BeEquivalentTo(new Template.Error[] { });
         }
     }
@@ -49,8 +44,8 @@ public class TemplateTest
     {
         using (new AssertionScope())
         {
-            var (node, errors) = Template.Parse("{{artist}} - {{title | title}} ( {{- album -}} )", Template.DefaultFunctions());
-            node.Evaluate(abba).Should().Be("ABBA - Dancing Queen (Arrival)");
+            var (evaluator, errors) = Template.Parse("{{artist}} - {{title | title}} ( {{- album -}} )", Template.DefaultFunctions(), MakeSongDef());
+            evaluator(AbbaSong).Should().Be("ABBA - Dancing Queen (Arrival)");
             errors.Should().BeEquivalentTo(new Template.Error[] { });
         }
     }
@@ -60,8 +55,8 @@ public class TemplateTest
     {
         using (new AssertionScope())
         {
-            var (node, errors) = Template.Parse("{{track | zfill(3)}} {{- /** a comment **/ -}}  . {{title | title}}", Template.DefaultFunctions());
-            node.Evaluate(abba).Should().Be("002. Dancing Queen");
+            var (evaluator, errors) = Template.Parse("{{track | zfill(3)}} {{- /** a comment **/ -}}  . {{title | title}}", Template.DefaultFunctions(), MakeSongDef());
+            evaluator(AbbaSong).Should().Be("002. Dancing Queen");
 
             errors.Should().BeEquivalentTo(new Template.Error[] { });
         }
@@ -72,8 +67,8 @@ public class TemplateTest
     {
         using (new AssertionScope())
         {
-            var (node, errors) = Template.Parse("{{#songs}}[{{title}}]{{/songs}}", Template.DefaultFunctions());
-            node.Evaluate(songs).Should().Be("[I Will Survive][Smells Like Teen Spirit]");
+            var (evaluator, errors) = Template.Parse("{{#songs}}[{{title}}]{{/songs}}", Template.DefaultFunctions(), MakeMixTapeDef());
+            evaluator(AwesomeMix).Should().Be("[I Will Survive][Smells Like Teen Spirit]");
 
             errors.Should().BeEquivalentTo(new Template.Error[] { });
         }
@@ -84,8 +79,8 @@ public class TemplateTest
     {
         using (new AssertionScope())
         {
-            var (node, errors) = Template.Parse("{{range songs}}[{{title}}]{{end}}", Template.DefaultFunctions());
-            node.Evaluate(songs).Should().Be("[I Will Survive][Smells Like Teen Spirit]");
+            var (evaluator, errors) = Template.Parse("{{range songs}}[{{title}}]{{end}}", Template.DefaultFunctions(), MakeMixTapeDef());
+            evaluator(AwesomeMix).Should().Be("[I Will Survive][Smells Like Teen Spirit]");
 
             errors.Should().BeEquivalentTo(new Template.Error[] { });
         }
