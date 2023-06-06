@@ -4,6 +4,12 @@ using System.Text;
 
 namespace Blaggen;
 
+// todo(Gustav): improve error reporting in definition
+// todo(Gustav): add edit distance to error reporter
+// todo(Gustav): read from file
+// todo(Gustav): import statement
+// todo(Gustav): change function API to only allow constants or implement dynamic arguments in parser
+// todo(Gustav): figure out how to handle type safety in functions...? reflection/cmd parser?
 
 public static class Template
 {
