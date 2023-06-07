@@ -7,6 +7,7 @@ namespace Blaggen;
 // todo(Gustav): improve error reporting in definition
 // todo(Gustav): read from files
 // todo(Gustav): import statement
+// todo(Gustav): should return values always be strings? properties return datetime that format functions could format
 // todo(Gustav): change function API to only allow constants or implement dynamic arguments in parser
 // todo(Gustav): figure out how to handle type safety in functions...? reflection/cmd parser?
 
