@@ -4,7 +4,6 @@ using System.Text;
 
 namespace Blaggen;
 
-// todo(Gustav): improve error reporting in definition
 // todo(Gustav): read from files
 // todo(Gustav): import statement
 // todo(Gustav): should return values always be strings? properties return datetime that format functions could format
@@ -17,7 +16,9 @@ public static class Template
 
     public record Location(int Line, int Offset);
     public record Error(Location Location, string Message);
-    
+
+    private static Location UnknownLocation() => new(-1, -1);
+
     public class Definition<TParent>
     {
         private readonly Dictionary<string, Func<TParent, string>> attributes = new ();
@@ -47,9 +48,6 @@ public static class Template
 
         public (Func<TParent, string>, ImmutableArray<Error>) Validate(Node node)
         {
-            // todo(Gustav): replace location with actual location
-            var unknownLocation = new Location(-1, -1);
-
             switch (node)
             {
                 case Node.Text text:
@@ -59,7 +57,7 @@ public static class Template
                     if (false == attributes.TryGetValue(attribute.Name, out var getter))
                     {
                         return (SyntaxError, ImmutableArray.Create(new Error(
-                                unknownLocation,
+                                attribute.Location,
                                 $"Missing attribute ${attribute.Name}: {MatchStrings(attribute.Name, attributes.Keys)}"
                             )));
                     }
@@ -70,7 +68,7 @@ public static class Template
                     if (false == children.TryGetValue(iterate.Name, out var validator))
                     {
                         return (SyntaxError, ImmutableArray.Create(new Error(
-                                unknownLocation,
+                                iterate.Location,
                                 $"Missing array {iterate.Name}: {MatchStrings(iterate.Name, children.Keys)}"
                             )));
                     }
@@ -105,11 +103,11 @@ public static class Template
     {
         private Node() {}
 
-        internal record Text(string Value) : Node();
-        internal record Attribute(string Name) : Node();
-        internal record Iterate(string Name, Node Body) : Node();
-        internal record FunctionCall(string Name, Func Function, List<Node> Args) : Node();
-        internal record Group(List<Node> Nodes) : Node();
+        internal record Text(string Value, Location Location) : Node();
+        internal record Attribute(string Name, Location Location) : Node();
+        internal record Iterate(string Name, Node Body, Location Location) : Node();
+        internal record FunctionCall(string Name, Func Function, List<Node> Args, Location Location) : Node();
+        internal record Group(List<Node> Nodes, Location Location) : Node();
     }
 
 
@@ -606,10 +604,11 @@ public static class Template
         {
             return (rootNode, errors.ToImmutableArray());
         }
-        return (new Node.Text("Parsing failed"),  errors.ToImmutableArray());
+        return (new Node.Text("Parsing failed", UnknownLocation()),  errors.ToImmutableArray());
 
         Node ParseGroup()
         {
+            var start = Peek().Location;
             var nodes = new List<Node>();
             while (!IsAtEnd() && !(Peek().Type == TokenType.BeginCode && PeekNext() == TokenType.KeywordEnd))
             {
@@ -623,7 +622,7 @@ public static class Template
                 }
             }
 
-            return new Node.Group(nodes);
+            return new Node.Group(nodes, start);
         }
 
         ParseError ReportError(Location loc, string message)
@@ -711,7 +710,8 @@ public static class Template
                 throw ReportError(Peek().Location, ExpectedMessage("identifier"));
             }
 
-            return new Node.Text(Advance().Value);
+            var arg = Advance();
+            return new Node.Text(arg.Value, arg.Location);
         }
 
         string ExtractAttributeName()
@@ -730,6 +730,7 @@ public static class Template
             switch (Peek().Type)
             {
                 case TokenType.BeginCode:
+                    var start = Peek().Location;
                     Advance();
 
                     if (Match(TokenType.KeywordRange))
@@ -742,7 +743,7 @@ public static class Template
                         Consume(TokenType.KeywordEnd, ExpectedMessage("keyword end"));
                         Consume(TokenType.EndCode, ExpectedMessage("}}"));
 
-                        nodes.Add(new Node.Iterate(attribute, group));
+                        nodes.Add(new Node.Iterate(attribute, group, start));
                     }
                     else
                     {
@@ -751,7 +752,7 @@ public static class Template
                     break;
                 case TokenType.Text:
                     var text = Advance();
-                    nodes.Add(new Node.Text(text.Value));
+                    nodes.Add(new Node.Text(text.Value, text.Location));
                     break;
                 default:
                     throw ReportError(Peek().Location, $"Unexpected token {TokenToMessage(Peek())}");
@@ -760,7 +761,8 @@ public static class Template
 
         void ParseAttributeToEnd(List<Node> nodes)
         {
-            Node node = new Node.Attribute(ExtractAttributeName());
+            var start = Peek().Location;
+            Node node = new Node.Attribute(ExtractAttributeName(), start);
 
             while (Peek().Type == TokenType.Pipe)
             {
@@ -785,7 +787,7 @@ public static class Template
 
                 if (functions.TryGetValue(name.Value, out var f))
                 {
-                    node = new Node.FunctionCall(name.Value, f, arguments);
+                    node = new Node.FunctionCall(name.Value, f, arguments, name.Location);
                 }
                 else
                 {
