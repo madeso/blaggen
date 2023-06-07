@@ -5,8 +5,7 @@ using System.Text;
 namespace Blaggen;
 
 // todo(Gustav): improve error reporting in definition
-// todo(Gustav): add edit distance to error reporter
-// todo(Gustav): read from file
+// todo(Gustav): read from files
 // todo(Gustav): import statement
 // todo(Gustav): change function API to only allow constants or implement dynamic arguments in parser
 // todo(Gustav): figure out how to handle type safety in functions...? reflection/cmd parser?
@@ -58,10 +57,10 @@ public static class Template
                 {
                     if (false == attributes.TryGetValue(attribute.Name, out var getter))
                     {
-                        return (SyntaxError, new ImmutableArray<Error>() { new Error(
+                        return (SyntaxError, ImmutableArray.Create(new Error(
                                 unknownLocation,
-                                $"Missing attribute ${attribute.Name}"
-                            )});
+                                $"Missing attribute ${attribute.Name}: {MatchStrings(attribute.Name, attributes.Keys)}"
+                            )));
                     }
                     return (parent => getter(parent), NoErrors());
                 }
@@ -69,10 +68,10 @@ public static class Template
                 {
                     if (false == children.TryGetValue(iterate.Name, out var validator))
                     {
-                        return (SyntaxError, new ImmutableArray<Error>() { new Error(
+                        return (SyntaxError, ImmutableArray.Create(new Error(
                                 unknownLocation,
-                                $"Missing array {iterate.Name}: {MatchStrings(children.Keys)}"
-                            )});
+                                $"Missing array {iterate.Name}: {MatchStrings(iterate.Name, children.Keys)}"
+                            )));
                     }
                     return validator(iterate.Body);
                 }
@@ -113,11 +112,22 @@ public static class Template
     }
 
 
-    private static string MatchStrings(IEnumerable<string> candidates)
+    private static string MatchStrings(string name, IEnumerable<string> candidates)
     {
-        var c = candidates.ToImmutableArray();
-        var s = string.Join(", ", c);
-        return $"{c.Length}: [{s}]";
+        var all = candidates.ToImmutableArray();
+
+        var matches = EditDistance.ClosestMatches(name, 10, all).ToImmutableArray();
+
+        return matches.Length > 0
+            ? $"did you mean {ToArrayString(matches)} of {all.Length}: {ToArrayString(all)}"
+            : $"No match in {all.Length}: {ToArrayString(all)}"
+            ;
+
+        static string ToArrayString(IEnumerable<string> candidates)
+        {
+            var s = string.Join(", ", candidates);
+            return $"[{s}]";
+        }
     }
     
 
@@ -778,7 +788,7 @@ public static class Template
                 }
                 else
                 {
-                    ReportError(name.Location, $"Unknown function named {name.Value}");
+                    ReportError(name.Location, $"Unknown function named {name.Value}: {MatchStrings(name.Value, functions.Keys)}");
                 }
             }
             nodes.Add(node);
