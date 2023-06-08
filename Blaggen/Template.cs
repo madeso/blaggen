@@ -5,6 +5,9 @@ using System.Text;
 namespace Blaggen;
 
 // todo(Gustav): import statement
+// todo(Gustav): add foo.bar and .foobar accessors to access subdicts and global dicts
+// todo(Gustav): add boolean arguments... expressions... probably not
+// todo(Gustav): add documentation to properties and functions so error messages can be more helpful
 // todo(Gustav): should return values always be strings? properties return datetime that format functions could format
 
 public static class Template
