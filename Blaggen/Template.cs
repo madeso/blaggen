@@ -4,7 +4,6 @@ using System.Text;
 
 namespace Blaggen;
 
-// todo(Gustav): read from files
 // todo(Gustav): import statement
 // todo(Gustav): should return values always be strings? properties return datetime that format functions could format
 
@@ -17,11 +16,11 @@ public static class Template
     // apply dynamic string function and return result
     public delegate string Func(string arg);
 
-    public record Location(int Line, int Offset);
+    public record Location(FileInfo File, int Line, int Offset);
     public record Error(Location Location, string Message);
     private static ImmutableArray<Error> NoErrors() => ImmutableArray<Error>.Empty;
 
-    private static Location UnknownLocation() => new(-1, -1);
+    private static Location UnknownLocation() => new(new FileInfo("unknown-file.txt"), -1, -1);
 
     public class Definition<TParent>
     {
@@ -131,9 +130,10 @@ public static class Template
     }
     
 
-    public static (Func<T, string>, ImmutableArray<Error>) Parse<T>(string source, Dictionary<string, FuncGenerator> functions, Definition<T> definition)
+    public static async Task<(Func<T, string>, ImmutableArray<Error>)> Parse<T>(FileInfo path, VfsRead vfs, Dictionary<string, FuncGenerator> functions, Definition<T> definition)
     {
-        var (tokens, lexerErrors) = Scanner(source);
+        var source = await vfs.ReadAllTextAsync(path);
+        var (tokens, lexerErrors) = Scanner(path, source);
         if (lexerErrors.Length > 0)
         { return (_ => "Lexing failed", lexerErrors); }
 
@@ -315,7 +315,7 @@ public static class Template
     
     
     private record ScannerLocation(int Line, int Offset, int Index);
-    private static (ImmutableArray<Token>, ImmutableArray<Error>) Scanner(string source)
+    private static (ImmutableArray<Token>, ImmutableArray<Error>) Scanner(FileInfo file, string source)
     {
         var start = new ScannerLocation(1, 0, 0);
         var current = start;
@@ -329,7 +329,7 @@ public static class Template
             start = current;
             ret.AddRange(ScanToken());
         }
-        ret.Add(new Token(TokenType.Eof, "", new Location(current.Line, current.Offset), string.Empty));
+        ret.Add(new Token(TokenType.Eof, "", new Location(file, current.Line, current.Offset), string.Empty));
 
         if (errors.Count != 0)
         {
@@ -557,7 +557,7 @@ public static class Template
         Location GetStartLocation(ScannerLocation? stt = null)
         {
             var st = stt ?? start;
-            return new Location(st.Line, st.Offset);
+            return new Location(file, st.Line, st.Offset);
         }
 
         Token CreateToken(TokenType tt, string? value = null, ScannerLocation? begin = null, ScannerLocation? end = null)
