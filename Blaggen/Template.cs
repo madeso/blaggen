@@ -7,15 +7,19 @@ namespace Blaggen;
 // todo(Gustav): read from files
 // todo(Gustav): import statement
 // todo(Gustav): should return values always be strings? properties return datetime that format functions could format
-// todo(Gustav): change function API to only allow constants or implement dynamic arguments in parser
-// todo(Gustav): figure out how to handle type safety in functions...? reflection/cmd parser?
 
 public static class Template
 {
-    public delegate string Func(List<string> args);
+    // parse arguments, return function call or error
+    public record LocationArgument(Location Location, string Argument);
+    public delegate (Func, ImmutableArray<Error>) FuncGenerator(Location call, ImmutableArray<LocationArgument> arguments);
+
+    // apply dynamic string function and return result
+    public delegate string Func(string arg);
 
     public record Location(int Line, int Offset);
     public record Error(Location Location, string Message);
+    private static ImmutableArray<Error> NoErrors() => ImmutableArray<Error>.Empty;
 
     private static Location UnknownLocation() => new(-1, -1);
 
@@ -44,7 +48,6 @@ public static class Template
         }
 
         private static string SyntaxError(TParent _) => "Syntax error";
-        private static ImmutableArray<Error> NoErrors() => ImmutableArray<Error>.Empty;
 
         public (Func<TParent, string>, ImmutableArray<Error>) Validate(Node node)
         {
@@ -76,12 +79,10 @@ public static class Template
                 }
                 case Node.FunctionCall fc:
                 {
-                    var validatedArgs = fc.Args.Select(Validate).ToImmutableArray();
-                    var errors = validatedArgs.SelectMany(x => x.Item2).Distinct().ToImmutableArray();
+                    var (getter, errors) = Validate(fc.Arg);
                     if (errors.Length > 0) { return (SyntaxError, errors); }
 
-                    var getters = validatedArgs.Select(x => x.Item1).ToImmutableArray();
-                    return (parent => fc.Function(getters.Select(x => x(parent)).ToList()), NoErrors());
+                    return (parent => fc.Function(getter(parent)), NoErrors());
                 }
                 case Node.Group gr:
                 {
@@ -106,7 +107,7 @@ public static class Template
         internal record Text(string Value, Location Location) : Node();
         internal record Attribute(string Name, Location Location) : Node();
         internal record Iterate(string Name, Node Body, Location Location) : Node();
-        internal record FunctionCall(string Name, Func Function, List<Node> Args, Location Location) : Node();
+        internal record FunctionCall(string Name, Func Function, Node Arg, Location Location) : Node();
         internal record Group(List<Node> Nodes, Location Location) : Node();
     }
 
@@ -130,7 +131,7 @@ public static class Template
     }
     
 
-    public static (Func<T, string>, ImmutableArray<Error>) Parse<T>(string source, Dictionary<string, Func> functions, Definition<T> definition)
+    public static (Func<T, string>, ImmutableArray<Error>) Parse<T>(string source, Dictionary<string, FuncGenerator> functions, Definition<T> definition)
     {
         var (tokens, lexerErrors) = Scanner(source);
         if (lexerErrors.Length > 0)
@@ -143,22 +144,123 @@ public static class Template
         return definition.Validate(node);
     }
 
-    public static Dictionary<string, Func> DefaultFunctions()
+    public static Dictionary<string, FuncGenerator> DefaultFunctions()
     {
         var culture = new CultureInfo("en-US", false);
 
-        var t = new Dictionary<string, Func>();
-        t.Add("capitalize", args => Capitalize(args[0], true));
-        t.Add("lower", args => culture.TextInfo.ToLower(args[0]));
-        t.Add("upper", args => culture.TextInfo.ToUpper(args[0]));
-        t.Add("title", args => culture.TextInfo.ToTitleCase(args[0]));
-        t.Add("rtrim", args => args[0].TrimEnd(GetOptionalValue(args, 1).ToCharArray()));
-        t.Add("ltrim", args => args[0].TrimStart(GetOptionalValue(args, 1).ToCharArray()));
-        t.Add("trim", args => args[0].Trim(GetOptionalValue(args, 1).ToCharArray()));
-        t.Add("zfill", args => zfill(args[0], GetOptionalValue(args, 1, "3")));
-        t.Add("replace", args => args[0].Replace(args[1], args[2]));
-        t.Add("substr", args => args[0].Substring(int.Parse(args[1]), int.Parse(GetOptionalValue(args, 2))));
+        var t = new Dictionary<string, FuncGenerator>();
+        t.Add("capitalize", NoArguments(args => Capitalize(args, true)));
+        t.Add("lower", NoArguments(args => culture.TextInfo.ToLower(args)));
+        t.Add("upper", NoArguments(args => culture.TextInfo.ToUpper(args)));
+        t.Add("title", NoArguments(args => culture.TextInfo.ToTitleCase(args)));
+
+        static FuncGenerator NoArguments(Func<string, string> f)
+        {
+            return (location, args) =>
+            {
+                if (args.IsEmpty == false)
+                {
+                    return (
+                        _ => "syntax error",
+                        ImmutableArray.Create(
+                            new Error(location, "Expected zero arguments")));
+                }
+                return (arg => f(arg), NoErrors());
+            };
+        }
+        
+        t.Add("rtrim", OptionalStringArgument((str, spaceChars) => str.TrimEnd(spaceChars.ToCharArray()), " \t\n\r"));
+        t.Add("ltrim", OptionalStringArgument((str, spaceChars) => str.TrimStart(spaceChars.ToCharArray()), " \t\n\r"));
+        t.Add("trim", OptionalStringArgument((str, spaceChars) => str.Trim(spaceChars.ToCharArray()), " \t\n\r"));
+        t.Add("zfill", OptionalIntArgument((str, count) => str.PadLeft(count, '0'), 3));
+
+        static FuncGenerator OptionalStringArgument(Func<string, string, string> f, string missing)
+        {
+            return (location, args) =>
+            {
+                return args.Length switch
+                {
+                    0 => (arg => f(arg, missing), NoErrors()),
+                    1 => (arg => f(arg, args[0].Argument), NoErrors()),
+                    _ => (_ => "syntax error",
+                        ImmutableArray.Create(new Error(
+                            location,
+                            "Expected zero or one string argument")))
+                };
+            };
+        }
+
+        static FuncGenerator OptionalIntArgument(Func<string, int, string> f, int missing)
+        {
+            return (location, args) =>
+            {
+                return args.Length switch
+                {
+                    0 => (arg => f(arg, missing), NoErrors()),
+                    1 => int.TryParse(args[0].Argument, out var number)
+                        ? (arg => f(arg, number), NoErrors())
+                        : (_ => "syntax error",
+                            ImmutableArray.Create(
+                                new Error(location, "This function takes zero or one int argument"),
+                                new Error(args[0].Location, "this is not a int")
+                                ))
+                    ,
+                    _ => (_ => "syntax error",
+                        ImmutableArray.Create(new Error(
+                            location,
+                            "Expected zero or one int argument")))
+                };
+            };
+        }
+
+        t.Add("replace", StringStringArgument((arg, lhs, rhs) => arg.Replace(lhs, rhs)));
+        t.Add("substr", IntIntArgument((arg, lhs, rhs)=> arg.Substring(lhs, rhs)));
         return t;
+
+        static FuncGenerator StringStringArgument(Func<string, string, string, string> f)
+        {
+            return (location, args) =>
+            {
+                if (args.Length != 2)
+                {
+                    return (
+                        _ => "syntax error",
+                        ImmutableArray.Create(
+                            new Error(location, "Expected two arguments")));
+                }
+                return (arg => f(arg, args[0].Argument, args[1].Argument), NoErrors());
+            };
+        }
+
+        static FuncGenerator IntIntArgument(Func<string, int, int, string> f)
+        {
+            return (location, args) =>
+            {
+                if (args.Length != 2)
+                {
+                    return (
+                        _ => "syntax error",
+                        ImmutableArray.Create(
+                            new Error(location, "Expected two arguments")));
+                }
+
+                if (int.TryParse(args[0].Argument, out var lhs) == false)
+                {
+                    return (
+                        _ => "syntax error",
+                        ImmutableArray.Create(
+                            new Error(args[0].Location, "Not a integer")));
+                }
+                if (int.TryParse(args[1].Argument, out var rhs) == false)
+                {
+                    return (
+                        _ => "syntax error",
+                        ImmutableArray.Create(
+                            new Error(args[1].Location, "Not a integer")));
+                }
+                return (arg => f(arg, lhs, rhs), NoErrors());
+            };
+        }
 
         static string GetOptionalValue(List<string> args, int i, string d = "")
         {
@@ -186,12 +288,6 @@ public static class Template
                 sb.Append(c);
             }
             return sb.ToString();
-        }
-
-        static string zfill(string str, string scount)
-        {
-            int i = int.Parse(scount);
-            return str.PadLeft(i, '0');
         }
     }
 
@@ -480,7 +576,7 @@ public static class Template
 
 
     private class ParseError : Exception { }
-    private static (Node, ImmutableArray<Error>) Parse(IEnumerable<Token> itok, Dictionary<string, Func> functions)
+    private static (Node, ImmutableArray<Error>) Parse(IEnumerable<Token> itok, Dictionary<string, FuncGenerator> functions)
     {
         static IEnumerable<Token> TrimTextTokens(IEnumerable<Token> tokens)
         {
@@ -703,7 +799,7 @@ public static class Template
             throw ReportError(Peek().Location, message);
         }
 
-        Node ParseFunctionArg()
+        LocationArgument ParseFunctionArg()
         {
             if(Peek().Type != TokenType.Ident)
             {
@@ -711,7 +807,7 @@ public static class Template
             }
 
             var arg = Advance();
-            return new Node.Text(arg.Value, arg.Location);
+            return new LocationArgument(arg.Location, arg.Value);
         }
 
         string ExtractAttributeName()
@@ -768,7 +864,7 @@ public static class Template
             {
                 Advance();
                 var name = Consume(TokenType.Ident, ExpectedMessage("function name"));
-                var arguments = new List<Node> { node };
+                var arguments = new List<LocationArgument>();
 
                 if (Match(TokenType.LeftParen))
                 {
@@ -785,9 +881,17 @@ public static class Template
                     Consume(TokenType.RightParen, ExpectedMessage(") to end function"));
                 }
 
-                if (functions.TryGetValue(name.Value, out var f))
+                if (functions.TryGetValue(name.Value, out var funcGenerator))
                 {
-                    node = new Node.FunctionCall(name.Value, f, arguments, name.Location);
+                    var (func, funcParseErrors) = funcGenerator(name.Location, arguments.ToImmutableArray());
+                    if (funcParseErrors.IsEmpty == false)
+                    {
+                        foreach (var err in funcParseErrors)
+                        {
+                            ReportError(err.Location, err.Message);
+                        }
+                    }
+                    node = new Node.FunctionCall(name.Value, func, node, name.Location);
                 }
                 else
                 {
