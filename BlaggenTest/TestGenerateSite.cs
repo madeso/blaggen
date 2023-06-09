@@ -78,7 +78,7 @@ public class TestGenerateSite : TestBase
     {
         // todo(Gustav): add url
         // missing: ({{& Url}})";
-        const string mustache = "{{#roots}}{{& Name}}: {{& Url}}{{#IsSelected}} (selected){{/IsSelected}}\n{{/roots}}";
+        const string mustache = "{{#roots}}{{Name}}: {{Url}}{{? IsSelected}} (selected){{/IsSelected}}\n{{/roots}}";
         read.AddContent(Constants.CalculateTemplateDirectory(cwd).GetFile("_post.mustache.html"), mustache);
         read.AddContent(Constants.CalculateTemplateDirectory(cwd).GetFile("_dir.mustache.html"), mustache);
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");

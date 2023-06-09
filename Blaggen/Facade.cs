@@ -141,7 +141,9 @@ public static class Facade
 
         var publicDir = root.GetDir("public");
         var templateFolder = Constants.CalculateTemplateDirectory(root);
-        var templates = await TemplateDictionary.Load(run, vfs, root, templateFolder);
+        var partialFolder = root.GetDir("partials");
+
+        var templates = await TemplateDictionary.Load(run, vfs, root, templateFolder, partialFolder);
 
         if (templates.Extensions.Count == 0)
         {
@@ -149,17 +151,9 @@ public static class Facade
             return -1;
         }
 
-        var unloadedPartials = vfs.GetFiles(root.GetDir("partials"))
-            .Select(async file => new { Name = Path.GetFileNameWithoutExtension(file.Name), Content = await vfs.ReadAllTextAsync(file) })
-            ;
-        var partials = (await Task.WhenAll(unloadedPartials))
-            .Select(d => new KeyValuePair<string, object>(d.Name, new Func<object>(() => d.Content)))
-            .ToImmutableArray()
-            ;
-
         run.Status("Writing data to disk");
         var pages = Generate.ListPagesForSite(site, publicDir, templateFolder).ToImmutableArray();
-        var numberOfPagesGenerated = await Generate.WritePages(pages, run, vfsWrite, site, publicDir, templates, partials);
+        var numberOfPagesGenerated = await Generate.WritePages(pages, run, vfsWrite, site, publicDir, templates);
         // todo(Gustav): copy static files
 
         if (numberOfPagesGenerated == 0)

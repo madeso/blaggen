@@ -7,8 +7,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Spectre.Console" Version="0.44.0" />
-		<PackageReference Include="Stubble.Core" Version="1.10.8" />
+		<PackageReference Include="Spectre.Console" Version="0.44.0" />	
 		<PackageReference Include="Markdig" Version="0.30.4" />
 
 		<PackageReference Include="Tomlyn" Version="0.16.2" />

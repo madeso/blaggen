@@ -1,7 +1,4 @@
-﻿using Stubble.Core.Builders;
-using Stubble.Core.Exceptions;
-using Stubble.Core.Settings;
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 
 namespace Blaggen;
 
@@ -30,9 +27,24 @@ public static class Generate
         }
     }
 
+    internal static Template.Definition<SummaryForPost> MakeSummaryForPostDef() => new Template.Definition<SummaryForPost>()
+        .AddVar("title", summary => summary.title)
+        .AddVar("time_short", summary => summary.time_short)
+        .AddVar("time_long", summary => summary.time_long)
+        .AddVar("name", summary => summary.name)
+        .AddVar("summary", summary => summary.summary)
+        .AddVar("full_html", summary => summary.full_html)
+        .AddVar("full_text", summary => summary.full_text)
+    ;
+
 
     // data to mustache
     public record RootLink(string Name, string Url, bool IsSelected);
+    internal static Template.Definition<RootLink> MakeRootLinkDef() => new Template.Definition<RootLink>()
+        .AddVar("Name", link => link.Name)
+        .AddVar("Url", link => link.Url)
+        .AddBool("IsSelected", link => link.IsSelected)
+    ;
 
 
     // data to mustache
@@ -46,11 +58,10 @@ public static class Generate
         public readonly string content_text;
         public readonly string time_short;
         public readonly string time_long;
-        public readonly Dictionary<string, object> partial;
         public readonly List<SummaryForPost> pages;
         public readonly List<RootLink> roots;
 
-        public PageData(Site site, Post post, ImmutableArray<RootLink> rootLinks, Dictionary<string, object> partials,
+        public PageData(Site site, Post post, ImmutableArray<RootLink> rootLinks,
             List<SummaryForPost> summaries)
         {
             this.title = post.Front.Title;
@@ -64,13 +75,24 @@ public static class Generate
             content_text = post.MarkdownPlainText;
             time_short = site.Data.ShortDateToString(post.Front.Date);
             time_long = site.Data.LongDateToString(post.Front.Date);
-
-            this.partial = partials;
+            
             this.pages = summaries;
         }
         // todo(Gustav): add more data
         // todo(Gustav): generate full url
     }
+
+    internal static Template.Definition<PageData> MakePageDataDef() => new Template.Definition<PageData>()
+        .AddVar("title", page => page.title)
+        .AddVar("summary", page => page.summary)
+        .AddVar("url", page => page.url)
+        .AddVar("content_html", page => page.content_html)
+        .AddVar("content_text", page => page.content_text)
+        .AddVar("time_short", page => page.time_short)
+        .AddVar("time_long", page => page.time_long)
+        .AddList("pages", page=>page.pages, MakeSummaryForPostDef())
+        .AddList("roots", page=>page.roots, MakeRootLinkDef())
+    ;
 
 
     public static IEnumerable<PageToWrite> ListPagesForSite(Site site, DirectoryInfo publicDir, DirectoryInfo templates)
@@ -106,7 +128,7 @@ public static class Generate
 
 
     public static async Task<int> WritePages(ImmutableArray<PageToWrite> pageToWrites, Run run, VfsWrite vfsWrite,
-        Site site, DirectoryInfo publicDir, TemplateDictionary templates, ImmutableArray<KeyValuePair<string, object>> partials)
+        Site site, DirectoryInfo publicDir, TemplateDictionary templates)
     {
         var roots = pageToWrites
             .Where(x => GetRelativePath(publicDir, x).Count() == 1)
@@ -120,7 +142,7 @@ public static class Generate
         }
 
         var writeTasks = pageToWrites.Select(page =>
-            WritePost(run, vfsWrite, site, roots, templates, partials, page, publicDir));
+            WritePost(run, vfsWrite, site, roots, templates, page, publicDir));
         
         var counts = await Task.WhenAll(writeTasks);
         return counts.Sum();
@@ -146,7 +168,7 @@ public static class Generate
 
 
     private static async Task<int> WritePost(Run run, VfsWrite vfs, Site site, ImmutableArray<PageToWrite> roots,
-        TemplateDictionary templates, ImmutableArray<KeyValuePair<string, object>> partials,
+        TemplateDictionary templates,
         PageToWrite page, DirectoryInfo publicDir)
     {
         var rootLinks = roots
@@ -157,7 +179,7 @@ public static class Generate
                 .ToImmutableArray()
             ;
         var pagesGenerated = 0;
-        var data = new PageData(site, page.Post, rootLinks, partials.ToDictionary(k => k.Key, k => k.Value), page.Summaries.ToList());
+        var data = new PageData(site, page.Post, rootLinks, page.Summaries.ToList());
         var templateName = page.Post.IsIndex ? Constants.DIR_TEMPLATE : Constants.POST_TEMPLATE;
 
         foreach (var ext in templates.Extensions)
@@ -177,36 +199,13 @@ public static class Generate
                 continue;
             }
 
-            var renderedPage = RenderMustache(run, selected.Content!, selected.File, data, site);
+            var renderedPage = selected.Content!(data);
             await vfs.WriteAllTextAsync(path, renderedPage);
             run.Status($"Generated {DisplayNameForFile(path)} from {DisplayNameForFile(page.Post.SourceFile)} and {DisplayNameForFile(selected.File)}");
             pagesGenerated += 1;
         }
 
         return pagesGenerated;
-
-        static string RenderMustache(Run run, string template, FileInfo templateFile, PageData data, Site site)
-        {
-            // todo(Gustav): switch to compiled patterns? config?
-            try
-            {
-                var settings = new RenderSettings
-                {
-                    ThrowOnDataMiss = true,
-                    CultureInfo = site.Data.CultureInfo,
-                };
-
-                return new StubbleBuilder().Build().Render(template, data, settings);
-            }
-            catch (StubbleException err)
-            {
-                run.WriteError($"{templateFile.FullName}: {err.Message}");
-
-                // todo(Gustav): can we switch settings and render a invalid page here? is it worthwhile?
-                // if extension is html, output a basic error page?
-                return "";
-            }
-        }
 
         static string ConcatWithIndex(IEnumerable<string> rel)
         {

@@ -1,8 +1,4 @@
-﻿using Stubble.Core;
-using Stubble.Core.Builders;
-using Stubble.Core.Exceptions;
-using Stubble.Core.Settings;
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Text;
 
 namespace Blaggen;
@@ -11,32 +7,47 @@ namespace Blaggen;
 public class TemplateDictionary
 {
     public ImmutableHashSet<string> Extensions { get; }
-    private ImmutableDictionary<string, string> LoadedTemplates { get; } // can't use FileInfo as a key
-    public string? GetTemplateOrNull(FileInfo file) =>  LoadedTemplates.TryGetValue(file.FullName, out var contents) ? contents : null;
+    private ImmutableDictionary<string, Func<Generate.PageData, string>> LoadedTemplates { get; } // can't use FileInfo as a key
+    public Func<Generate.PageData, string>? GetTemplateOrNull(FileInfo file) =>  LoadedTemplates.TryGetValue(file.FullName, out var contents) ? contents : null;
 
 
-    private TemplateDictionary(ImmutableDictionary<string, string> td, ImmutableHashSet<string> ex)
+    private TemplateDictionary(ImmutableDictionary<string, Func<Generate.PageData, string>> td, ImmutableHashSet<string> ex)
     {
         Extensions = ex;
         LoadedTemplates = td;
     }
 
 
-    public static async Task<TemplateDictionary> Load(Run run, VfsRead vfs, DirectoryInfo root, DirectoryInfo templateFolder)
+    public static async Task<TemplateDictionary> Load(Run run, VfsRead vfs, DirectoryInfo root, DirectoryInfo templateFolder, DirectoryInfo partialFolder)
     {
         // todo(Gustav): warn if template files are missing
         var templateFiles = vfs.GetFilesRec(templateFolder)
             .Where(f => f.Name.Contains(Constants.MUSTACHE_TEMPLATE_POSTFIX))
             .ToImmutableArray();
 
-        var unloadedFiles = templateFiles
-            .Select(async file => new { File = file, Contents = await file.LoadFileOrNull(run, vfs) });
-        var templateDict = (await Task.WhenAll(unloadedFiles))
-            .Where(x => x.Contents != null)
-            .ToImmutableDictionary(x => x.File.FullName, x => x.Contents!)
+        var unloaded = templateFiles.Select(
+            async file => new
+            {
+                File = file,
+                Parsed = await Template.Parse(file, vfs, Template.DefaultFunctions(), partialFolder, Generate.MakePageDataDef())
+            }
+        );
+        var loaded = (await Task.WhenAll(unloaded))
+            .ToImmutableArray();
+
+        var errors = loaded.SelectMany(x => x.Parsed.Item2);
+        foreach (var error in errors)
+        {
+            run.WriteError($"{error.Location.File}({error.Location.Line}:{error.Location.Offset}): {error.Message}");
+        }
+
+        var dict = loaded
+                .Where(x => x.Parsed.Item2.IsEmpty)
+                .ToImmutableDictionary(x => x.File.FullName, x => x.Parsed.Item1)
             ;
+
         var extensions = templateFiles.Select(file => file.Extension.ToLowerInvariant()).ToImmutableHashSet();
-        return new TemplateDictionary(templateDict, extensions);
+        return new TemplateDictionary(dict, extensions);
     }
 }
 
