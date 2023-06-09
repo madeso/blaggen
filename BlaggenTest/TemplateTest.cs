@@ -9,12 +9,13 @@ namespace BlaggenTest;
 
 public class TemplateTest
 {
-    private record Song(string Artist, string Title, string Album, int Track);
+    private record Song(string Artist, string Title, string Album, int Track, bool HasStar);
     private static Template.Definition<Song> MakeSongDef() => new Template.Definition<Song>()
         .AddVar("artist", song => song.Artist)
         .AddVar("title", song => song.Title)
         .AddVar("album", song => song.Album)
         .AddVar("track", song => song.Track.ToString())
+        .AddBool("star",  song => song.HasStar)
         ;
 
     private static Template.Definition<Song> MakeSongDefWithSpaces() => new Template.Definition<Song>()
@@ -28,10 +29,10 @@ public class TemplateTest
         .AddList("songs", mt => mt.Songs, MakeSongDef())
         ;
 
-    private readonly Song AbbaSong = new("ABBA", "dancing queen", "Arrival", 2);
+    private readonly Song AbbaSong = new("ABBA", "dancing queen", "Arrival", 2, true);
     private static readonly MixTape AwesomeMix = new(ImmutableArray.Create (
-        new Song("Gloria Gaynor", "I Will Survive", "Nevermind", 1),
-        new Song("Nirvana", "Smells Like Teen Spirit", "Love Tracks", 5)
+        new Song("Gloria Gaynor", "I Will Survive", "Nevermind", 1, true),
+        new Song("Nirvana", "Smells Like Teen Spirit", "Love Tracks", 5, false)
     ));
 
     internal VfsReadTest read = new();
@@ -174,6 +175,20 @@ public class TemplateTest
         {
             var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeMixTapeDef());
             evaluator(AwesomeMix).Should().Be("[I Will Survive][Smells Like Teen Spirit]");
+
+            errors.Should().BeEquivalentTo(new Template.Error[] { });
+        }
+    }
+
+    [Fact]
+    public async void Test7If()
+    {
+        var file = cwd.GetFile("test.txt");
+        read.AddContent(file, "{{range songs -}} [ {{- if star -}} {{- title -}} {{- end -}} ] {{- end}}");
+        using (new AssertionScope())
+        {
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeMixTapeDef());
+            evaluator(AwesomeMix).Should().Be("[I Will Survive][]");
 
             errors.Should().BeEquivalentTo(new Template.Error[] { });
         }

@@ -6,7 +6,7 @@ using System.Text;
 namespace Blaggen;
 
 // todo(Gustav): add foo.bar and .foobar accessors to access subdicts and global dicts
-// todo(Gustav): add boolean arguments... expressions... probably not
+// todo(Gustav): add boolean expressions...? probably not
 // todo(Gustav): add documentation to properties and functions so error messages can be more helpful
 // todo(Gustav): should return values always be strings? properties return datetime that format functions could format
 
@@ -28,11 +28,18 @@ public static class Template
     public class Definition<TParent>
     {
         private readonly Dictionary<string, Func<TParent, string>> attributes = new ();
+        private readonly Dictionary<string, Func<TParent, bool>> bools = new();
         private readonly Dictionary<string, Func<Node, (Func<TParent, string>, ImmutableArray<Error>)>> children = new();
 
         public Definition<TParent> AddVar(string name, Func<TParent, string> getter)
         {
             attributes.Add(name, getter);
+            return this;
+        }
+
+        public Definition<TParent> AddBool(string name, Func<TParent, bool> getter)
+        {
+            bools.Add(name, getter);
             return this;
         }
 
@@ -67,6 +74,21 @@ public static class Template
                             )));
                     }
                     return (parent => getter(parent), NoErrors());
+                }
+                case Node.If check:
+                {
+                    if (false == bools.TryGetValue(check.Name, out var getter))
+                    {
+                        return (SyntaxError, ImmutableArray.Create(new Error(
+                            check.Location,
+                            $"Missing bool {check.Name}: {MatchStrings(check.Name, bools.Keys)}"
+                        )));
+                    }
+
+                    var (body, errors) = Validate(check.Body);
+                    if (errors.Length > 0) { return (SyntaxError, errors); }
+
+                    return (parent => getter(parent) ? body(parent) : string.Empty, NoErrors());
                 }
                 case Node.Iterate iterate:
                 {
@@ -109,6 +131,7 @@ public static class Template
         internal record Text(string Value, Location Location) : Node();
         internal record Attribute(string Name, Location Location) : Node();
         internal record Iterate(string Name, Node Body, Location Location) : Node();
+        internal record If(string Name, Node Body, Location Location) : Node();
         internal record FunctionCall(string Name, Func Function, Node Arg, Location Location) : Node();
         internal record Group(List<Node> Nodes, Location Location) : Node();
     }
@@ -491,7 +514,7 @@ public static class Template
                         // check keywords
                         switch (ident.Value)
                         {
-                            case "has": return ident with { Type = TokenType.KeywordIf };
+                            case "if": return ident with { Type = TokenType.KeywordIf };
                             case "range": return ident with { Type = TokenType.KeywordRange };
                             case "end": return ident with { Type = TokenType.KeywordEnd };
                             case "include": return ident with { Type = TokenType.KeywordInclude };
@@ -845,7 +868,19 @@ public static class Template
 
                         nodes.Add(new Node.Iterate(attribute, group, start));
                     }
-                    else if (Match(TokenType.KeywordInclude))
+                    else if (Match(TokenType.KeywordIf))
+                    {
+                        var attribute = ExtractAttributeName();
+                        Consume(TokenType.EndCode, ExpectedMessage("}}"));
+
+                        var group = await ParseGroup();
+                        Consume(TokenType.BeginCode, ExpectedMessage("{{"));
+                        Consume(TokenType.KeywordEnd, ExpectedMessage("keyword end"));
+                        Consume(TokenType.EndCode, ExpectedMessage("}}"));
+
+                        nodes.Add(new Node.If(attribute, group, start));
+                    }
+                        else if (Match(TokenType.KeywordInclude))
                     {
                         var name = Consume(TokenType.Ident, ExpectedMessage("IDENT"));
                         var includeLocation = Peek().Location;
