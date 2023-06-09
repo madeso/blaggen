@@ -147,7 +147,7 @@ public class RunConsole : Run
 public class RunConsoleWithContext : Run
 {
     private int errorCount = 0;
-    private StatusContext context;
+    private readonly StatusContext context;
 
     public RunConsoleWithContext(StatusContext ctx)
     {
