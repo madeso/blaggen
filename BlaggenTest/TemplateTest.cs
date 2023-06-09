@@ -17,6 +17,12 @@ public class TemplateTest
         .AddVar("track", song => song.Track.ToString())
         ;
 
+    private static Template.Definition<Song> MakeSongDefWithSpaces() => new Template.Definition<Song>()
+        .AddVar("the artist", song => song.Artist)
+        .AddVar("the title", song => song.Title)
+        .AddVar("the album", song => song.Album)
+    ;
+
     private record MixTape(ImmutableArray<Song> Songs);
     private static Template.Definition<MixTape> MakeMixTapeDef() => new Template.Definition<MixTape>()
         .AddList("songs", mt => mt.Songs, MakeSongDef())
@@ -39,6 +45,34 @@ public class TemplateTest
         using (new AssertionScope())
         {
             var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeSongDef());
+            evaluator(AbbaSong).Should().Be("ABBA - dancing queen (Arrival)");
+            errors.Should().BeEquivalentTo(new Template.Error[] { });
+        }
+    }
+
+    [Fact]
+    public async void Test1Alt()
+    {
+        var file = cwd.GetFile("test.txt");
+        // quoting attributes like strings should also work
+        read.AddContent(file, "{{\"artist\"}} - {{\"title\"}} ({{\"album\"}})");
+        using (new AssertionScope())
+        {
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeSongDef());
+            evaluator(AbbaSong).Should().Be("ABBA - dancing queen (Arrival)");
+            errors.Should().BeEquivalentTo(new Template.Error[] { });
+        }
+    }
+
+    [Fact]
+    public async void Test1WithSpaces()
+    {
+        var file = cwd.GetFile("test.txt");
+        // quoting attributes like strings should also work
+        read.AddContent(file, "{{\"the artist\"}} - {{\"the title\"}} ({{\"the album\"}})");
+        using (new AssertionScope())
+        {
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeSongDefWithSpaces());
             evaluator(AbbaSong).Should().Be("ABBA - dancing queen (Arrival)");
             errors.Should().BeEquivalentTo(new Template.Error[] { });
         }
