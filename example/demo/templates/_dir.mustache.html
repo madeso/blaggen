@@ -1,11 +1,11 @@
-{{& partial.begin}}
-    {{& content_html}}
+{{include begin}}
+    {{content_html}}
     <hr>
-    {{#pages}}
+    {{range pages}}
     <article>
         <header>{{title}} - {{time_short}}</header>
         {{summary}}
-        <footer><a href="{{&name}}/index.html">read more...</a></footer>
+        <footer><a href="{{name}}/index.html">read more...</a></footer>
     </article>
-    {{/pages}}
-{{& partial.end}}
+    {{end}}
+{{include "end"}}

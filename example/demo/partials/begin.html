@@ -26,9 +26,9 @@
                     <li><strong>My page</strong></li>
                 </ul>
                 <ul>
-                    {{#roots}}
-                    <li><a href="{{Url}}" {{#IsSelected}}role="button"{{/IsSelected}}>{{Name}}</a></li>
-                    {{/roots}}
+                    {{range roots}}
+                    <li><a href="{{Url}}" {{if IsSelected}}role="button"{{end}}>{{Name}}</a></li>
+                    {{end}}
                 </ul>
             </nav>
             <header class="container">
