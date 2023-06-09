@@ -288,16 +288,6 @@ public static class Template
             };
         }
 
-        static string GetOptionalValue(List<string> args, int i, string d = "")
-        {
-            if (args.Count > i)
-            {
-                return args[i];
-            }
-
-            return d;
-        }
-
         static string Capitalize(string p, bool alsoFirstChar)
         {
             bool cap = alsoFirstChar;
