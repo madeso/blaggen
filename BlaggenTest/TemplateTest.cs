@@ -38,7 +38,7 @@ public class TemplateTest
         read.AddContent(file, "{{artist}} - {{title}} ({{album}})");
         using (new AssertionScope())
         {
-            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), MakeSongDef());
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeSongDef());
             evaluator(AbbaSong).Should().Be("ABBA - dancing queen (Arrival)");
             errors.Should().BeEquivalentTo(new Template.Error[] { });
         }
@@ -51,7 +51,7 @@ public class TemplateTest
         read.AddContent(file, "{{artist}} - {{title | title}} ( {{- album -}} )");
         using (new AssertionScope())
         {
-            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), MakeSongDef());
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeSongDef());
             evaluator(AbbaSong).Should().Be("ABBA - Dancing Queen (Arrival)");
             errors.Should().BeEquivalentTo(new Template.Error[] { });
         }
@@ -64,7 +64,7 @@ public class TemplateTest
         read.AddContent(file, "{{track | zfill(3)}} {{- /** a comment **/ -}}  . {{title | title}}");
         using (new AssertionScope())
         {
-            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), MakeSongDef());
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeSongDef());
             evaluator(AbbaSong).Should().Be("002. Dancing Queen");
 
             errors.Should().BeEquivalentTo(new Template.Error[] { });
@@ -78,7 +78,7 @@ public class TemplateTest
         read.AddContent(file, "{{#songs}}[{{title}}]{{/songs}}");
         using (new AssertionScope())
         {
-            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), MakeMixTapeDef());
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeMixTapeDef());
             evaluator(AwesomeMix).Should().Be("[I Will Survive][Smells Like Teen Spirit]");
 
             errors.Should().BeEquivalentTo(new Template.Error[] { });
@@ -92,7 +92,53 @@ public class TemplateTest
         read.AddContent(file, "{{range songs}}[{{title}}]{{end}}");
         using (new AssertionScope())
         {
-            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), MakeMixTapeDef());
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeMixTapeDef());
+            evaluator(AwesomeMix).Should().Be("[I Will Survive][Smells Like Teen Spirit]");
+
+            errors.Should().BeEquivalentTo(new Template.Error[] { });
+        }
+    }
+
+    [Fact]
+    public async void Test5()
+    {
+        var file = cwd.GetFile("test.txt");
+        read.AddContent(file, "{{range songs}} {{- include \"include.txt\" -}} {{end}}");
+        read.AddContent(cwd.GetFile("include.txt"), "[{{title}}]");
+        using (new AssertionScope())
+        {
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeMixTapeDef());
+            evaluator(AwesomeMix).Should().Be("[I Will Survive][Smells Like Teen Spirit]");
+
+            errors.Should().BeEquivalentTo(new Template.Error[] { });
+        }
+    }
+
+    [Fact]
+    public async void Test5Alt()
+    {
+        var file = cwd.GetFile("test.txt");
+        // use quotes to escape include keyword
+        read.AddContent(file, "{{range songs}} {{- include \"include\" -}} {{end}}");
+        read.AddContent(cwd.GetFile("include.txt"), "[{{title}}]");
+        using (new AssertionScope())
+        {
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeMixTapeDef());
+            evaluator(AwesomeMix).Should().Be("[I Will Survive][Smells Like Teen Spirit]");
+
+            errors.Should().BeEquivalentTo(new Template.Error[] { });
+        }
+    }
+
+    [Fact]
+    public async void Test6()
+    {
+        var file = cwd.GetFile("test.txt");
+        read.AddContent(file, "{{range songs}} {{- include file -}} {{end}}");
+        read.AddContent(cwd.GetFile("file.txt"), "[{{title}}]");
+        using (new AssertionScope())
+        {
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeMixTapeDef());
             evaluator(AwesomeMix).Should().Be("[I Will Survive][Smells Like Teen Spirit]");
 
             errors.Should().BeEquivalentTo(new Template.Error[] { });

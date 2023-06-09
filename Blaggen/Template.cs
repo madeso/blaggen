@@ -1,10 +1,10 @@
 ﻿using System.Collections.Immutable;
 using System.Globalization;
+using System.IO;
 using System.Text;
 
 namespace Blaggen;
 
-// todo(Gustav): import statement
 // todo(Gustav): add foo.bar and .foobar accessors to access subdicts and global dicts
 // todo(Gustav): add boolean arguments... expressions... probably not
 // todo(Gustav): add documentation to properties and functions so error messages can be more helpful
@@ -133,14 +133,14 @@ public static class Template
     }
     
 
-    public static async Task<(Func<T, string>, ImmutableArray<Error>)> Parse<T>(FileInfo path, VfsRead vfs, Dictionary<string, FuncGenerator> functions, Definition<T> definition)
+    public static async Task<(Func<T, string>, ImmutableArray<Error>)> Parse<T>(FileInfo path, VfsRead vfs, Dictionary<string, FuncGenerator> functions, DirectoryInfo includeDir, Definition<T> definition)
     {
         var source = await vfs.ReadAllTextAsync(path);
         var (tokens, lexerErrors) = Scanner(path, source);
         if (lexerErrors.Length > 0)
         { return (_ => "Lexing failed", lexerErrors); }
 
-        var (node, parseErrors) = Parse(tokens, functions);
+        var (node, parseErrors) = await Parse(tokens, functions, includeDir, path.Extension, vfs);
         if (parseErrors.Length > 0)
         { return (_ => "Parsing failed", parseErrors); }
 
@@ -312,7 +312,7 @@ public static class Template
         Slash,
         QuestionMark,
         Eof,
-        KeywordIf, KeywordRange, KeywordEnd
+        KeywordIf, KeywordRange, KeywordEnd, KeywordInclude
     }
     private record Token(TokenType Type, string Lexeme, Location Location, string Value);
     
@@ -494,6 +494,7 @@ public static class Template
                             case "has": return ident with { Type = TokenType.KeywordIf };
                             case "range": return ident with { Type = TokenType.KeywordRange };
                             case "end": return ident with { Type = TokenType.KeywordEnd };
+                            case "include": return ident with { Type = TokenType.KeywordInclude };
                         }
 
                         return ident;
@@ -579,7 +580,7 @@ public static class Template
 
 
     private class ParseError : Exception { }
-    private static (Node, ImmutableArray<Error>) Parse(IEnumerable<Token> itok, Dictionary<string, FuncGenerator> functions)
+    private static async Task<(Node, ImmutableArray<Error>)> Parse(IEnumerable<Token> itok, Dictionary<string, FuncGenerator> functions, DirectoryInfo includeDir, string defaultExtension, VfsRead vfs)
     {
         static IEnumerable<Token> TrimTextTokens(IEnumerable<Token> tokens)
         {
@@ -692,7 +693,7 @@ public static class Template
 
         var errors = new List<Error>();
 
-        var rootNode = ParseGroup();
+        var rootNode = await ParseGroup();
 
         if (!IsAtEnd())
         {
@@ -705,7 +706,7 @@ public static class Template
         }
         return (new Node.Text("Parsing failed", UnknownLocation()),  errors.ToImmutableArray());
 
-        Node ParseGroup()
+        async Task<Node> ParseGroup()
         {
             var start = Peek().Location;
             var nodes = new List<Node>();
@@ -713,7 +714,7 @@ public static class Template
             {
                 try
                 {
-                    ParseNode(nodes);
+                    await ParseNode(nodes);
                 }
                 catch (ParseError)
                 {
@@ -824,7 +825,7 @@ public static class Template
             return $"Expected {what} but found {TokenToMessage(Peek())}";
         }
 
-        void ParseNode(List<Node> nodes)
+        async Task ParseNode(List<Node> nodes)
         {
             switch (Peek().Type)
             {
@@ -837,12 +838,60 @@ public static class Template
                         var attribute = ExtractAttributeName();
                         Consume(TokenType.EndCode, ExpectedMessage("}}"));
 
-                        var group = ParseGroup();
+                        var group = await ParseGroup();
                         Consume(TokenType.BeginCode, ExpectedMessage("{{"));
                         Consume(TokenType.KeywordEnd, ExpectedMessage("keyword end"));
                         Consume(TokenType.EndCode, ExpectedMessage("}}"));
 
                         nodes.Add(new Node.Iterate(attribute, group, start));
+                    }
+                    else if (Match(TokenType.KeywordInclude))
+                    {
+                        var name = Consume(TokenType.Ident, ExpectedMessage("IDENT"));
+                        var includeLocation = Peek().Location;
+                        Consume(TokenType.EndCode, ExpectedMessage("}}"));
+
+                        var firstFile = includeDir.GetFile(name.Value);
+                        var file = firstFile;
+                        var secondFile = firstFile;
+                        if (vfs.Exists(file) == false)
+                        {
+                            secondFile = includeDir.GetFile(name.Value + defaultExtension);
+                            file = secondFile;
+                        }
+
+                        if (vfs.Exists(file) == false)
+                        {
+                            ReportError(includeLocation, $"Unable to open file: tried {firstFile} and {secondFile}");
+                        }
+                        else
+                        {
+                            var source = await vfs.ReadAllTextAsync(file);
+                            var (scannerTokens, lexerErrors) = Scanner(file, source);
+                            if (lexerErrors.Length > 0)
+                            {
+                                ReportError(includeLocation, "included from here...");
+                                foreach (var e in lexerErrors)
+                                {
+                                    ReportError(e.Location, e.Message);
+                                }
+                                return;
+                            }
+
+                            var (node, parseErrors) = await Parse(scannerTokens, functions, includeDir, defaultExtension, vfs);
+                            if (parseErrors.Length > 0)
+                            {
+                                ReportError(includeLocation, "included from here...");
+                                foreach (var e in parseErrors)
+                                {
+                                    ReportError(e.Location, e.Message);
+                                }
+
+                                return;
+                            }
+
+                            nodes.Add(node);
+                        }
                     }
                     else
                     {
