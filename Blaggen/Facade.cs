@@ -136,7 +136,7 @@ public static class Facade
         var timeStart = DateTime.Now;
 
         run.Status("Parsing directory");
-        var site = await Input.LoadSite(run, vfs, root, new Markdown());
+        var site = await Input.LoadSite(run, vfs, root);
         if (site == null) { return -1; }
 
         var publicDir = root.GetDir("public");

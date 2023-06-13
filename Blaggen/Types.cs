@@ -23,6 +23,9 @@ public class SiteData
     [JsonPropertyName("long_date_format")]
     public string LongDateFormat { get; set; } = "G";
 
+    [JsonPropertyName("use_markdeep")]
+    public bool UseMarkdeep { get; set; } = false;
+
     [JsonPropertyName("url")]
     public string BaseUrl { get; set; } = string.Empty;
     public string Url => BaseUrl.EndsWith('/') ? BaseUrl.TrimEnd('/') : BaseUrl;
