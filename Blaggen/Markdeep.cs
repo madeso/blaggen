@@ -241,7 +241,7 @@ public class Markdeep
         the document, before the browser processed it as HTML. There is no
         way in an HTML document to distinguish an entity that was entered
         as an entity. */
-    static string unescapeHTMLEntities(string str) {
+    public static string unescapeHTMLEntities(string str) {
         // Process &amp; last so that we don't recursively unescape
         // escaped escape sequences.
         return str.
@@ -1267,7 +1267,7 @@ private static string escapeRegExpCharacters(string str)
 
 
 /** Converts <>&" to their HTML escape sequences */
-static string escapeHTMLEntities(string str) {
+public static string escapeHTMLEntities(string str) {
     return str
         .Replace("&", "&amp;")
         .Replace("<", "&lt;")
@@ -3051,17 +3051,6 @@ string replaceMatched(string str, string delimiterRegExp, string tag, string? at
             };
         }
 
-        /*
-        if (elementMode == undefined) { 
-            elementMode = true;
-        }
-        
-        
-        if (str.innerHTML != undefined) {
-            str = str.innerHTML;
-        }
-        */
-
         // Prefix a newline so that blocks beginning at the top of the
         // document are processed correctly
         str = "\n\n" + str;
@@ -3111,11 +3100,11 @@ string replaceMatched(string str, string delimiterRegExp, string tag, string? at
             var pattern = new Regex("\n([ \\t]*)" + symbol + "{3,}([ \\t]*\\S*)([ \\t]+.+)?\n([\\s\\S]+?)\n\\1" + symbol + "{3,}[ \t]*\n([ \\t]*\\[.+(?:\n.+){0,3}\\])?");
             
             str = str.rp(pattern, match => {
-                (string indent, string? lang, string? cssSubClass, string? sourceCode, string? caption) = match.Get4Op1();
+                (string indent, string? lang, string? cssSubClass, string? sourceCode, string caption) = match.Get5();
                 
                 Target? processedCaption = null;
 
-                if (caption != null) {
+                if (caption.Length > 0) {
                     caption = caption.Trim();
 
                     processedCaption = createTarget(caption, protect);

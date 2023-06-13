@@ -60,7 +60,7 @@ public class MarkdeepParser : IDocumentParser
 
     private static string Highlighter(Markdeep.Highlight h)
     {
-        return h.Code;
+        return Markdeep.escapeHTMLEntities(h.Code);
     }
 
     private static void Log(string m)
