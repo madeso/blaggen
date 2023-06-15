@@ -2078,14 +2078,3 @@ image. For example:
 [Link <img src="icon.png"> with image](https://myurl)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-<!-- Used for escaping script and style tags in this particular document -->
-<script>
-setTimeout(function() {
-  var tagArray = document.getElementsByTagName('tag');
-  for (var i = 0; i < tagArray.length; ++i) {
-      tagArray[i].innerHTML = '&lt;' + tagArray[i].innerHTML + '&gt;';
-  }
-}, 1000);
-</script>
-
-<!-- Markdeep: --><script src="markdeep.min.js" charset="utf-8"></script>
