@@ -72,7 +72,8 @@ public class MarkdeepParser : IDocumentParser
     {
         public string ToHtml()
         {
-            return new Markdeep().markdeepToHTML(Source, Highlighter, Log, "url");
+            var src = Source.Replace("\r", "");
+            return new Markdeep().markdeepToHTML(src, Highlighter, Log, "url");
         }
 
         public string ToPlainText()
