@@ -49,30 +49,31 @@ public class MarkdeepTest
             );
     }
 
-    private static string CleanHtml(string dirty)
+    private static string[] CleanHtml(string dirty)
     {
-        return string.Join('\n',
+        return
             dirty.Split('\n')
                 .Select(x => x.Trim())
                 .Where(x => x.Length > 0)
-            );
+                .ToArray();
+            ;
     }
 
     [Fact]
     public void TestMarkdeep()
     {
-        CleanHtml(new Markdeep().markdeepToHTML("Hello world", NoHighlight, NoLog, "", false)).Should().Be(
-            "<span class=\"md\"><p><p>\nHello world</p></span>");
+        CleanHtml(new Markdeep().markdeepToHTML("Hello world", NoHighlight, NoLog, "", false)).Should().BeEquivalentTo(
+            CleanHtml("<span class=\"md\"><p><p>\nHello world</p></span>"));
 
-        CleanHtml(new Markdeep().markdeepToHTML("*dog* is good", NoHighlight, NoLog, "", false)).Should().Be(
-            "<span class=\"md\"><p><p>\n<em class=\"asterisk\">dog</em> is good</p></span>");
+        CleanHtml(new Markdeep().markdeepToHTML("*dog* is good", NoHighlight, NoLog, "", false)).Should().BeEquivalentTo(
+            CleanHtml("<span class=\"md\"><p><p>\n<em class=\"asterisk\">dog</em> is good</p></span>"));
 
         CleanHtml(new Markdeep().markdeepToHTML("A list with just bullets:\n" +
                                                 "- Bread\n" +
                                                 "- Fish\n" +
                                                 "- Milk\n" +
                                                 "- Cheese\n" +
-                                                "", NoHighlight, NoLog, "", false)).Should().Be(
+                                                "", NoHighlight, NoLog, "", false)).Should().BeEquivalentTo(CleanHtml(
             "<span class=\"md\"><p><p>\n" +
             "A list with just bullets:\n" +
             "</p><p>\n" +
@@ -85,7 +86,7 @@ public class MarkdeepTest
             "</li>\n" +
             "<li class=\"minus\">Cheese</li></ul>\n" +
             "</p><p>\n" +
-            "</p></span>");
+            "</p></span>"));
 
         CleanHtml(new Markdeep().markdeepToHTML("Lists can also:\n" +
                                                 "\n" +
@@ -93,11 +94,11 @@ public class MarkdeepTest
                                                 "* `or have code`\n" +
                                                 "* *and* other formatting\n" +
                                                 "\n" +
-                                                "or\n" +
+                                                "o\n" +
                                                 "\n" +
                                                 "+ Use plus\n" +
                                                 "+ Signs\n" +
-                                                "", NoHighlight, NoLog, "", false)).Should().Be(
+                                                "", NoHighlight, NoLog, "", false)).Should().BeEquivalentTo(CleanHtml(
             "<span class=\"md\"><p><p>\n" +
             "Lists can also:\n" +
             "</p><p>\n" +
@@ -108,24 +109,56 @@ public class MarkdeepTest
             "</li>\n" +
             "<li class=\"asterisk\"><em class=\"asterisk\">and</em> other formatting</li></ul>\n" +
             "</p><p>\n" +
-            "or\n" +
+            "o\n" +
             "</p><p>\n" +
             "<ul>\n" +
             "<li class=\"plus\">Use plus\n" +
             "</li>\n<li class=\"plus\">Signs</li></ul>\n" +
             "</p><p>\n" +
-            "</p></span>");
+            "</p></span>"));
 
 
         // table
 
-        CleanHtml(new Markdeep().markdeepToHTML("\n\n | A |\n |---|\n | B |\n | C |\n | D |\n", NoHighlight, NoLog, "", false)).Should().Be(
+        CleanHtml(new Markdeep().markdeepToHTML("\n\n | A |\n |---|\n | B |\n | C |\n | D |\n", NoHighlight, NoLog, "", false)).Should().BeEquivalentTo(
+            CleanHtml("<span class=\"md\"><p><p>\n" +
+                     "<div class='table'><table class=\"table\"><tr><th style=\"text-align:left\">  A  </th></tr>\n" +
+                     "<tr><td style=\"text-align:left\">  B  </td></tr>\n" +
+                     "<tr><td style=\"text-align:left\">  C  </td></tr>\n" +
+                     "<tr><td style=\"text-align:left\">  D  </td></tr>\n" +
+                     "</table></div>\n</p></span>"));
+
+        // code
+        CleanHtml(new Markdeep().markdeepToHTML("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ none\n" +
+                                                "void insertion_sort(int data[], int length) {\n" +
+                                                "    for (int i = 0; i < length; ++i) {\n" +
+                                                "       ...\n" +
+                                                "    }\n" +
+                                                "}\n" +
+                                                "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n" +
+                                                "", NoHighlight, NoLog, "", false)).Should().BeEquivalentTo(CleanHtml(
+            "<span class=\"md\"><p><pre class=\"listing tilde\"><code><span class=\"line\"></span>void insertion_sort(int data[], int length) {\n" +
+            "<span class=\"line\"></span>    for (int i = 0; i &lt; length; ++i) {\n" +
+            "<span class=\"line\"></span>       ...\n" +
+            "<span class=\"line\"></span>    }\n" +
+            "<span class=\"line\"></span>}</code></pre><p>\n" +
+            "</p></span>"));
+
+
+        // header
+        CleanHtml(new Markdeep().markdeepToHTML("Basic Formatting\n" +
+                                                "===\n" +
+                                                "", NoHighlight, NoLog, "", false)).Should().BeEquivalentTo(CleanHtml(
+            "<span class=\"md\"><p>\n" +
+            "<a class=\"target\" name=\"basicformatting\">&nbsp;</a><a class=\"target\" name=\"basicformatting\">&nbsp;</a><a class=\"target\" name=\"toc1\">&nbsp;</a><h1>Basic Formatting</h1>\n" +
+            "<p>\n" +
+            "</p></span>"));
+
+        // link
+        CleanHtml(new Markdeep().markdeepToHTML("\n" +
+                                                "[Markdeep](http://casual-effects.com/markdeep)", NoHighlight, NoLog, "", false)).Should().BeEquivalentTo(CleanHtml(
             "<span class=\"md\"><p><p>\n" +
-            "<div class='table'><table class=\"table\"><tr><th style=\"text-align:left\">  A  </th></tr>\n" +
-            "<tr><td style=\"text-align:left\">  B  </td></tr>\n" +
-            "<tr><td style=\"text-align:left\">  C  </td></tr>\n" +
-            "<tr><td style=\"text-align:left\">  D  </td></tr>\n" +
-            "</table></div>\n</p></span>");
+            "<a href=\"http://casual-effects.com/markdeep\">Markdeep</a></p></span>"));
     }
 
     [Fact]
@@ -136,23 +169,65 @@ public class MarkdeepTest
     }
 
     [Fact]
-    public void MarkdeepCode()
+    public void MarkdeepFail()
     {
-        // code
-        CleanHtml(new Markdeep().markdeepToHTML("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ none\n" +
-                                                "void insertion_sort(int data[], int length) {\n" +
-                                                "    for (int i = 0; i < length; ++i) {\n" +
-                                                "       ...\n" +
-                                                "    }\n" +
-                                                "}\n" +
-                                                "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n" +
-                                                "", NoHighlight, NoLog, "", false)).Should().Be(
-            "<span class=\"md\"><p><pre class=\"listing tilde\"><code><span class=\"line\"></span>void insertion_sort(int data[], int length) {\n" +
-            "<span class=\"line\"></span>    for (int i = 0; i &lt; length; ++i) {\n" +
-            "<span class=\"line\"></span>       ...\n" +
-            "<span class=\"line\"></span>    }\n" +
-            "<span class=\"line\"></span>}</code></pre><p>\n" +
-            "</p></span>");
+        // longer
+        CleanHtml(new Markdeep().markdeepToHTML("                      **Markdeep Feature Demo**\n" +
+                                                "                           Morgan McGuire\n" +
+                                                "\n" +
+                                                "This demonstration documents the features of\n" +
+                                                "[Markdeep](http://casual-effects.com/markdeep) and acts as a test fo\n" +
+                                                "it.  Markdeep is a text formatting syntax that extends Markdown, and a\n" +
+                                                "JavaScript program for making it work in browsers. The two most\n" +
+                                                "powerful features are its ability to run in any **web browser** on the\n" +
+                                                "client side and the inclusion of **diagrams**.\n" +
+                                                "\n" +
+                                                "[Click here](https://casual-effects.com/markdeep/features.md.html?noformat)\n" +
+                                                "to see this document without automatic formatting.\n" +
+                                                "\n" +
+                                                "Markdeep is free and easy to use. It doesn't need a plugin, o\n" +
+                                                "Internet connection. There's nothing to install. Just start\n" +
+                                                "writing in Vi, Nodepad, Zed, Emacs, Visual Studio, Atom, or anothe\n" +
+                                                "editor! You don't have to export, compile, or otherwise process\n" +
+                                                "your document.\n" +
+                                                "\n" +
+                                                "If you want to support development of Markdeep, you can\n" +
+                                                "[sponsor](https://github.com/sponsors/morgan3d) my open source\n" +
+                                                "projects on GitHub for $2.\n" +
+                                                "\n" +
+                                                "\n" +
+                                                "Basic Formatting\n" +
+                                                "=======================================================================================\n" +
+                                                "Text formatting: \n" +
+                                                "", NoHighlight, NoLog, "", false)).Should().BeEquivalentTo(CleanHtml(
+            "<span class=\"md\"><p><title>Markdeep Feature Demo</title><div class=\"title\"> Markdeep Feature Demo </div>\n" +
+            "<div class=\"subtitle\"> Morgan McGuire </div>\n" +
+            "<div class=\"afterTitles\"></div>\n" +
+            "</p><p>\n" +
+            "This demonstration documents the features of\n" +
+            "<a href=\"http://casual-effects.com/markdeep\">Markdeep</a> and acts as a test fo\n" +
+            "it.  Markdeep is a text formatting syntax that extends Markdown, and a\n" +
+            "JavaScript program for making it work in browsers. The two most\n" +
+            "powerful features are its ability to run in any <strong class=\"asterisk\">web browser</strong> on the\n" +
+            "client side and the inclusion of <strong class=\"asterisk\">diagrams</strong>.\n" +
+            "</p><p>\n" +
+            "<a href=\"https://casual-effects.com/markdeep/features.md.html?noformat\">Click here</a>\n" +
+            "to see this document without automatic formatting.\n" +
+            "</p><p>\n" +
+            "Markdeep is free and easy to use. It doesn't need a plugin, o\n" +
+            "Internet connection. There's nothing to install. Just start\n" +
+            "writing in Vi, Nodepad, Zed, Emacs, Visual Studio, Atom, or anothe\n" +
+            "editor! You don't have to export, compile, or otherwise process\n" +
+            "your document.\n" +
+            "</p><p>\n" +
+            "If you want to support development of Markdeep, you can\n" +
+            "<a href=\"https://github.com/sponsors/morgan3d\">sponsor</a> my open source\n" +
+            "projects on GitHub for $2.\n" +
+            "</p>\n" +
+            "<a class=\"target\" name=\"basicformatting\">&nbsp;</a><a class=\"target\" name=\"basicformatting\">&nbsp;</a><a class=\"target\" name=\"toc1\">&nbsp;</a><h1>Basic Formatting</h1>\n" +
+            "<p>\n" +
+            "Text formatting: \n" +
+            "</p></span>"));
     }
 
     [Fact]

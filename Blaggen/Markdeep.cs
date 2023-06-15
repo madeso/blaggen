@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Immutable;
+using System.Linq;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
+using Markdig.Extensions.Mathematics;
 
 namespace Blaggen;
 
@@ -74,9 +76,19 @@ public class Options
 
 public static class MarkdownExtensions
 {
-    public static string ss(this string s, int start, int end)
+    public static string ss(this string s, int sstart, int eend)
     {
-        return s.Substring(start, end - start);
+        var start = sstart;
+        var end = eend;
+        if (sstart > eend)
+        {
+            start = eend;
+            end = sstart;
+        }
+        start = Math.Max(0, start);
+        end = Math.Min(end, s.Length);
+        var length = end - start;
+        return s.Substring(start, length);
     }
 
     public static string rp(this string s, Regex re, string rp)
@@ -98,10 +110,13 @@ public static class MarkdownExtensions
         return list.Skip(start).Take(end - start);
     }
 
-    public static IEnumerable<T> splice<T>(this List<T> list, int start, int end)
+    public static IEnumerable<T> splice<T>(this List<T> list, int start, int count)
     {
-        var ret = list.Skip(start).Take(end - start);
-        list.RemoveRange(start, end - start);
+        var ret = list.Skip(start).Take(count).ToList();
+        if(count > 0)
+        {
+            list.RemoveRange(start, count);
+        }
         return ret;
     }
 
@@ -155,6 +170,14 @@ public static class MarkdownExtensions
         else
         {
             return null;
+        }
+    }
+
+    public static void Reserve<T>(this List<T> list, int count, T def)
+    {
+        while (list.Count < count)
+        {
+            list.Add(def);
         }
     }
 
@@ -705,7 +728,7 @@ public class Markdeep
                                     stack.pop();
                                     // End the current list and decrease indentation
                                     result += "\n</li></" + current.tag + ">";
-                                    current = stack[stack.Count - 1];
+                                    current = stack.Count > 0 ? stack[stack.Count - 1] : null;
                                 }
                             } else {
                                 // Start a new list that is more indented
@@ -1328,7 +1351,10 @@ string replaceMatched(string str, string delimiterRegExp, string tag, string? at
         s = s.rp(new Regex(@"<h([1-6])>(.*?)<\/h\1>", RegexOptions.IgnoreCase), header => {
             var level = int.Parse(header.Groups[1].Value);
             var text = header.Groups[2].Value.Trim();
-            
+
+            nameStack.Reserve(level, "");
+            headerCounter.Reserve(level, 0);
+
             // If becoming more nested:
             for (var i = currentLevel; i < level; ++i) {
                 nameStack[i] = "";
@@ -3532,7 +3558,7 @@ string replaceMatched(string str, string delimiterRegExp, string tag, string? at
             var (pre, text, maybeQuote, url, attribs) = match.Get5();
             // todo(Gustav): test without attribute
             // attribs = attribs || "";
-            return pre + "<a " + protect("href=\" + url + \"" + attribs) + ">" + text + "</a>" + maybeShowLabel(url);
+            return pre + "<a " + protect("href=\"" + url + "\"" + attribs) + ">" + text + "</a>" + maybeShowLabel(url);
         });
 
         // EMPTY HYPERLINKS: [](url)
