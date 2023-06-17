@@ -4,6 +4,7 @@ using Markdig;
 using Markdig.Parsers;
 using Markdig.Renderers;
 using Markdig.Syntax;
+using Markdig.Syntax.Inlines;
 using Markdown.ColorCode;
 
 namespace Blaggen;
@@ -87,9 +88,21 @@ public class MarkdownParser : IDocumentParser
                                         i -= 1;
                                         break;
                                     case "replace":
-                                        var html = new HtmlBlock(new HtmlBlockParser());
-                                        // todo(Gustav): figure out how to insert html
-                                        doc[i] = html;
+                                        // var html = Markdig.Markdown.Parse("This is a *hacky* replacement...", pipeline);
+                                        // var html = "This is some <b>neat</b> html.";
+
+                                        var html2 = """
+                                            <svg width="100" height="100">
+                                              <circle cx="50" cy="50" r="40" stroke="green" stroke-width="4" fill="yellow" />
+                                            </svg>
+                                            """;
+
+                                        var container = new ContainerInline();
+                                        container.AppendChild(new HtmlInline(html2));
+                                        doc[i] = new ParagraphBlock
+                                        {
+                                            Inline = container
+                                        };
                                         break;
                                 }
                             }
