@@ -1,7 +1,9 @@
 ﻿
+using ColorCode.Styling;
 using Markdig;
 using Markdig.Renderers;
 using Markdig.Syntax;
+using Markdown.ColorCode;
 
 namespace Blaggen;
 
@@ -18,7 +20,11 @@ public interface IDocument
 
 public class MarkdownParser : IDocumentParser
 {
-    private readonly MarkdownPipeline pipeline = new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
+    private readonly MarkdownPipeline pipeline = new MarkdownPipelineBuilder()
+        .UseAdvancedExtensions()
+        // todo(Gustav): fix colorcode or implement own to avoid specifying styling in the pipeline
+        .UseColorCode( StyleDictionary.DefaultLight )
+        .Build();
 
     public record Document(MarkdownDocument Doc, MarkdownPipeline pipeline) : IDocument
     {

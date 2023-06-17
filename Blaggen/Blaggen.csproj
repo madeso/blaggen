@@ -8,7 +8,9 @@
 
 	<ItemGroup>
 		<PackageReference Include="Spectre.Console" Version="0.47.0" />	
-		<PackageReference Include="Markdig" Version="0.30.4" />
+		
+		<PackageReference Include="Markdig" Version="0.31.0" />
+		<PackageReference Include="Markdown.ColorCode" Version="1.0.4" />
 
 		<PackageReference Include="Tomlyn" Version="0.16.2" />
 	</ItemGroup>
