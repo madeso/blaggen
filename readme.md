@@ -21,7 +21,7 @@ Perhaps there is some order in this list but it's mostly so I can remember what 
   - command to list tags to use
   - interactive command to add tags to existing posts?
 * Watch mode/Hot-reload
-  - Generate files when saved
+  - File watcher/Generate files when saved
   - Create a webserver
   - Reload pages when generated
 * Copy meta-files such as images
@@ -36,3 +36,34 @@ Perhaps there is some order in this list but it's mostly so I can remember what 
 * Add support for generating images using code
   - for example using processing
   - custom code that outputs images or svg
+
+# A rough plan
+This isn't really plan, just a rough sketch to figure out when the goals might be completed...
+
+```mermaid
+gantt
+    dateFormat  YYYY-MM-DD
+    section Plan
+
+    section Tags
+    Generate tag pages: tag_pages, 2023-06-19, 2d
+    List tags: list_tags, after tag_pages, 1d
+    Interactive tag command: tag_command, after list_tags, 1d
+    Tags done: tags_done, after tag_command, 0h
+
+    section Hot reload
+    File watcher: file_watcher, after tags_done, 1d
+    Webserver: webserver, after file_watcher, 2d
+    Reload pages: reload_pages, after webserver, 1d
+    Hot reload done: hotreload_done, after reload_pages, 0d
+    
+    section Actions
+    Add verification steps: action_verify, after hotreload_done, 3d
+    Add support for generating umages using code: action_image, after action_verify, 2d
+
+    section Other
+    Copy meta files: copy_meta, after action_image, 1d
+    Copy static files: copy_static, after copy_meta, 1d
+
+    Implement markdeep: after copy_static, 10d
+```
