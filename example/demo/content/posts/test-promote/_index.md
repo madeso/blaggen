@@ -158,12 +158,19 @@ Indented code
 Block code "fences"
 
 ```
-Sample text here...
+//! blaggen remove
+This should be removed
+```
+
+```
+//! blaggen replace
+This should be replaced with a image...
 ```
 
 Syntax highlighting
 
 ``` js
+//! blaggen check
 var foo = function (bar) {
   return bar++;
 };

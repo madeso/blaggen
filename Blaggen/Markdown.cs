@@ -1,6 +1,7 @@
 ﻿
 using ColorCode.Styling;
 using Markdig;
+using Markdig.Parsers;
 using Markdig.Renderers;
 using Markdig.Syntax;
 using Markdown.ColorCode;
@@ -53,7 +54,55 @@ public class MarkdownParser : IDocumentParser
 
     public IDocument Parse(string content)
     {
-        return new Document(Markdig.Markdown.Parse(content), pipeline);
+        var src = content.Replace("\r", "");
+        var doc = Markdig.Markdown.Parse(src);
+        
+        // todo(Gustav): should code block actions be here or a higher level (to allow switching between markdown/markdeep)
+        // or should we just remove the markdown/markdeep option and go for a opinionated tool?
+        for(var i  = 0; i < doc.Count; i+=1)
+        {
+            var item = doc[i];
+            // Console.WriteLine(item.GetType());
+
+            switch (item)
+            {
+                case Markdig.Syntax.FencedCodeBlock block:
+                    // hacky shebang parsing
+                    var firstLine = block.Lines.Lines[0].Slice.ToString().TrimStart();
+                    if (firstLine.StartsWith("//!"))// || firstLine.StartsWith("#!"))
+                    {
+                        // hacky argument parsing... use spectre here?
+                        var cmd = firstLine.Substring(3).TrimStart().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                        if (cmd.Length > 0 && cmd[0] == "blaggen")
+                        {
+                            if (cmd.Length > 1)
+                            {
+                                switch (cmd[1])
+                                {
+                                    case "check":
+                                        block.Lines.RemoveAt(0);
+                                        break;
+                                    case "remove":
+                                        doc.RemoveAt(i);
+                                        i -= 1;
+                                        break;
+                                    case "replace":
+                                        var html = new HtmlBlock(new HtmlBlockParser());
+                                        // todo(Gustav): figure out how to insert html
+                                        doc[i] = html;
+                                        break;
+                                }
+                            }
+                        }
+                    }
+                    break;
+                case Markdig.Syntax.CodeBlock block:
+                    // todo(Gustav): support actions for general codeblocks too?
+                    break;
+            }
+        }
+
+        return new Document(doc, pipeline);
     }
 }
 
