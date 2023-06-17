@@ -44,6 +44,7 @@ This isn't really plan, just a rough sketch to figure out when the goals might b
 gantt
     dateFormat  YYYY-MM-DD
     section Plan
+    excludes monday, tuesday, wednesday, thursday
 
     section Tags
     Generate tag pages: tag_pages, 2023-06-19, 2d
