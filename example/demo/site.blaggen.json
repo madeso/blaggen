@@ -2,6 +2,7 @@
   "name": "Blaggen sample site",
   "summary": "This site demonstrates the awsome that is the blaggen static site generator",
   "url": "http://www.example.com/",
+  "use_markdeep": false,
   "sources": {
     "post": "posts"
   },
