@@ -9,14 +9,21 @@ namespace BlaggenTest;
 
 public class TemplateTest
 {
-    private record Song(string Artist, string Title, string Album, int Track, bool HasStar);
+    private record Song(string Artist, string Title, string Album, int Track);
     private static Template.Definition<Song> MakeSongDef() => new Template.Definition<Song>()
         .AddVar("artist", song => song.Artist)
         .AddVar("title", song => song.Title)
         .AddVar("album", song => song.Album)
         .AddVar("track", song => song.Track.ToString())
-        .AddBool("star",  song => song.HasStar)
         ;
+
+    private record SongWithoutAlbum(string Artist, string Title, bool HasStar);
+    private static Template.Definition<SongWithoutAlbum> MakeSongWithoutAlbumDef() => new Template.Definition<SongWithoutAlbum>()
+        .AddVar("artist", song => song.Artist)
+        .AddVar("title", song => song.Title)
+        .AddVar("album", song => throw new Exception("Song doesn't have a album :(")) // this shouldn't be called
+        .AddBool("star", song => song.HasStar)
+    ;
 
     private static Template.Definition<Song> MakeSongDefWithSpaces() => new Template.Definition<Song>()
         .AddVar("the artist", song => song.Artist)
@@ -24,15 +31,15 @@ public class TemplateTest
         .AddVar("the album", song => song.Album)
     ;
 
-    private record MixTape(ImmutableArray<Song> Songs);
+    private record MixTape(ImmutableArray<SongWithoutAlbum> Songs);
     private static Template.Definition<MixTape> MakeMixTapeDef() => new Template.Definition<MixTape>()
-        .AddList("songs", mt => mt.Songs, MakeSongDef())
+        .AddList("songs", mt => mt.Songs, MakeSongWithoutAlbumDef())
         ;
 
-    private readonly Song AbbaSong = new("ABBA", "dancing queen", "Arrival", 2, true);
+    private readonly Song AbbaSong = new("ABBA", "dancing queen", "Arrival", 2);
     private static readonly MixTape AwesomeMix = new(ImmutableArray.Create (
-        new Song("Gloria Gaynor", "I Will Survive", "Nevermind", 1, true),
-        new Song("Nirvana", "Smells Like Teen Spirit", "Love Tracks", 5, false)
+        new SongWithoutAlbum("Gloria Gaynor", "I Will Survive", true),
+        new SongWithoutAlbum("Nirvana", "Smells Like Teen Spirit", false)
     ));
 
     internal VfsReadTest read = new();
