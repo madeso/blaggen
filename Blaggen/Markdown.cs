@@ -88,17 +88,14 @@ public class MarkdownParser : IDocumentParser
                                         i -= 1;
                                         break;
                                     case "replace":
-                                        // var html = Markdig.Markdown.Parse("This is a *hacky* replacement...", pipeline);
-                                        // var html = "This is some <b>neat</b> html.";
-
-                                        var html2 = """
+                                        var html = """
                                             <svg width="100" height="100">
                                               <circle cx="50" cy="50" r="40" stroke="green" stroke-width="4" fill="yellow" />
                                             </svg>
                                             """;
 
                                         var container = new ContainerInline();
-                                        container.AppendChild(new HtmlInline(html2));
+                                        container.AppendChild(new HtmlInline(html));
                                         doc[i] = new ParagraphBlock
                                         {
                                             Inline = container
