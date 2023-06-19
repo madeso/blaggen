@@ -5,93 +5,48 @@ namespace Blaggen;
 public static class Generate
 {
     // data to mustache
-    public class SummaryForPost
-    {
-        public readonly string title;
-        public readonly string time_short;
-        public readonly string time_long;
-        public readonly string name;
-        public readonly string summary;
-        public readonly string full_html;
-        public readonly string full_text;
+    public record SummaryForPost(Post Post, Site Site);
+    public record RootLink(string Name, string Url, bool IsSelected);
+    public record PageData(Site Site, Post Post, ImmutableArray<RootLink> Roots, ImmutableArray<SummaryForPost> Pages);
 
-        public SummaryForPost(Post post, Site site)
-        {
-            this.title = post.Front.Title;
-            this.time_short = site.Data.ShortDateToString(post.Front.Date);
-            this.time_long = site.Data.LongDateToString(post.Front.Date);
-            this.name = post.Name;
-            this.summary = post.Front.Summary;
-            this.full_html = post.MarkdownHtml;
-            this.full_text = post.MarkdownPlainText;
-        }
-    }
 
-    internal static Template.Definition<SummaryForPost> MakeSummaryForPostDef() => new Template.Definition<SummaryForPost>()
-        .AddVar("title", summary => summary.title)
-        .AddVar("time_short", summary => summary.time_short)
-        .AddVar("time_long", summary => summary.time_long)
-        .AddVar("name", summary => summary.name)
-        .AddVar("summary", summary => summary.summary)
-        .AddVar("full_html", summary => summary.full_html)
-        .AddVar("full_text", summary => summary.full_text)
+    public record PageToWrite
+    (
+        ImmutableArray<DirectoryInfo> TemplateFolders,
+        Post Post,
+        ImmutableArray<SummaryForPost> Summaries,
+        DirectoryInfo DestDir
+    );
+
+    private static Template.Definition<SummaryForPost> MakeSummaryForPostDef() => new Template.Definition<SummaryForPost>()
+        .AddVar("title", s => s.Post.Front.Title)
+        .AddVar("time_short", s => s.Site.Data.ShortDateToString(s.Post.Front.Date))
+        .AddVar("time_long", s => s.Site.Data.LongDateToString(s.Post.Front.Date))
+        .AddVar("name", s => s.Post.Name)
+        .AddVar("summary", s => s.Post.Front.Summary)
+        .AddVar("full_html", s => s.Post.MarkdownHtml)
+        .AddVar("full_text", s => s.Post.MarkdownPlainText)
     ;
 
-
-    // data to mustache
-    public record RootLink(string Name, string Url, bool IsSelected);
-    internal static Template.Definition<RootLink> MakeRootLinkDef() => new Template.Definition<RootLink>()
+    
+    private static Template.Definition<RootLink> MakeRootLinkDef() => new Template.Definition<RootLink>()
         .AddVar("Name", link => link.Name)
         .AddVar("Url", link => link.Url)
         .AddBool("IsSelected", link => link.IsSelected)
     ;
 
-
-    // data to mustache
-    public class PageData
-    {
-        public readonly string title;
-        public readonly string summary;
-        public readonly string url;
-
-        public readonly string content_html;
-        public readonly string content_text;
-        public readonly string time_short;
-        public readonly string time_long;
-        public readonly List<SummaryForPost> pages;
-        public readonly List<RootLink> roots;
-
-        public PageData(Site site, Post post, ImmutableArray<RootLink> rootLinks,
-            List<SummaryForPost> summaries)
-        {
-            this.title = post.Front.Title;
-            this.summary = post.Front.Summary;
-            this.roots = rootLinks.ToList();
-
-            var rel = post.IsIndex ? post.RelativePath.PopBack() : post.RelativePath;
-            var relative = string.Join('/', rel.Add("index"));
-            this.url = $"{site.Data.Url}/{relative}";
-            content_html = post.MarkdownHtml;
-            content_text = post.MarkdownPlainText;
-            time_short = site.Data.ShortDateToString(post.Front.Date);
-            time_long = site.Data.LongDateToString(post.Front.Date);
-            
-            this.pages = summaries;
-        }
-        // todo(Gustav): add more data
-        // todo(Gustav): generate full url
-    }
-
-    internal static Template.Definition<PageData> MakePageDataDef() => new Template.Definition<PageData>()
-        .AddVar("title", page => page.title)
-        .AddVar("summary", page => page.summary)
-        .AddVar("url", page => page.url)
-        .AddVar("content_html", page => page.content_html)
-        .AddVar("content_text", page => page.content_text)
-        .AddVar("time_short", page => page.time_short)
-        .AddVar("time_long", page => page.time_long)
-        .AddList("pages", page=>page.pages, MakeSummaryForPostDef())
-        .AddList("roots", page=>page.roots, MakeRootLinkDef())
+    // todo(Gustav): add more data
+    // todo(Gustav): generate full url
+    public static Template.Definition<PageData> MakePageDataDef() => new Template.Definition<PageData>()
+        .AddVar("title", page => page.Post.Front.Title)
+        .AddVar("summary", page => page.Post.Front.Summary)
+        .AddVar("url", page => GenerateAbsoluteUrl(page.Site, page.Post))
+        .AddVar("content_html", page => page.Post.MarkdownHtml)
+        .AddVar("content_text", page => page.Post.MarkdownPlainText)
+        .AddVar("time_short", page => page.Site.Data.ShortDateToString(page.Post.Front.Date))
+        .AddVar("time_long", page => page.Site.Data.LongDateToString(page.Post.Front.Date))
+        .AddList("pages", page=>page.Pages, MakeSummaryForPostDef())
+        .AddList("roots", page=>page.Roots, MakeRootLinkDef())
     ;
 
 
@@ -157,14 +112,12 @@ public static class Generate
         return fin;
     }
 
-
-    public record PageToWrite
-    (
-        ImmutableArray<DirectoryInfo> TemplateFolders,
-        Post Post,
-        ImmutableArray<SummaryForPost> Summaries,
-        DirectoryInfo DestDir
-    );
+    private static string GenerateAbsoluteUrl(Site site, Post post)
+    {
+        var rel = post.IsIndex ? post.RelativePath.PopBack() : post.RelativePath;
+        var relative = string.Join('/', rel.Add("index"));
+        return $"{site.Data.Url}/{relative}";
+    }
 
 
     private static async Task<int> WritePost(Run run, VfsWrite vfs, Site site, ImmutableArray<PageToWrite> roots,
@@ -179,7 +132,7 @@ public static class Generate
                 .ToImmutableArray()
             ;
         var pagesGenerated = 0;
-        var data = new PageData(site, page.Post, rootLinks, page.Summaries.ToList());
+        var data = new PageData(site, page.Post, rootLinks, page.Summaries);
         var templateName = page.Post.IsIndex ? Constants.DIR_TEMPLATE : Constants.POST_TEMPLATE;
 
         foreach (var ext in templates.Extensions)
