@@ -220,7 +220,7 @@ public static class Generate
         var rootLinks = roots
                 .Select(x => new RootLink(x.Post.Front.Title,
                     ConcatWithIndex(GetRelativePath(page.DestDir, x)),
-                    ConcatWithIndex(GetRelativePath(publicDir, x)) == ConcatWithIndex(GetRelativePath(publicDir, page).Take(1))
+                    string.Join("", GetRelativePath(publicDir, x)) == string.Join("", GetRelativePath(publicDir, page).Take(1))
                 ))
                 .ToImmutableArray()
             ;
