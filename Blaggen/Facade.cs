@@ -153,7 +153,8 @@ public static class Facade
 
         run.Status("Writing data to disk");
         var pages = Generate.ListPagesForSite(site, publicDir, templateFolder).ToImmutableArray();
-        var numberOfPagesGenerated = await Generate.WritePages(pages, run, vfsWrite, site, publicDir, templates);
+        var tags = Generate.CollectTagPages(site, publicDir, templateFolder, pages);
+        var numberOfPagesGenerated = await Generate.WritePages(pages, tags, run, vfsWrite, site, publicDir, templates);
         // todo(Gustav): copy static files
 
         if (numberOfPagesGenerated == 0)
