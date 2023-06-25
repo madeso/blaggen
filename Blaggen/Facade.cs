@@ -155,7 +155,7 @@ public static class Facade
         var pages = Generate.ListPagesForSite(site, publicDir, templateFolder).ToImmutableArray();
         var tags = Generate.CollectTagPages(site, publicDir, templateFolder, pages);
         var roots = Generate.CollectRoots(pages, tags);
-        var numberOfPagesGenerated = await Generate.WritePages(roots, pages, tags, run, vfsWrite, site, publicDir, templates);
+        var numberOfPagesGenerated = await Generate.WriteAllPages(roots, pages, tags, run, vfsWrite, site, publicDir, templates);
         // todo(Gustav): copy static files
 
         if (numberOfPagesGenerated == 0)
