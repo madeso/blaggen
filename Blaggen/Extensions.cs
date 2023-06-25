@@ -25,6 +25,11 @@ public static class FileExtensions
         return new FileInfo(Path.Join(dir.FullName, file));
     }
 
+    public static FileInfo ChangeExtension(this FileInfo file, string newExtension)
+    {
+        return new FileInfo(Path.ChangeExtension(file.FullName, newExtension));
+    }
+
     public static async Task<string?> LoadFileOrNull(this FileInfo path, Run run, VfsRead vfs)
     {
         try { return await vfs.ReadAllTextAsync(path); }

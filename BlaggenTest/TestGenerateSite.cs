@@ -76,7 +76,6 @@ public class TestGenerateSite : TestBase
     [Fact]
     public async void RootsShouldBeValid()
     {
-        // todo(Gustav): add url
         // missing: ({{& Url}})";
         const string mustache = "{{#roots}}{{Name}}: {{Url}}{{? IsSelected}} (selected){{/IsSelected}}\n{{/roots}}";
         read.AddContent(Constants.CalculateTemplateDirectory(cwd).GetFile("_post.mustache.html"), mustache);

@@ -1,6 +1,9 @@
 ﻿using System.Collections.Immutable;
 using System.Security.Cryptography.X509Certificates;
 using System.Web;
+using System.Xml.Linq;
+using Microsoft.VisualBasic;
+using static Blaggen.Generate;
 
 namespace Blaggen;
 
@@ -14,9 +17,11 @@ public static class Generate
         string name,
         string summary,
         string full_html,
-        string full_text
+        string full_text,
+        string relative_url
         );
     public record RootLink(string Name, string Url, bool IsSelected);
+    public record RootLinkData(string Name, FileInfo File, string RootGroup);
     public record PageData(Site Site, ImmutableArray<RootLink> Roots, ImmutableArray<SummaryForPost> Pages,
             string title,
             string summary,
@@ -47,7 +52,9 @@ public static class Generate
         ImmutableArray<DirectoryInfo> TemplateFolders,
         Post Post,
         ImmutableArray<SummaryForPost> Summaries,
-        DirectoryInfo DestDir
+        FileInfo DestFile,
+        string RootGroup,
+        int Depth
     );
 
     public static SummaryForPost MakeSummaryForPost(Post Post, Site Site)
@@ -59,7 +66,8 @@ public static class Generate
                 name: Post.Name,
                 summary: Post.Front.Summary,
                 full_html: Post.MarkdownHtml,
-                full_text: Post.MarkdownPlainText
+                full_text: Post.MarkdownPlainText,
+                relative_url: $"{Post.Name}/index.html"
             );
     }
 
@@ -71,6 +79,7 @@ public static class Generate
         .AddVar("summary", s => s.summary)
         .AddVar("full_html", s => s.full_html)
         .AddVar("full_text", s => s.full_text)
+        .AddVar("url", s => s.relative_url)
     ;
 
     
@@ -98,17 +107,18 @@ public static class Generate
     public static IEnumerable<PageToWrite> ListPagesForSite(Site site, DirectoryInfo publicDir, DirectoryInfo templates)
     {
         var owners = ImmutableArray.Create<Dir>();
-        return ListPagesInDir(site, site.Root, publicDir, templates, owners, true);
+        return ListPagesInDir(site, site.Root, publicDir, templates, owners, 0, string.Empty);
 
         static IEnumerable<PageToWrite> ListPagesInDir(Site site, Dir dir,
             DirectoryInfo targetDir, DirectoryInfo templates,
-            ImmutableArray<Dir> owners, bool isRoot)
+            ImmutableArray<Dir> owners, int depth, string rootGroup)
         {
-            var ownersWithSelf = isRoot ? owners : owners.Add(dir); // if this is root, don't add the "content" folder
+            var ownersWithSelf = depth==0 ? owners : owners.Add(dir); // if this is root, don't add the "content" folder
+            var rg = depth==0 ? dir.Name : rootGroup;
             var templateFolders = GenerateTemplateFolders(templates, ownersWithSelf);
 
             var pages = dir.Dirs.SelectMany(subdir =>
-                ListPagesInDir(site, subdir, targetDir.GetDir(subdir.Name), templates, ownersWithSelf, false));
+                ListPagesInDir(site, subdir, targetDir.GetDir(subdir.Name), templates, ownersWithSelf, depth+1, rg));
             foreach (var p in pages)
             {
                 yield return p;
@@ -121,28 +131,46 @@ public static class Generate
             {
                 // todo(Gustav): paginate index using Chunk(size)
                 var destDir = post.IsIndex ? targetDir : targetDir.GetDir(post.Name);
-                yield return new PageToWrite(templateFolders, post, summaries, destDir);
+                var d = post.IsIndex ? depth-1 : depth;
+                var rrg = depth == 0 && post.IsIndex == false ? post.Name : rootGroup;
+                yield return new PageToWrite(templateFolders, post, summaries, destDir.GetFile("index.html"), rrg, d);
             }
         }
     }
 
 
-    public static async Task<int> WritePages(ImmutableArray<PageToWrite> pageToWrites, ImmutableArray<GroupPage> tags, Run run, VfsWrite vfsWrite,
-        Site site, DirectoryInfo publicDir, TemplateDictionary templates)
+    public static ImmutableArray<RootLinkData> CollectRoots(ImmutableArray<PageToWrite> pageToWrites, IEnumerable<GroupPage> groups)
     {
-        var roots = pageToWrites
-            .Where(x => GetRelativePath(publicDir, x).Count() == 1)
+        var pageTags = pageToWrites
+            .Where(x => x.Depth == 0)
+            .Select(x => new RootLinkData(x.Post.Front.Title, x.DestFile, x.RootGroup))
             .ToImmutableArray()
             ;
 
+        var groupPages = groups
+            .Where(x => x.IsRoot)
+            .Select(x => new RootLinkData(x.Display, x.Destination, x.GroupName))
+            .ToImmutableArray()
+            ;
+
+
+        // todo(Gustav): sort these?
+        return pageTags.Concat(groupPages)
+            .ToImmutableArray();
+    }
+
+
+    public static async Task<int> WritePages(ImmutableArray<RootLinkData> roots, ImmutableArray<PageToWrite> pageToWrites, ImmutableArray<GroupPage> tags, Run run, VfsWrite vfsWrite,
+        Site site, DirectoryInfo publicDir, TemplateDictionary templates)
+    {
         // create all directories first, to avoid race conditions
-        var dirsToWrite = pageToWrites.Select(page => page.DestDir).Concat(tags.Select(group => group.DestDir)).Distinct().ToImmutableArray();
+        var dirsToWrite = pageToWrites.Select(page => page.DestFile.Directory).Where(dir => dir != null).Select(dir => dir!)
+            .Concat(tags.Select(group => group.DestDir)).Distinct().ToImmutableArray();
         foreach (var dir in dirsToWrite)
         {
             dir.Create();
         }
-
-        // todo(Gustav): write tags!
+        
         var writePostTasks = pageToWrites.Select(page =>
             WritePost(run, vfsWrite, site, roots, templates, page, publicDir));
         var writeTagTasks = tags.Select(tag => WriteTags(run, vfsWrite, site, roots, templates, tag, publicDir));
@@ -152,12 +180,12 @@ public static class Generate
     }
 
 
-    private static IEnumerable<string> GetRelativePath(DirectoryInfo publicDir, PageToWrite x)
+    private static string GetRelativePath(DirectoryInfo publicDir, FileInfo x)
     {
-        var rel = Path.GetRelativePath(publicDir.FullName, x.DestDir.FullName);
+        var rel = Path.GetRelativePath(publicDir.FullName, x.FullName);
         var split = rel.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         var fin = split.Where(dir => dir != ".");
-        return fin;
+        return string.Join("/", fin);
     }
 
     private static string GenerateAbsoluteUrl(Site site, Post post)
@@ -167,19 +195,11 @@ public static class Generate
         return $"{site.Data.Url}/{relative}";
     }
 
-    private static async Task<int> WriteTags(Run run, VfsWrite vfs, Site site, ImmutableArray<PageToWrite> roots,
+    private static async Task<int> WriteTags(Run run, VfsWrite vfs, Site site, ImmutableArray<RootLinkData> roots,
         TemplateDictionary templates,
         GroupPage tag, DirectoryInfo publicDir)
     {
-        var rootLinks = roots
-                .Select(x => new RootLink(x.Post.Front.Title,
-                    ConcatWithIndex(GetRelativePath(tag.DestDir, x)),
-                    false
-                ))
-                .ToImmutableArray()
-            ;
         var pagesGenerated = 0;
-        var data = new PageData(site, rootLinks, tag.Children, tag.Display, "[summary]", "[url]", tag.Html, tag.Text, "[no date]", "[no date]");
         var templateName = Constants.DIR_TEMPLATE;
 
         foreach (var ext in templates.Extensions)
@@ -199,6 +219,9 @@ public static class Generate
                 continue;
             }
 
+            var rootLinks = GenerateRootLinks(roots, tag.Destination, tag.GroupName, ext);
+            var data = new PageData(site, rootLinks, tag.Children //.Select(x => new SummaryForPost(x.title, x.time_short, x.time_long, x.name, x.summary, x.full_html, x.full_text))
+                , tag.Display, "[summary]", "[url]", tag.Html, tag.Text, "[no date]", "[no date]");
             var renderedPage = selected.Content!(data);
             await vfs.WriteAllTextAsync(path, renderedPage);
             run.Status($"Generated {DisplayNameForFile(path)} from tag {tag.Display} and {DisplayNameForFile(selected.File)}");
@@ -206,26 +229,13 @@ public static class Generate
         }
 
         return pagesGenerated;
-
-        static string ConcatWithIndex(IEnumerable<string> rel)
-        {
-            return string.Join("/", rel.Concat(new[] { "index.html" }));
-        }
     }
 
-    private static async Task<int> WritePost(Run run, VfsWrite vfs, Site site, ImmutableArray<PageToWrite> roots,
+    private static async Task<int> WritePost(Run run, VfsWrite vfs, Site site, ImmutableArray<RootLinkData> roots,
         TemplateDictionary templates,
         PageToWrite page, DirectoryInfo publicDir)
     {
-        var rootLinks = roots
-                .Select(x => new RootLink(x.Post.Front.Title,
-                    ConcatWithIndex(GetRelativePath(page.DestDir, x)),
-                    string.Join("", GetRelativePath(publicDir, x)) == string.Join("", GetRelativePath(publicDir, page).Take(1))
-                ))
-                .ToImmutableArray()
-            ;
         var pagesGenerated = 0;
-        var data = MakePageData(site, page.Post, rootLinks, page.Summaries);
         var templateName = page.Post.IsIndex ? Constants.DIR_TEMPLATE : Constants.POST_TEMPLATE;
 
         foreach (var ext in templates.Extensions)
@@ -236,7 +246,7 @@ public static class Generate
                 .ToImmutableArray()
                 ;
 
-            var path = page.DestDir.GetFile("index" + ext);
+            var path = page.DestFile.ChangeExtension(ext);
             var selected = templateFiles.FirstOrDefault(file => file.Content != null);
             if (selected == null)
             {
@@ -245,6 +255,8 @@ public static class Generate
                 continue;
             }
 
+            var rootLinks = GenerateRootLinks(roots, page.DestFile, page.RootGroup, ext);
+            var data = MakePageData(site, page.Post, rootLinks, page.Summaries);
             var renderedPage = selected.Content!(data);
             await vfs.WriteAllTextAsync(path, renderedPage);
             run.Status($"Generated {DisplayNameForFile(path)} from {DisplayNameForFile(page.Post.SourceFile)} and {DisplayNameForFile(selected.File)}");
@@ -252,11 +264,16 @@ public static class Generate
         }
 
         return pagesGenerated;
+    }
 
-        static string ConcatWithIndex(IEnumerable<string> rel)
-        {
-            return string.Join("/", rel.Concat(new[] { "index.html" }));
-        }
+    private static ImmutableArray<RootLink> GenerateRootLinks(ImmutableArray<RootLinkData> roots, FileInfo destFile, string rootGroup, string extension)
+    {
+        return roots
+            .Select(x => new RootLink(x.Name,
+                GetRelativePath(destFile.Directory!, x.File.ChangeExtension(extension)),
+                x.RootGroup == rootGroup)
+            )
+            .ToImmutableArray();
     }
 
 
@@ -279,7 +296,7 @@ public static class Generate
 
     // todo(Gustav): rename tag concept to group
     public record GroupPage(ImmutableArray<DirectoryInfo> TemplateFolders, DirectoryInfo DestDir, string Display,
-        FileInfo Destination, string Html, string Text, ImmutableArray<SummaryForPost> Children);
+        FileInfo Destination, string Html, string Text, ImmutableArray<SummaryForPost> Children, bool IsRoot, string GroupName);
     public static ImmutableArray<GroupPage> CollectTagPages(Site site, DirectoryInfo publicDir, DirectoryInfo templates, ImmutableArray<PageToWrite> pages)
     {
         var tags = pages
@@ -293,15 +310,11 @@ public static class Generate
                 // flatten all tags to a single set
                 Items = items.SelectMany(x => x.Value)
                     .Distinct()
-                    .Select(x => new
+                    .Select(group => new
                     {
-                        Display = x,
-                        Relative = HttpUtility.UrlEncode(x),
-                        Posts = pages
-                            .Select(page => new { page.Post, Tags = page.Post.Front.TagData.TryGetValue(x, out var val) ? val : null })
-                            .Where(post => post.Tags != null)
-                            .Select(post => new { post.Post, Tags = post.Tags! })
-                            .ToImmutableArray()
+                        Display = group,
+                        Relative = HttpUtility.UrlEncode(group),
+                        Posts = PagesWithTags(pages, key, group)
                     })
                     .ToImmutableArray()
             })
@@ -314,7 +327,7 @@ public static class Generate
         var groupPages = tags.Select(tag =>
                 new GroupPage(templateFolders, publicDir, tag.Display, publicDir.GetFile(tag.Relative),
                     $"<h1>{tag.Display}</h1", tag.Display,
-                    tag.Items.Select(x => new SummaryForPost(x.Display, "", "", x.Relative, "", "", "")).ToImmutableArray()
+                    tag.Items.Select(x => new SummaryForPost(x.Display, "", "", x.Relative, $"{x.Posts.Length}", "", "", $"{tag.Relative}/{x.Relative}.html")).ToImmutableArray(), true, tag.Relative
                 )).ToArray();
 
         // generate each page: bruce willis/whatever/etc
@@ -322,10 +335,23 @@ public static class Generate
             new GroupPage(ImmutableArray.Create(templates.GetSubDirs(tag.Relative), templates),
                 publicDir.GetDir(group.Relative), tag.Display, publicDir.GetDir(group.Relative).GetFile(tag.Relative),
                 $"<h1>{tag.Display}</h1>", tag.Display,
-                tag.Posts.Where(p=>p.Tags.Contains(tag.Display)).Select(p=>MakeSummaryForPost(p.Post, site)).ToImmutableArray()
+                tag.Posts
+                    .Select(p=>MakeSummaryForPost(p, site)).ToImmutableArray(), false, group.Relative
                 )
         )).ToArray();
         
         return groupPages.Concat(eachTagPage).ToImmutableArray();
+
+        static ImmutableArray<Post> PagesWithTags(ImmutableArray<PageToWrite> pages, string key, string groupName)
+        {
+            var ret = pages
+                .Select(page => new { page.Post, Tags = page.Post.Front.TagData.TryGetValue(key, out var val) ? val : null })
+                .Where(post => post.Tags != null)
+                .Select(post => (Post: post.Post, Tags: post.Tags!))
+                .Where(post => post.Tags.Contains(groupName))
+                .Select(p => p.Post)
+                .ToImmutableArray();
+            return ret;
+        }
     }
 }
