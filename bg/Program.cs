@@ -18,6 +18,7 @@ internal class Program
             config.AddCommand<InitSiteCommand>("init");
             config.AddCommand<NewPostCommand>("new");
             config.AddCommand<GenerateCommand>("generate");
+            config.AddCommand<ServerCommand>("server");
         });
         return await app.RunAsync(args);
     }
@@ -76,6 +77,43 @@ internal sealed class GenerateCommand : AsyncCommand<GenerateCommand.Settings>
                 var vfs = new VfsReadFile();
                 var vfsWrite = new VfsWriteFile();
                 ret = await Facade.GenerateSite(run, vfs, vfsWrite, VfsReadFile.GetCurrentDirectory());
+            });
+        return ret;
+    }
+}
+
+
+[Description("Genrate or publish the site")]
+internal sealed class ServerCommand : AsyncCommand<ServerCommand.Settings>
+{
+    public sealed class Settings : CommandSettings
+    {
+    }
+
+    public static int MonitorKeypress(ConsoleKey abortKey)
+    {
+        AnsiConsole.WriteLine($"Press {abortKey} to exit...");
+        ConsoleKeyInfo cki;
+        do
+        {
+            cki = Console.ReadKey(true);
+        } while (cki.Key != abortKey);
+
+        return 0;
+    }
+
+    public override async Task<int> ExecuteAsync([NotNull] CommandContext context, [NotNull] Settings args)
+    {
+        var ret = 0;
+        await AnsiConsole.Status()
+            .StartAsync("Working...", async ctx =>
+            {
+                var run = new RunConsoleWithContext(ctx);
+                var vfs = new VfsReadFile();
+                var vfsWrite = new VfsWriteFile();
+                var wait = Task.Run(() => MonitorKeypress(ConsoleKey.Escape));
+                var completed = await Task.WhenAny(wait);
+                ret = await completed;
             });
         return ret;
     }
