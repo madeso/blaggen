@@ -128,18 +128,26 @@ public static class Facade
         return Task.FromResult(0);
     }
 
-    public static async Task<int> GenerateSite(Run run, VfsRead vfs, VfsWrite vfsWrite, DirectoryInfo currentDirectory)
+    public static async Task<int> GenerateSiteFromCurrentDirectory(Run run, VfsRead vfs, VfsWrite vfsWrite, DirectoryInfo currentDirectory)
     {
         var root = Input.FindRoot(vfs, currentDirectory);
         if (root == null) { run.WriteError("Unable to find root"); return -1; }
+        var publicDir = root.GetDir("public");
 
+        return await GenerateSite(run, vfs, vfsWrite, root, publicDir);
+    }
+
+    public static async Task<int> GenerateSite(Run run, VfsRead vfs, VfsWrite vfsWrite, DirectoryInfo root, DirectoryInfo publicDir)
+    {
         var timeStart = DateTime.Now;
 
         run.Status("Parsing directory");
         var site = await Input.LoadSite(run, vfs, root);
-        if (site == null) { return -1; }
+        if (site == null)
+        {
+            return -1;
+        }
 
-        var publicDir = root.GetDir("public");
         var templateFolder = Constants.CalculateTemplateDirectory(root);
         var partialFolder = root.GetDir("partials");
 
@@ -155,7 +163,8 @@ public static class Facade
         var pages = Generate.ListPagesForSite(site, publicDir, templateFolder).ToImmutableArray();
         var tags = Generate.CollectTagPages(site, publicDir, templateFolder, pages);
         var roots = Generate.CollectRoots(pages, tags);
-        var numberOfPagesGenerated = await Generate.WriteAllPages(roots, pages, tags, run, vfsWrite, site, publicDir, templates);
+        var numberOfPagesGenerated =
+            await Generate.WriteAllPages(roots, pages, tags, run, vfsWrite, site, publicDir, templates);
         // todo(Gustav): copy static files
 
         if (numberOfPagesGenerated == 0)

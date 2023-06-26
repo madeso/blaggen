@@ -76,7 +76,7 @@ internal sealed class GenerateCommand : AsyncCommand<GenerateCommand.Settings>
                 var run = new RunConsoleWithContext(ctx);
                 var vfs = new VfsReadFile();
                 var vfsWrite = new VfsWriteFile();
-                ret = await Facade.GenerateSite(run, vfs, vfsWrite, VfsReadFile.GetCurrentDirectory());
+                ret = await Facade.GenerateSiteFromCurrentDirectory(run, vfs, vfsWrite, VfsReadFile.GetCurrentDirectory());
             });
         return ret;
     }
@@ -88,6 +88,9 @@ internal sealed class ServerCommand : AsyncCommand<ServerCommand.Settings>
 {
     public sealed class Settings : CommandSettings
     {
+        [Description("The port to use")]
+        [CommandOption("-p|--port")]
+        public int? Port { get; set; }
     }
 
     public static int MonitorKeypress(ConsoleKey abortKey)
@@ -110,9 +113,29 @@ internal sealed class ServerCommand : AsyncCommand<ServerCommand.Settings>
             {
                 var run = new RunConsoleWithContext(ctx);
                 var vfs = new VfsReadFile();
-                var vfsWrite = new VfsWriteFile();
-                var wait = Task.Run(() => MonitorKeypress(ConsoleKey.Escape));
-                var completed = await Task.WhenAny(wait);
+
+                var root = Input.FindRoot(vfs, VfsReadFile.GetCurrentDirectory());
+                if (root == null)
+                {
+                    run.WriteError("Unable to find root");
+                    ret = -1;
+                    return;
+                }
+
+                var publicDir = root.GetDir("public");
+                var serverVfs = new ServerVfs(publicDir);
+
+                ret = await Facade.GenerateSite(run, vfs, serverVfs, root, publicDir);
+                if (ret != 0)
+                {
+                    run.WriteError("Exiting prematurely due to error and/or warnings");
+                    return;
+                }
+
+                var cts = new CancellationTokenSource();
+                var wait = Task.Run(() => MonitorKeypress(ConsoleKey.Escape), cts.Token);
+                var completed = await Task.WhenAny(wait, LocalServer.Run(run, serverVfs, args.Port ?? 8080, cts.Token));
+                cts.Cancel();
                 ret = await completed;
             });
         return ret;

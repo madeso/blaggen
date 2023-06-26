@@ -24,7 +24,7 @@ public class TestGenerateSite : TestBase
     {
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
 
-        var ret = await Facade.GenerateSite(run, read, write, cwd);
+        var ret = await Facade.GenerateSiteFromCurrentDirectory(run, read, write, cwd);
         using (new AssertionScope())
         {
             ret.Should().Be(-1);
@@ -41,7 +41,7 @@ public class TestGenerateSite : TestBase
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
         read.AddContent(Constants.CalculateTemplateDirectory(cwd).GetFile("_post.mustache.html"), "{{content_text}}");
 
-        var ret = await Facade.GenerateSite(run, read, write, cwd);
+        var ret = await Facade.GenerateSiteFromCurrentDirectory(run, read, write, cwd);
         using (new AssertionScope())
         {
             ret.Should().Be(-1);
@@ -60,7 +60,7 @@ public class TestGenerateSite : TestBase
 
         read.AddContent(content.GetFile("post.md"), "{}\n***\nThis is a post");
 
-        var ret = await Facade.GenerateSite(run, read, write, cwd);
+        var ret = await Facade.GenerateSiteFromCurrentDirectory(run, read, write, cwd);
         using (new AssertionScope())
         {
             ret.Should().Be(0);
@@ -95,7 +95,7 @@ public class TestGenerateSite : TestBase
         read.AddContent(posts.GetFile("lorem.md"),
             Facade.GeneratePostWithTitle("Lorem", new FrontMatter { Date = new DateTime(2022, 1, 5) }));
 
-        var ret = await Facade.GenerateSite(run, read, write, cwd);
+        var ret = await Facade.GenerateSiteFromCurrentDirectory(run, read, write, cwd);
         using (new AssertionScope())
         {
             ret.Should().Be(0);
