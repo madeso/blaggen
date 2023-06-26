@@ -47,7 +47,7 @@ gantt
     excludes monday, tuesday, wednesday, thursday
 
     section Tags
-    Generate tag pages: tag_pages, 2023-06-19, 2d
+    Generate tag pages: done, tag_pages, 2023-06-19, 2d
     List tags: list_tags, after tag_pages, 1d
     Interactive tag command: tag_command, after list_tags, 1d
     Tags done: tags_done, after tag_command, 0h
