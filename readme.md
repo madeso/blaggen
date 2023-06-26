@@ -54,7 +54,7 @@ gantt
 
     section Hot reload
     File watcher: file_watcher, after tags_done, 1d
-    Webserver: webserver, after file_watcher, 2d
+    Webserver: done, webserver, after file_watcher, 0d
     Reload pages: reload_pages, after webserver, 1d
     Hot reload done: hotreload_done, after reload_pages, 0d
     
