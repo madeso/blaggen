@@ -53,9 +53,9 @@ gantt
     Tags done: tags_done, after tag_command, 0h
 
     section Hot reload
-    File watcher: file_watcher, after tags_done, 1d
+    File watcher: done, file_watcher, after tags_done, 0d
     Webserver: done, webserver, after file_watcher, 0d
-    Reload pages: reload_pages, after webserver, 1d
+    Create and reload pages: reload_pages, after webserver, 2d
     Hot reload done: hotreload_done, after reload_pages, 0d
     
     section Actions
