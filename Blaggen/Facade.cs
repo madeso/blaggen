@@ -179,4 +179,66 @@ public static class Facade
 
         return run.HasError() ? -1 : 0;
     }
+
+
+
+
+    public static FileSystemWatcher WatchForChanges(Run run, DirectoryInfo dir, Action<FileInfo> changed, Action<FileInfo> deleted)
+    {
+        var watcher = new FileSystemWatcher(dir.FullName);
+
+        watcher.NotifyFilter = NotifyFilters.Attributes
+                             | NotifyFilters.CreationTime
+                             | NotifyFilters.DirectoryName
+                             | NotifyFilters.FileName
+                             | NotifyFilters.LastAccess
+                             | NotifyFilters.LastWrite
+                             | NotifyFilters.Security
+                             | NotifyFilters.Size;
+
+        watcher.Changed += (sender, e) =>
+        {
+            if (e.ChangeType != WatcherChangeTypes.Changed)
+            {
+                return;
+            }
+            changed(new FileInfo(e.FullPath));
+        };
+        watcher.Created += (sender, e) =>
+        {
+            changed(new FileInfo(e.FullPath));
+        };
+        watcher.Deleted += (sender, e) =>
+        {
+            deleted(new FileInfo(e.FullPath));
+        };
+        watcher.Renamed += (sender, e) =>
+        {
+            deleted(new FileInfo(e.OldFullPath));
+            changed(new FileInfo(e.FullPath));
+        };
+        watcher.Error += (sender, e) =>
+        {
+            Exception? ex = e.GetException();
+            while (true)
+            {
+                if (ex == null) return;
+                run.WriteError($"Message: {ex.Message}");
+                var sr = ex.StackTrace;
+                if (sr != null)
+                {
+                    run.WriteError("Stacktrace:");
+                    run.WriteError(sr);
+                }
+                ex = ex.InnerException;
+            }
+        };
+
+        watcher.Filter = "*.*";
+        watcher.IncludeSubdirectories = true;
+        watcher.EnableRaisingEvents = true;
+
+        AnsiConsole.WriteLine($"Listening for changes in {dir.FullName}");
+        return watcher;
+    }
 }

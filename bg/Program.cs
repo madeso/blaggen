@@ -125,6 +125,16 @@ internal sealed class ServerCommand : AsyncCommand<ServerCommand.Settings>
                 var publicDir = root.GetDir("public");
                 var serverVfs = new ServerVfs(publicDir);
 
+                using var watcher = Facade.WatchForChanges(run, root,
+                    (file) =>
+                    {
+                        AnsiConsole.WriteLine($"Changed {file.FullName}");
+                    },
+                    (file) =>
+                    {
+                        AnsiConsole.WriteLine($"Deleted {file.FullName}");
+                    });
+
                 ret = await Facade.GenerateSite(run, vfs, serverVfs, root, publicDir);
                 if (ret != 0)
                 {
