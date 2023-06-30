@@ -1,8 +1,12 @@
 ﻿using Blaggen;
 using Spectre.Console;
 using Spectre.Console.Cli;
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading.Channels;
 
 
 // ----------------------------------------------------------------------------------------------------------------------------
@@ -105,16 +109,24 @@ internal sealed class ServerCommand : AsyncCommand<ServerCommand.Settings>
         return 0;
     }
 
+    private record FileEvent
+    {
+        public record FileCreated(FileInfo File) : FileEvent;
+        public record FileRemoved(FileInfo File) : FileEvent;
+
+        private FileEvent() {}
+    }
+
     public override async Task<int> ExecuteAsync([NotNull] CommandContext context, [NotNull] Settings args)
     {
-        var ret = 0;
+        var ret = -1;
         await AnsiConsole.Status()
             .StartAsync("Working...", async ctx =>
             {
                 var run = new RunConsoleWithContext(ctx);
-                var vfs = new VfsReadFile();
+                var vfsCache = new VfsCachedFileRead();
 
-                var root = Input.FindRoot(vfs, VfsReadFile.GetCurrentDirectory());
+                var root = Input.FindRoot(vfsCache, VfsReadFile.GetCurrentDirectory());
                 if (root == null)
                 {
                     run.WriteError("Unable to find root");
@@ -125,28 +137,56 @@ internal sealed class ServerCommand : AsyncCommand<ServerCommand.Settings>
                 var publicDir = root.GetDir("public");
                 var serverVfs = new ServerVfs(publicDir);
 
+                await Facade.GenerateSite(false, run, vfsCache, serverVfs, root, publicDir);
+
+                var events = Channel.CreateUnbounded<FileEvent>(new UnboundedChannelOptions() { SingleReader = false, SingleWriter = true });
+
                 using var watcher = Facade.WatchForChanges(run, root,
-                    (file) =>
+                    async (file) =>
                     {
                         AnsiConsole.WriteLine($"Changed {file.FullName}");
+                        await events.Writer.WriteAsync(new FileEvent.FileCreated(file));
                     },
-                    (file) =>
+                    async (file) =>
                     {
                         AnsiConsole.WriteLine($"Deleted {file.FullName}");
+                        await events.Writer.WriteAsync(new FileEvent.FileRemoved(file));
                     });
 
-                ret = await Facade.GenerateSite(run, vfs, serverVfs, root, publicDir);
-                if (ret != 0)
-                {
-                    run.WriteError("Exiting prematurely due to error and/or warnings");
-                    return;
-                }
-
                 var cts = new CancellationTokenSource();
-                var wait = Task.Run(() => MonitorKeypress(ConsoleKey.Escape), cts.Token);
-                var completed = await Task.WhenAny(wait, LocalServer.Run(run, serverVfs, args.Port ?? 8080, cts.Token));
+
+                var generateTask = Task.Run(async () =>
+                {
+                    await foreach(var ev in events.Reader.ReadAsyncOrCancel(cts.Token))
+                    {
+                        switch (ev)
+                        {
+                            case FileEvent.FileCreated fileCreated:
+                                var regenerate = await vfsCache.AddFileToCache(fileCreated.File);
+                                if (regenerate == false)
+                                {
+                                    continue;
+                                }
+                                break;
+                            case FileEvent.FileRemoved fileRemoved:
+                                vfsCache.Remove(fileRemoved.File);
+                                break;
+                            default:
+                                throw new ArgumentOutOfRangeException(nameof(ev));
+                        }
+
+                        // todo(Gustav): print only errors
+                        await Facade.GenerateSite(false, run, vfsCache, serverVfs, root, publicDir);
+                    }
+
+                    return 0;
+                }, cts.Token);
+                var pressKeyToExitTask = Task.Run(() => MonitorKeypress(ConsoleKey.Escape), cts.Token);
+                var serverTask = LocalServer.Run(run, serverVfs, args.Port ?? 8080, cts.Token);
+                
+                var completedTask = await Task.WhenAny(pressKeyToExitTask, serverTask);
                 cts.Cancel();
-                ret = await completed;
+                ret = await completedTask;
             });
         return ret;
     }
@@ -160,9 +200,29 @@ public class VfsReadFile : VfsRead
         return fileInfo.Exists;
     }
 
-    public async Task<string> ReadAllTextAsync(FileInfo fullName)
+    protected async Task<byte[]> ReadBytes(FileInfo fullName)
     {
-        return await File.ReadAllTextAsync(fullName.FullName);
+        try
+        {
+            var bytes = await File.ReadAllBytesAsync(fullName.FullName);
+            return bytes;
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.WriteException(ex);
+            return new byte[] { };
+        }
+    }
+
+    protected static string BytesToString(byte[] bytes)
+    {
+        return Encoding.UTF8.GetString(bytes);
+    }
+
+    public virtual async Task<string> ReadAllTextAsync(FileInfo fullName)
+    {
+        var bytes = await ReadBytes(fullName);
+        return BytesToString(bytes);
     }
 
     public IEnumerable<FileInfo> GetFiles(DirectoryInfo dir)
@@ -183,6 +243,74 @@ public class VfsReadFile : VfsRead
     public IEnumerable<FileInfo> GetFilesRec(DirectoryInfo dir)
     {
         return dir.EnumerateFiles("*.*", SearchOption.AllDirectories);
+    }
+}
+
+public class VfsCachedFileRead : VfsReadFile
+{
+    private readonly ConcurrentDictionary<string, byte[]> cache = new();
+
+    public override async Task<string> ReadAllTextAsync(FileInfo fullName)
+    {
+        if (cache.TryGetValue(fullName.FullName, out var bytes) != false) return BytesToString(bytes);
+
+        bytes = await ReadBytes(fullName);
+        AddToCache(fullName, bytes);
+        return BytesToString(bytes);
+    }
+
+    private bool AddToCache(FileInfo file, byte[] newBytes)
+    {
+        while(true)
+        {
+            byte[] oldBytes;
+
+            while (true)
+            {
+                // can add, then return
+                if(cache.TryAdd(file.FullName, newBytes)) { return true; }
+
+                // there is a value blocking, try to get that
+                if (!cache.TryGetValue(file.FullName, out var gotBytes)) continue;
+
+                oldBytes = gotBytes;
+                break;
+            }
+
+            var oldChecksum = Checksum(oldBytes);
+
+            var newChecksum = Checksum(newBytes);
+            if (oldChecksum == newChecksum)
+            {
+                AnsiConsole.WriteLine($"Same checksum: {file.FullName}");
+                return false;
+            }
+
+            // update cache failed? do everything again!
+            if (!cache.TryUpdate(file.FullName, newBytes, oldBytes)) continue;
+
+            return true;
+        }
+
+        string Checksum(IEnumerable<byte>? bytes)
+        {
+            // todo(Gustav): add better checksum
+            var result = bytes?.Sum(x => x) ?? 0;
+            result &= 0xff;
+            return result.ToString("X2");
+        }
+    }
+
+    // return true if the content was updated
+    public async Task<bool> AddFileToCache(FileInfo file)
+    {
+        var bytes = await ReadBytes(file);
+        return AddToCache(file, bytes);
+    }
+
+    public void Remove(FileInfo file)
+    {
+        cache.TryRemove(file.FullName, out _);
     }
 }
 

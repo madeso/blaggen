@@ -77,9 +77,16 @@ public class LocalServer
             response.ContentType = "text/html";
             response.ContentEncoding = encoding;
             response.ContentLength64 = data.LongLength;
-            
-            await response.OutputStream.WriteAsync(data, 0, data.Length, ct);
-            response.Close();
+
+            try
+            {
+                await response.OutputStream.WriteAsync(data, 0, data.Length, ct);
+                response.Close();
+            }
+            catch (Exception ex)
+            {
+                AnsiConsole.WriteException(ex);
+            }
         }
     }
 

@@ -1,4 +1,6 @@
-﻿using System.Collections.Immutable;
+﻿using ColorCode.Compilation.Languages;
+using System.Collections.Immutable;
+using System.Threading.Channels;
 
 namespace Blaggen;
 
@@ -91,5 +93,19 @@ public static class IterTools
         }
 
         return list;
+    }
+}
+
+public static class ChannelExtension
+{
+    public static async IAsyncEnumerable<T> ReadAsyncOrCancel<T>(this ChannelReader<T> reader, CancellationToken ct)
+    {
+        while (await reader.WaitToReadAsync(ct))
+        {
+            while (reader.TryRead(out var postPath) && ct.IsCancellationRequested==false)
+            {
+                yield return postPath;
+            }
+        }
     }
 }

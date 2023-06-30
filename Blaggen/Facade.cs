@@ -134,14 +134,15 @@ public static class Facade
         if (root == null) { run.WriteError("Unable to find root"); return -1; }
         var publicDir = root.GetDir("public");
 
-        return await GenerateSite(run, vfs, vfsWrite, root, publicDir);
+        return await GenerateSite(true, run, vfs, vfsWrite, root, publicDir);
     }
 
-    public static async Task<int> GenerateSite(Run run, VfsRead vfs, VfsWrite vfsWrite, DirectoryInfo root, DirectoryInfo publicDir)
+    public static async Task<int> GenerateSite(bool print, Run run, VfsRead vfs, VfsWrite vfsWrite, DirectoryInfo root, DirectoryInfo publicDir)
     {
         var timeStart = DateTime.Now;
 
-        run.Status("Parsing directory");
+        if(print) run.Status("Parsing directory");
+
         var site = await Input.LoadSite(run, vfs, root);
         if (site == null)
         {
@@ -159,7 +160,7 @@ public static class Facade
             return -1;
         }
 
-        run.Status("Writing data to disk");
+        if (print) run.Status("Writing data to disk");
         var pages = Generate.ListPagesForSite(site, publicDir, templateFolder).ToImmutableArray();
         var tags = Generate.CollectTagPages(site, publicDir, templateFolder, pages);
         var roots = Generate.CollectRoots(pages, tags);
@@ -175,7 +176,7 @@ public static class Facade
 
         var timeEnd = DateTime.Now;
         var timeTaken = timeEnd - timeStart;
-        AnsiConsole.MarkupLineInterpolated($"Wrote [green]{numberOfPagesGenerated}[/] files in [blue]{timeTaken}[/]");
+        if (print) AnsiConsole.MarkupLineInterpolated($"Wrote [green]{numberOfPagesGenerated}[/] files in [blue]{timeTaken}[/]");
 
         return run.HasError() ? -1 : 0;
     }
@@ -183,7 +184,7 @@ public static class Facade
 
 
 
-    public static FileSystemWatcher WatchForChanges(Run run, DirectoryInfo dir, Action<FileInfo> changed, Action<FileInfo> deleted)
+    public static FileSystemWatcher WatchForChanges(Run run, DirectoryInfo dir, Func<FileInfo, Task> changed, Func<FileInfo, Task> deleted)
     {
         var watcher = new FileSystemWatcher(dir.FullName);
 
@@ -196,26 +197,26 @@ public static class Facade
                              | NotifyFilters.Security
                              | NotifyFilters.Size;
 
-        watcher.Changed += (sender, e) =>
+        watcher.Changed += async (sender, e) =>
         {
             if (e.ChangeType != WatcherChangeTypes.Changed)
             {
                 return;
             }
-            changed(new FileInfo(e.FullPath));
+            await changed(new FileInfo(e.FullPath));
         };
-        watcher.Created += (sender, e) =>
+        watcher.Created += async (sender, e) =>
         {
-            changed(new FileInfo(e.FullPath));
+            await changed(new FileInfo(e.FullPath));
         };
-        watcher.Deleted += (sender, e) =>
+        watcher.Deleted += async (sender, e) =>
         {
-            deleted(new FileInfo(e.FullPath));
+            await deleted(new FileInfo(e.FullPath));
         };
-        watcher.Renamed += (sender, e) =>
+        watcher.Renamed += async (sender, e) =>
         {
-            deleted(new FileInfo(e.OldFullPath));
-            changed(new FileInfo(e.FullPath));
+            await deleted(new FileInfo(e.OldFullPath));
+            await changed(new FileInfo(e.FullPath));
         };
         watcher.Error += (sender, e) =>
         {
