@@ -1,24 +1,11 @@
 ﻿using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Threading.Channels;
 using Spectre.Console;
 
 namespace Blaggen;
 
-
-public interface VfsRead
-{
-    bool Exists(FileInfo fileInfo);
-    public Task<string> ReadAllTextAsync(FileInfo path);
-
-    public IEnumerable<FileInfo> GetFiles(DirectoryInfo dir);
-    IEnumerable<DirectoryInfo> GetDirectories(DirectoryInfo root);
-    IEnumerable<FileInfo> GetFilesRec(DirectoryInfo dir);
-}
-
-public interface VfsWrite
-{
-    public Task WriteAllTextAsync(FileInfo path, string contents);
-}
 
 public interface Run
 {
@@ -141,7 +128,7 @@ public static class Facade
     {
         var timeStart = DateTime.Now;
 
-        if(print) run.Status("Parsing directory");
+        if (print) run.Status("Parsing directory");
 
         var site = await Input.LoadSite(run, vfs, root);
         if (site == null)
@@ -184,7 +171,7 @@ public static class Facade
 
 
 
-    public static FileSystemWatcher WatchForChanges(Run run, DirectoryInfo dir, Func<FileInfo, Task> changed, Func<FileInfo, Task> deleted)
+    private static FileSystemWatcher WatchForChanges(Run run, DirectoryInfo dir, Func<FileInfo, Task> changed, Func<FileInfo, Task> deleted)
     {
         var watcher = new FileSystemWatcher(dir.FullName);
 
@@ -241,5 +228,107 @@ public static class Facade
 
         AnsiConsole.WriteLine($"Listening for changes in {dir.FullName}");
         return watcher;
+    }
+
+    private record FileEvent
+    {
+        public record FileCreated(FileInfo File) : FileEvent;
+        public record FileRemoved(FileInfo File) : FileEvent;
+
+        private FileEvent() { }
+    }
+
+    public static async Task<int> StartServerAndMonitorForChanges(int port, Run run,
+        VfsCachedFileRead vfsCache, ServerVfs serverVfs, DirectoryInfo root, DirectoryInfo publicDir, ConsoleKey abortKey)
+    {
+        await GenerateSite(false, run, vfsCache, serverVfs, root, publicDir);
+
+        var watchForChanges = true;
+
+        var cts = new CancellationTokenSource();
+        var tasks = new List<Task<int>>
+        {
+            Task.Run(() => MonitorKeypress(abortKey), cts.Token),
+
+            LocalServer.Run(run, serverVfs, port, cts.Token)
+        };
+
+        using var watcher = watchForChanges
+                ? RegenerateSiteIfChanged(run, vfsCache, serverVfs, root, publicDir, cts, tasks)
+                // dummy file watcher
+                : new FileSystemWatcher()
+            ;
+
+        var completedTask = await Task.WhenAny(tasks);
+        cts.Cancel();
+
+        return await completedTask;
+
+        static int MonitorKeypress(ConsoleKey abortKey)
+        {
+            AnsiConsole.WriteLine($"Press {abortKey} to exit...");
+            ConsoleKeyInfo cki;
+            do
+            {
+                cki = Console.ReadKey(true);
+            } while (cki.Key != abortKey);
+
+            return 0;
+        }
+
+        static async Task<int> GenerateSiteOnChange(ChannelReader<FileEvent> eventsReader, CancellationToken ctsToken,
+        VfsCachedFileRead vfsCache,
+        Run run, VfsWrite serverVfs, DirectoryInfo root, DirectoryInfo publicDir)
+        {
+            await foreach (var ev in eventsReader.ReadAsyncOrCancel(ctsToken))
+            {
+                switch (ev)
+                {
+                    case FileEvent.FileCreated fileCreated:
+                        var regenerate = await vfsCache.AddFileToCache(fileCreated.File);
+                        if (regenerate == false)
+                        {
+                            continue;
+                        }
+
+                        break;
+                    case FileEvent.FileRemoved fileRemoved:
+                        vfsCache.Remove(fileRemoved.File);
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(ev));
+                }
+
+                // todo(Gustav): print only errors
+                await GenerateSite(false, run, vfsCache, serverVfs, root, publicDir);
+            }
+
+            return 0;
+        }
+
+        static FileSystemWatcher RegenerateSiteIfChanged(Run run, VfsCachedFileRead vfsCachedFileRead, ServerVfs serverVfs1,
+            DirectoryInfo root, DirectoryInfo publicDir, CancellationTokenSource cts, List<Task<int>> tasks)
+        {
+
+            var events = Channel.CreateUnbounded<FileEvent>(new UnboundedChannelOptions
+            { SingleReader = false, SingleWriter = true });
+
+            tasks.Add(Task.Run(async () =>
+                    await GenerateSiteOnChange(events.Reader, cts.Token, vfsCachedFileRead, run, serverVfs1, root,
+                        publicDir)
+                , cts.Token));
+
+            return WatchForChanges(run, root,
+                async (file) =>
+                {
+                    AnsiConsole.WriteLine($"Changed {file.FullName}");
+                    await events.Writer.WriteAsync(new FileEvent.FileCreated(file), cts.Token);
+                },
+                async (file) =>
+                {
+                    AnsiConsole.WriteLine($"Deleted {file.FullName}");
+                    await events.Writer.WriteAsync(new FileEvent.FileRemoved(file), cts.Token);
+                });
+        }
     }
 }

@@ -1,5 +1,6 @@
 ﻿using ColorCode.Compilation.Languages;
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
 namespace Blaggen;
@@ -98,7 +99,7 @@ public static class IterTools
 
 public static class ChannelExtension
 {
-    public static async IAsyncEnumerable<T> ReadAsyncOrCancel<T>(this ChannelReader<T> reader, CancellationToken ct)
+    public static async IAsyncEnumerable<T> ReadAsyncOrCancel<T>(this ChannelReader<T> reader, [EnumeratorCancellation] CancellationToken ct)
     {
         while (await reader.WaitToReadAsync(ct))
         {
