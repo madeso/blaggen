@@ -53,9 +53,10 @@ gantt
     Tags done: tags_done, after tag_command, 0h
 
     section Hot reload
-    File watcher: done, file_watcher, after tags_done, 0d
-    Webserver: done, webserver, after file_watcher, 0d
-    Create and reload pages: reload_pages, after webserver, 2d
+    File watcher: done, file_watcher, after tags_done, 1d
+    Webserver: done, webserver, after file_watcher, 1d
+    Create pages: done, create_pages, after webserver, 1d
+    Reload pages: reload_pages, after create_pages, 1d
     Hot reload done: hotreload_done, after reload_pages, 0d
     
     section Actions
@@ -66,5 +67,5 @@ gantt
     Copy meta files: copy_meta, after action_image, 1d
     Copy static files: copy_static, after copy_meta, 1d
 
-    Implement markdeep: after copy_static, 10d
+    Complete markdeep?: after copy_static, 10d
 ```
