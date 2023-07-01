@@ -23,6 +23,7 @@ internal class Program
             config.AddCommand<NewPostCommand>("new");
             config.AddCommand<GenerateCommand>("generate");
             config.AddCommand<ServerCommand>("server");
+            config.AddCommand<ListTagsCommand>("list-tags");
         });
         return await app.RunAsync(args);
     }
@@ -118,6 +119,43 @@ internal sealed class ServerCommand : AsyncCommand<ServerCommand.Settings>
                 var serverVfs = new ServerVfs(publicDir);
 
                 ret = await Facade.StartServerAndMonitorForChanges(args.Port ?? 8080, run, vfsCache, serverVfs, root, publicDir, ConsoleKey.Escape);
+            });
+        return ret;
+    }
+}
+
+
+[Description("List tags")]
+internal sealed class ListTagsCommand : AsyncCommand<ListTagsCommand.Settings>
+{
+    public sealed class Settings : CommandSettings
+    {
+        [Description("The tag/group name to list for")]
+        [CommandArgument(1, "[name]")]
+        public string Name { get; init; } = string.Empty;
+    }
+
+    public override async Task<int> ExecuteAsync([NotNull] CommandContext context, [NotNull] Settings args)
+    {
+        var ret = -1;
+        await AnsiConsole.Status()
+            .StartAsync("Working...", async ctx =>
+            {
+                var run = new RunConsoleWithContext(ctx);
+                var vfsRead = new VfsReadFile();
+
+                var root = Input.FindRoot(vfsRead, VfsReadFile.GetCurrentDirectory());
+                if (root == null)
+                {
+                    run.WriteError("Unable to find root");
+                    ret = -1;
+                    return;
+                }
+
+                ret = string.IsNullOrWhiteSpace(args.Name)
+                    ? await Facade.ListGroups(run, vfsRead, root)
+                    : await Facade.LisGroupsWithTag(run, vfsRead, root, args.Name)
+                    ;
             });
         return ret;
     }

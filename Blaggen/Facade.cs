@@ -1,6 +1,5 @@
 ﻿using System.Collections.Immutable;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
 using Spectre.Console;
 
@@ -329,6 +328,74 @@ public static class Facade
                     AnsiConsole.WriteLine($"Deleted {file.FullName}");
                     await events.Writer.WriteAsync(new FileEvent.FileRemoved(file), cts.Token);
                 });
+        }
+    }
+
+    public static async Task<int> ListGroups(Run run, VfsReadFile vfs, DirectoryInfo root)
+    {
+        run.Status("Parsing directory");
+        var site = await Input.LoadSite(run, vfs, root);
+        if (site == null)
+        {
+            return -1;
+        }
+
+        run.Status("Collecting");
+        // todo(Gustav): also use ColCounter here?
+        var keys = AllDirs(site.Root).SelectMany(p => p.Front.TagData.Keys).ToHashSet();
+        AnsiConsole.WriteLine($"{keys.Count} unique group(s)");
+        foreach (var key in keys)
+        {
+            AnsiConsole.WriteLine($" - {key}");
+        }
+
+        return 0;
+    }
+
+    public static async Task<int> LisGroupsWithTag(Run run, VfsReadFile vfs, DirectoryInfo root, string tag)
+    {
+        run.Status("Parsing directory");
+        var site = await Input.LoadSite(run, vfs, root);
+        if (site == null)
+        {
+            return -1;
+        }
+
+        run.Status("Collecting");
+        var selected = AllDirs(site.Root)
+            .Select(p => p.Front.TagData.TryGetValue(tag, out var props) ? props : null)
+            .Where(p => p != null)
+            .ToImmutableArray();
+
+        if (selected.Length == 0)
+        {
+            AnsiConsole.WriteLine($"{tag} is not a valid group");
+            return -1;
+        }
+
+        var keys = selected
+            .SelectMany(p => p!)
+            .ToColCounter<string>()
+            ;
+        AnsiConsole.WriteLine($"{keys.Keys.Count()} unique keys(s) for {tag}");
+        foreach (var (key, count) in keys.MostCommon())
+        {
+            AnsiConsole.WriteLine($" - {key} {count}");
+        }
+
+        return 0;
+    }
+
+    private static IEnumerable<Post> AllDirs(Dir root)
+    {
+        foreach (var p in root.Posts)
+        {
+            yield return p;
+        }
+
+        foreach (var p in root.Dirs.SelectMany(AllDirs))
+        {
+            yield return p;
         }
     }
 }
