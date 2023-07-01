@@ -29,16 +29,8 @@ public class VfsReadFile : VfsRead
 
     protected async Task<byte[]> ReadBytes(FileInfo fullName)
     {
-        try
-        {
-            var bytes = await File.ReadAllBytesAsync(fullName.FullName);
-            return bytes;
-        }
-        catch (Exception ex)
-        {
-            AnsiConsole.WriteException(ex);
-            return new byte[] { };
-        }
+        var bytes = await File.ReadAllBytesAsync(fullName.FullName);
+        return bytes;
     }
 
     protected static string BytesToString(byte[] bytes)
@@ -134,8 +126,21 @@ public class VfsCachedFileRead : VfsReadFile
     // return true if the content was updated
     public async Task<bool> AddFileToCache(FileInfo file)
     {
-        var bytes = await ReadBytes(file);
-        return AddToCache(file, bytes);
+        try
+        {
+            var bytes = await ReadBytes(file);
+            return AddToCache(file, bytes);
+        }
+        catch (IOException x)
+        {
+            AnsiConsole.MarkupLineInterpolated($"ERROR: {file.FullName}: {x.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.WriteException(ex);
+            return false;
+        }
     }
 
     public void Remove(FileInfo file)
