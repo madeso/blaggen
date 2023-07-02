@@ -22,16 +22,19 @@ internal class Program
             config.AddCommand<InitSiteCommand>("init");
             config.AddCommand<NewPostCommand>("new");
             config.AddCommand<GenerateCommand>("generate").WithAlias("publish").WithAlias("build");
-            config.AddCommand<ServerCommand>("server");
+            config.AddCommand<ServerCommand>("server").WithAlias("serve").WithAlias("dev");
 
             config.AddBranch("tags", tags =>
             {
                 tags.SetDescription("group related commands");
-                // todo(Gustav): add alias to tag/group/groups
                 tags.AddCommand<ListTagsCommand>("list").WithAlias("ls");
                 tags.AddCommand<AddTagCommand>("add");
                 tags.AddCommand<RemoveTagCommand>("remove");
-            });
+            })
+                .WithAlias("tag")
+                .WithAlias("groups")
+                .WithAlias("group")
+                ;
         });
         return await app.RunAsync(args);
     }
