@@ -56,7 +56,7 @@ internal sealed class InitSiteCommand : AsyncCommand<InitSiteCommand.Settings>
     }
 }
 
-[Description("Generate a new page")]
+[Description("Create a new page")]
 internal sealed class NewPostCommand : AsyncCommand<NewPostCommand.Settings>
 {
     public sealed class Settings : CommandSettings
@@ -72,6 +72,10 @@ internal sealed class NewPostCommand : AsyncCommand<NewPostCommand.Settings>
         var vfs = new VfsReadFile();
         var vfsWrite = new VfsWriteFile();
         var path = new FileInfo(args.Path);
+
+        // todo(Gustav): accept dir and post title and generate file name from title
+        // todo(Gustav): generate content from template
+        // todo(Gustav): template can generate title/filename from default patterns in template (weekly, daily)? or is this a different command
         return await Facade.NewPost(run, vfs, vfsWrite, path);
     }
 }
