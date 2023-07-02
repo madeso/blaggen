@@ -21,10 +21,17 @@ internal class Program
         {
             config.AddCommand<InitSiteCommand>("init");
             config.AddCommand<NewPostCommand>("new");
-            config.AddCommand<GenerateCommand>("generate");
+            config.AddCommand<GenerateCommand>("generate").WithAlias("publish").WithAlias("build");
             config.AddCommand<ServerCommand>("server");
-            config.AddCommand<ListTagsCommand>("list-tags");
-            config.AddCommand<AddTagCommand>("add-tags");
+
+            config.AddBranch("tags", tags =>
+            {
+                tags.SetDescription("group related commands");
+                // todo(Gustav): add alias to tag/group/groups
+                tags.AddCommand<ListTagsCommand>("list").WithAlias("ls");
+                tags.AddCommand<AddTagCommand>("add");
+                tags.AddCommand<RemoveTagCommand>("remove");
+            });
         });
         return await app.RunAsync(args);
     }
@@ -66,7 +73,7 @@ internal sealed class NewPostCommand : AsyncCommand<NewPostCommand.Settings>
     }
 }
 
-[Description("Genrate or publish the site")]
+[Description("Generate/publish the site")]
 internal sealed class GenerateCommand : AsyncCommand<GenerateCommand.Settings>
 {
     public sealed class Settings : CommandSettings
@@ -89,7 +96,7 @@ internal sealed class GenerateCommand : AsyncCommand<GenerateCommand.Settings>
 }
 
 
-[Description("Genrate or publish the site")]
+[Description("Start a local server and watch for changes")]
 internal sealed class ServerCommand : AsyncCommand<ServerCommand.Settings>
 {
     public sealed class Settings : CommandSettings
@@ -163,7 +170,7 @@ internal sealed class ListTagsCommand : AsyncCommand<ListTagsCommand.Settings>
 }
 
 
-[Description("Interactivly add tags to post")]
+[Description("Add tags to post")]
 internal sealed class AddTagCommand : AsyncCommand<AddTagCommand.Settings>
 {
     public sealed class Settings : CommandSettings
@@ -172,7 +179,7 @@ internal sealed class AddTagCommand : AsyncCommand<AddTagCommand.Settings>
         [CommandArgument(1, "<group>")]
         public string Group { get; init; } = string.Empty;
 
-        [Description("Add to posts with that has this")]
+        [Description("Add to posts that has this")]
         [CommandArgument(1, "<where>")]
         public string Where { get; init; } = string.Empty;
 
@@ -201,6 +208,53 @@ internal sealed class AddTagCommand : AsyncCommand<AddTagCommand.Settings>
                 var vfsWrite = new VfsWriteFile();
 
                 ret = await Facade.AddTagsToGroup(run, vfsRead, vfsWrite, root, args.Group, args.Where, args.What);
+            });
+        return ret;
+    }
+}
+
+
+[Description("Remove tags from post")]
+internal sealed class RemoveTagCommand : AsyncCommand<RemoveTagCommand.Settings>
+{
+    public sealed class Settings : CommandSettings
+    {
+        [Description("The group name to remove from")]
+        [CommandArgument(1, "<group>")]
+        public string Group { get; init; } = string.Empty;
+
+        [Description("Remove from posts that has this")]
+        [CommandArgument(1, "<where>")]
+        public string Where { get; init; } = string.Empty;
+
+        [Description("The tag to remove (if different from where)")]
+        [CommandArgument(1, "[what]")]
+        public string What { get; init; } = string.Empty;
+    }
+
+    public override async Task<int> ExecuteAsync([NotNull] CommandContext context, [NotNull] Settings args)
+    {
+        var ret = -1;
+        await AnsiConsole.Status()
+            .StartAsync("Working...", async ctx =>
+            {
+                var run = new RunConsoleWithContext(ctx);
+                var vfsRead = new VfsReadFile();
+
+                var root = Input.FindRoot(vfsRead, VfsReadFile.GetCurrentDirectory());
+                if (root == null)
+                {
+                    run.WriteError("Unable to find root");
+                    ret = -1;
+                    return;
+                }
+
+                var vfsWrite = new VfsWriteFile();
+
+                ret = await Facade.RemoveTagFromGroup(run, vfsRead, vfsWrite, root, args.Group, args.Where,
+                    string.IsNullOrWhiteSpace(args.What)==false
+                        ? args.What
+                        : args.Where);
             });
         return ret;
     }

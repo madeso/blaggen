@@ -401,35 +401,9 @@ public static class Facade
 
     public static async Task<int> AddTagsToGroup(Run run, VfsRead vfs, VfsWrite vfsWrite, DirectoryInfo root, string group, string where, string what)
     {
-        run.Status("Parsing directory");
-        var site = await Input.LoadSite(run, vfs, root);
-        if (site == null)
-        {
-            return -1;
-        }
-
-        run.Status("Collecting");
-        var selected = AllDirs(site.Root)
-            .Select(p => p.Front.TagData.TryGetValue(group, out var props) ? (Props: props, Post: p) : (null, p))
-            .Where(p => p.Props != null)
-            .ToImmutableArray()
-            ;
-
-        if (selected.Length == 0)
-        {
-            run.WriteError($"{group} is not a valid group");
-            return -1;
-        }
-
-        var posts = selected
-                .Where(p => p.Props!.Contains(where))
-                .Select(p => p.Post)
-                .ToImmutableArray()
-                ;
-
+        var posts = await ExtractPostsWhere(run, vfs, root, group, where);
         if (posts.Length == 0)
         {
-            run.WriteError($"{where} is not a valid {group}");
             return -1;
         }
 
@@ -447,5 +421,67 @@ public static class Facade
         }
 
         return 0;
+    }
+
+
+    public static async Task<int> RemoveTagFromGroup(Run run, VfsRead vfs, VfsWrite vfsWrite, DirectoryInfo root, string group, string where, string what)
+    {
+        var posts = await ExtractPostsWhere(run, vfs, root, group, where);
+        if (posts.Length == 0)
+        {
+            return -1;
+        }
+
+        foreach (var p in posts)
+        {
+            var added = p.Front.TagData[group].Remove(what);
+            if (added == false)
+            {
+                AnsiConsole.WriteLine($"warning: {what} didn't exist for {p.SourceFile.DisplayNameForFile()}");
+                continue;
+            }
+
+            var contents = Input.PostToFileData(p);
+            await vfsWrite.WriteAllTextAsync(p.SourceFile, contents);
+        }
+
+        return 0;
+    }
+
+    private static async Task<ImmutableArray<Post>> ExtractPostsWhere(Run run, VfsRead vfs, DirectoryInfo root, string group, string where)
+    {
+        run.Status("Parsing directory");
+        var site = await Input.LoadSite(run, vfs, root);
+        if (site == null)
+        {
+            return ImmutableArray<Post>.Empty;
+        }
+
+        run.Status("Collecting");
+        var selected = AllDirs(site.Root)
+                .Select(p => p.Front.TagData.TryGetValue(group, out var props) ? (Props: props, Post: p) : (null, p))
+                .Where(p => p.Props != null)
+                .ToImmutableArray()
+            ;
+
+        if (selected.Length == 0)
+        {
+            run.WriteError($"{group} is not a valid group");
+            return ImmutableArray<Post>.Empty;
+        }
+
+        var posts = selected
+                .Where(p => p.Props!.Contains(where))
+                .Select(p => p.Post)
+                .ToImmutableArray()
+            ;
+
+        if (posts.Length == 0)
+        {
+            run.WriteError($"{where} is not a valid {group}");
+            return ImmutableArray<Post>.Empty;
+        }
+
+        return posts;
     }
 }
