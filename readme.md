@@ -46,11 +46,11 @@ gantt
     section Plan
     excludes monday, tuesday, wednesday, thursday
 
-    section Tags
+    section Tags (done)
     Generate tag pages: done, tag_pages, 2023-06-19, 2d
     List tags: done, list_tags, after tag_pages, 1d
-    Interactive tag command: tag_command, after list_tags, 1d
-    Tags done: tags_done, after tag_command, 0h
+    Tag command: done, tag_command, after list_tags, 1d
+    Tags done: done, tags_done, after tag_command, 0h
 
     section Hot reload
     File watcher: done, file_watcher, after tags_done, 1d
