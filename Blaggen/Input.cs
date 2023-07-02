@@ -97,6 +97,12 @@ public static class Input
         return (frontmatter, markdownSource);
     }
 
+    public static string PostToFileData(Post post)
+    {
+        var json = JsonUtil.Write(post.Front);
+        return string.Join('\n', SOURCE_START, json, SOURCE_END, FRONTMATTER_SEP, post.Markdown);
+    }
+
 
     internal static Post CreatePost(FileInfo file, ImmutableArray<string> relativePath, IDocumentParser markdown, string markdownContent,
         FrontMatter frontmatter)
@@ -126,7 +132,7 @@ public static class Input
         var nameWithoutExtension = Path.GetFileNameWithoutExtension(file.Name);
 
         return new Post(Guid.NewGuid(), nameWithoutExtension == Constants.INDEX_NAME,
-            relativePath.Add(nameWithoutExtension), frontmatter, file, nameWithoutExtension, markdownHtml, markdownText);
+            relativePath.Add(nameWithoutExtension), frontmatter, file, nameWithoutExtension, markdownHtml, markdownText, markdownContent);
     }
 
 

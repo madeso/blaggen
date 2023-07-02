@@ -42,6 +42,8 @@ public static class FileExtensions
             return null;
         }
     }
+
+    public static string DisplayNameForFile(this FileInfo file) => Path.GetRelativePath(Environment.CurrentDirectory, file.FullName);
 }
 
 public static class ImmutableArrayExtensions

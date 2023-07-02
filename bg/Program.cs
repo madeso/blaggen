@@ -24,6 +24,7 @@ internal class Program
             config.AddCommand<GenerateCommand>("generate");
             config.AddCommand<ServerCommand>("server");
             config.AddCommand<ListTagsCommand>("list-tags");
+            config.AddCommand<AddTagCommand>("add-tags");
         });
         return await app.RunAsync(args);
     }
@@ -156,6 +157,50 @@ internal sealed class ListTagsCommand : AsyncCommand<ListTagsCommand.Settings>
                     ? await Facade.ListGroups(run, vfsRead, root)
                     : await Facade.LisGroupsWithTag(run, vfsRead, root, args.Name)
                     ;
+            });
+        return ret;
+    }
+}
+
+
+[Description("Interactivly add tags to post")]
+internal sealed class AddTagCommand : AsyncCommand<AddTagCommand.Settings>
+{
+    public sealed class Settings : CommandSettings
+    {
+        [Description("The group name to add to")]
+        [CommandArgument(1, "<group>")]
+        public string Group { get; init; } = string.Empty;
+
+        [Description("Add to posts with that has this")]
+        [CommandArgument(1, "<where>")]
+        public string Where { get; init; } = string.Empty;
+
+        [Description("The tag to add")]
+        [CommandArgument(1, "<what>")]
+        public string What { get; init; } = string.Empty;
+    }
+
+    public override async Task<int> ExecuteAsync([NotNull] CommandContext context, [NotNull] Settings args)
+    {
+        var ret = -1;
+        await AnsiConsole.Status()
+            .StartAsync("Working...", async ctx =>
+            {
+                var run = new RunConsoleWithContext(ctx);
+                var vfsRead = new VfsReadFile();
+
+                var root = Input.FindRoot(vfsRead, VfsReadFile.GetCurrentDirectory());
+                if (root == null)
+                {
+                    run.WriteError("Unable to find root");
+                    ret = -1;
+                    return;
+                }
+
+                var vfsWrite = new VfsWriteFile();
+
+                ret = await Facade.AddTagsToGroup(run, vfsRead, vfsWrite, root, args.Group, args.Where, args.What);
             });
         return ret;
     }

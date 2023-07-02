@@ -211,8 +211,8 @@ public static class Generate
             var selected = templateFiles.FirstOrDefault(file => file.Content != null);
             if (selected == null)
             {
-                var tried = string.Join(' ', templateFiles.Select(x => DisplayNameForFile(x.File)));
-                run.WriteError($"Unable to generate tag {tag.Display} to {DisplayNameForFile(path)} for {ext}, tried to use: {tried}");
+                var tried = string.Join(' ', templateFiles.Select(x => x.File.DisplayNameForFile()));
+                run.WriteError($"Unable to generate tag {tag.Display} to {path.DisplayNameForFile()} for {ext}, tried to use: {tried}");
                 continue;
             }
 
@@ -221,7 +221,7 @@ public static class Generate
                 , tag.Display, "[summary]", "[url]", tag.Html, tag.Text, "[no date]", "[no date]");
             var renderedPage = selected.Content!(data);
             await vfs.WriteAllTextAsync(path, renderedPage);
-            run.Status($"Generated {DisplayNameForFile(path)} from tag {tag.Display} and {DisplayNameForFile(selected.File)}");
+            run.Status($"Generated {path.DisplayNameForFile()} from tag {tag.Display} and {selected.File.DisplayNameForFile()}");
             pagesGenerated += 1;
         }
 
@@ -247,8 +247,8 @@ public static class Generate
             var selected = templateFiles.FirstOrDefault(file => file.Content != null);
             if (selected == null)
             {
-                var tried = string.Join(' ', templateFiles.Select(x => DisplayNameForFile(x.File)));
-                run.WriteError($"Unable to generate {DisplayNameForFile(page.Post.SourceFile)} to {DisplayNameForFile(path)} for {ext}, tried to use: {tried}");
+                var tried = string.Join(' ', templateFiles.Select(x => x.File.DisplayNameForFile()));
+                run.WriteError($"Unable to generate {page.Post.SourceFile.DisplayNameForFile()} to {path.DisplayNameForFile()} for {ext}, tried to use: {tried}");
                 continue;
             }
 
@@ -256,7 +256,7 @@ public static class Generate
             var data = MakePageData(site, page.Post, rootLinks, page.Summaries);
             var renderedPage = selected.Content!(data);
             await vfs.WriteAllTextAsync(path, renderedPage);
-            run.Status($"Generated {DisplayNameForFile(path)} from {DisplayNameForFile(page.Post.SourceFile)} and {DisplayNameForFile(selected.File)}");
+            run.Status($"Generated {path.DisplayNameForFile()} from {page.Post.SourceFile.DisplayNameForFile()} and {selected.File.DisplayNameForFile()}");
             pagesGenerated += 1;
         }
 
@@ -272,9 +272,6 @@ public static class Generate
             )
             .ToImmutableArray();
     }
-
-
-    private static string DisplayNameForFile(FileInfo file) => Path.GetRelativePath(Environment.CurrentDirectory, file.FullName);
 
 
     private static ImmutableArray<DirectoryInfo> GenerateTemplateFolders(DirectoryInfo templateFolder, IEnumerable<Dir> owners)
