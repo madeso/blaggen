@@ -16,17 +16,13 @@ https://www.explainxkcd.com/wiki/index.php/148:_Mispronouncing
 Perhaps there is some order in this list but it's mostly so I can remember what features I think are missing and I want to add
 
 * Support having a different dist folder layout than the source layout
-* Tags
-  - generate tag pages
-  - command to list tags to use
-  - interactive command to add tags to existing posts?
 * Watch mode/Hot-reload
   - File watcher/Generate files when saved
   - Create a webserver
   - Reload pages when generated
 * Copy meta-files such as images
 * Copy static files
-* Implement markdeep
+* Implement markdeep?
 * Add verification steps to make sure code samples can be compiled and (unit) tested
   - compile code "without errors"
   - use some sort of shebang to annotate what code pieces are used
@@ -67,5 +63,5 @@ gantt
     Copy meta files: copy_meta, after action_image, 1d
     Copy static files: copy_static, after copy_meta, 1d
 
-    Complete markdeep?: after copy_static, 10d
+    Profile against existing blogs: after copy_static, 10d
 ```
