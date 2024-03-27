@@ -9,18 +9,32 @@ using Markdown.ColorCode;
 
 namespace Blaggen;
 
-internal interface IDocumentParser
+internal record ParsedMarkdown(MarkdownDocument Doc, MarkdownPipeline pipeline)
 {
-    IDocument Parse(string markdownContent);
+    internal string ToHtml()
+    {
+        return Doc.ToHtml(pipeline);
+    }
+
+    internal string ToPlainText()
+    {
+        // stolen from Markdig implementation of ToPlainText since that isn't exposed
+        var writer = new StringWriter();
+        var renderer = new HtmlRenderer(writer)
+        {
+            EnableHtmlForBlock = false,
+            EnableHtmlForInline = false,
+            EnableHtmlEscape = false,
+        };
+        pipeline.Setup(renderer);
+
+        renderer.Render(Doc);
+        writer.Flush();
+        return writer.ToString();
+    }
 }
 
-internal interface IDocument
-{
-    string ToHtml();
-    string ToPlainText();
-}
-
-internal class MarkdownParser : IDocumentParser
+internal class MarkdownParser
 {
     private readonly MarkdownPipeline pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
@@ -28,32 +42,7 @@ internal class MarkdownParser : IDocumentParser
         .UseColorCode( StyleDictionary.DefaultLight )
         .Build();
 
-    internal record Document(MarkdownDocument Doc, MarkdownPipeline pipeline) : IDocument
-    {
-        string IDocument.ToHtml()
-        {
-            return Doc.ToHtml(pipeline);
-        }
-
-        string IDocument.ToPlainText()
-        {
-            // stolen from Markdig implementation of ToPlainText since that isn't exposed
-            var writer = new StringWriter();
-            var renderer = new HtmlRenderer(writer)
-            {
-                EnableHtmlForBlock = false,
-                EnableHtmlForInline = false,
-                EnableHtmlEscape = false,
-            };
-            pipeline.Setup(renderer);
-
-            renderer.Render(Doc);
-            writer.Flush();
-            return writer.ToString();
-        }
-    }
-
-    IDocument IDocumentParser.Parse(string content)
+    internal ParsedMarkdown Parse(string content)
     {
         var src = content.Replace("\r", "");
         var doc = Markdig.Markdown.Parse(src);
@@ -112,6 +101,6 @@ internal class MarkdownParser : IDocumentParser
             }
         }
 
-        return new Document(doc, pipeline);
+        return new ParsedMarkdown(doc, pipeline);
     }
 }

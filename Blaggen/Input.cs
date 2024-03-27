@@ -73,7 +73,7 @@ internal static class Input
     }
 
 
-    private static Post? ParsePost(Run run, IEnumerable<string> lines, FileInfo file, ImmutableArray<string> relativePath, IDocumentParser markdown)
+    private static Post? ParsePost(Run run, IEnumerable<string> lines, FileInfo file, ImmutableArray<string> relativePath, MarkdownParser markdown)
     {
         var (frontmatter, markdownContent) = ParsePostToTuple(run, lines, file);
 
@@ -104,7 +104,7 @@ internal static class Input
     }
 
 
-    internal static Post CreatePost(FileInfo file, ImmutableArray<string> relativePath, IDocumentParser markdown, string markdownContent,
+    internal static Post CreatePost(FileInfo file, ImmutableArray<string> relativePath, MarkdownParser markdown, string markdownContent,
         FrontMatter frontmatter)
     {
         var markdownDocument = markdown.Parse(markdownContent);
@@ -182,7 +182,7 @@ internal static class Input
         var data = await LoadSiteData(run, vfs, root);
         if (data == null) { return null; }
 
-        IDocumentParser markdown = new MarkdownParser();
+        var markdown = new MarkdownParser();
 
         var content = await LoadDir(run, vfs, Constants.GetContentDirectory(root), ImmutableArray.Create<string>(), true, markdown);
         if (content == null) { return null; }
@@ -191,7 +191,7 @@ internal static class Input
     }
 
 
-    private static async Task<Dir?> LoadDir(Run run, VfsRead vfs, DirectoryInfo root, ImmutableArray<string> relativePaths, bool isContentFolder, IDocumentParser markdown)
+    private static async Task<Dir?> LoadDir(Run run, VfsRead vfs, DirectoryInfo root, ImmutableArray<string> relativePaths, bool isContentFolder, MarkdownParser markdown)
     {
         var name = root.Name;
         var relativePathsIncludingSelf = isContentFolder ? relativePaths : relativePaths.Add(name);
@@ -218,7 +218,7 @@ internal static class Input
         var posts = postFiles.Concat(additionalPosts).OrderByDescending(p => p.Front.Date).ToImmutableArray();
         return new Dir(Guid.NewGuid(), name, name, posts, dirs.ToImmutableArray());
 
-        static async IAsyncEnumerable<Dir> LoadDirsWithoutNulls(Run run, VfsRead vfs, IEnumerable<DirectoryInfo> dirs, ImmutableArray<string> relativePaths, IDocumentParser markdown)
+        static async IAsyncEnumerable<Dir> LoadDirsWithoutNulls(Run run, VfsRead vfs, IEnumerable<DirectoryInfo> dirs, ImmutableArray<string> relativePaths, MarkdownParser markdown)
         {
             foreach (var d in dirs)
             {
@@ -231,7 +231,7 @@ internal static class Input
             }
         }
 
-        static async IAsyncEnumerable<Post> LoadPosts(Run run, VfsRead vfs, IEnumerable<FileInfo> files, ImmutableArray<string> relativePaths, IDocumentParser markdown)
+        static async IAsyncEnumerable<Post> LoadPosts(Run run, VfsRead vfs, IEnumerable<FileInfo> files, ImmutableArray<string> relativePaths, MarkdownParser markdown)
         {
             foreach (var f in files)
             {
