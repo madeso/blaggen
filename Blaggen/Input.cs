@@ -182,7 +182,7 @@ public static class Input
         var data = await LoadSiteData(run, vfs, root);
         if (data == null) { return null; }
 
-        IDocumentParser markdown = data.UseMarkdeep ? new MarkdeepParser() : new MarkdownParser();
+        IDocumentParser markdown = new MarkdownParser();
 
         var content = await LoadDir(run, vfs, Constants.GetContentDirectory(root), ImmutableArray.Create<string>(), true, markdown);
         if (content == null) { return null; }

@@ -115,35 +115,3 @@ public class MarkdownParser : IDocumentParser
         return new Document(doc, pipeline);
     }
 }
-
-public class MarkdeepParser : IDocumentParser
-{
-    public IDocument Parse(string content)
-    {
-        return new Document(content);
-    }
-
-    private static string Highlighter(Markdeep.Highlight h)
-    {
-        return Markdeep.escapeHTMLEntities(h.Code);
-    }
-
-    private static void Log(string m)
-    {
-        Console.WriteLine(m);
-    }
-
-    public record Document(string Source) : IDocument
-    {
-        public string ToHtml()
-        {
-            var src = Source.Replace("\r", "");
-            return new Markdeep().markdeepToHTML(src, Highlighter, Log, "url");
-        }
-
-        public string ToPlainText()
-        {
-            return Source;
-        }
-    }
-}
