@@ -2,7 +2,7 @@
 
 namespace Blaggen;
 
-public static class JsonUtil
+internal static class JsonUtil
 {
     private static readonly JsonSerializerOptions Options = new JsonSerializerOptions
     {
@@ -12,13 +12,13 @@ public static class JsonUtil
         IgnoreReadOnlyProperties = true,
     };
 
-    public static T? Parse<T>(Run run, FileInfo file, string content)
+    internal static T? Parse<T>(Run run, FileInfo file, string content)
         where T : class
     {
         try
         {
             var loaded = JsonSerializer.Deserialize<T>(content, Options);
-            if (loaded == null) { throw new Exception("public error"); }
+            if (loaded == null) { throw new Exception("internal error"); }
             return loaded;
         }
         catch (JsonException err)
@@ -28,14 +28,14 @@ public static class JsonUtil
         }
     }
 
-    public static async Task<T?> Load<T>(Run run, VfsRead vfs, FileInfo path)
+    internal static async Task<T?> Load<T>(Run run, VfsRead vfs, FileInfo path)
         where T : class
     {
         var content = await vfs.ReadAllTextAsync(path);
         return Parse<T>(run, path, content);
     }
 
-    public static string Write<T>(T self)
+    internal static string Write<T>(T self)
     {
         return JsonSerializer.Serialize(self, Options);
     }

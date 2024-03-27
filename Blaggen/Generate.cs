@@ -7,10 +7,10 @@ using static Blaggen.Generate;
 
 namespace Blaggen;
 
-public static class Generate
+internal static class Generate
 {
     // data to mustache
-    public record SummaryForPost(
+    internal record SummaryForPost(
         string Title,
         string TimeShort,
         string TimeLong,
@@ -20,9 +20,9 @@ public static class Generate
         string FullText,
         string RelativeUrl
         );
-    public record RootLink(string Name, string Url, bool IsSelected);
-    public record RootLinkData(string Name, FileInfo File, string RootGroup);
-    public record PageData(Site Site, ImmutableArray<RootLink> Roots, ImmutableArray<SummaryForPost> Pages,
+    internal record RootLink(string Name, string Url, bool IsSelected);
+    internal record RootLinkData(string Name, FileInfo File, string RootGroup);
+    internal record PageData(Site Site, ImmutableArray<RootLink> Roots, ImmutableArray<SummaryForPost> Pages,
             string Title,
             string Summary,
             string Url,
@@ -32,7 +32,7 @@ public static class Generate
             string TimeLong
         );
 
-    public static PageData MakePageData(Site site, Post post, ImmutableArray<RootLink> roots,
+    internal static PageData MakePageData(Site site, Post post, ImmutableArray<RootLink> roots,
         ImmutableArray<SummaryForPost> pages)
     {
         return new PageData(site, roots, pages,
@@ -47,7 +47,7 @@ public static class Generate
     }
 
 
-    public record PageToWrite
+    internal record PageToWrite
     (
         ImmutableArray<DirectoryInfo> TemplateFolders,
         Post Post,
@@ -57,7 +57,7 @@ public static class Generate
         int Depth
     );
 
-    public static SummaryForPost MakeSummaryForPost(Post post, Site site)
+    internal static SummaryForPost MakeSummaryForPost(Post post, Site site)
     {
         return new SummaryForPost(
                 Title: post.Front.Title,
@@ -91,7 +91,7 @@ public static class Generate
 
     // todo(Gustav): add more data
     // todo(Gustav): generate full url
-    public static Template.Definition<PageData> MakePageDataDef() => new Template.Definition<PageData>()
+    internal static Template.Definition<PageData> MakePageDataDef() => new Template.Definition<PageData>()
         .AddVar("title", page => page.Title)
         .AddVar("summary", page => page.Summary)
         .AddVar("url", page => page.Url)
@@ -104,7 +104,7 @@ public static class Generate
     ;
 
 
-    public static IEnumerable<PageToWrite> ListPagesForSite(Site site, DirectoryInfo publicDir, DirectoryInfo templates)
+    internal static IEnumerable<PageToWrite> ListPagesForSite(Site site, DirectoryInfo publicDir, DirectoryInfo templates)
     {
         var owners = ImmutableArray.Create<Dir>();
         return ListPagesInDir(site, site.Root, publicDir, templates, owners, 0, string.Empty);
@@ -139,7 +139,7 @@ public static class Generate
     }
 
 
-    public static ImmutableArray<RootLinkData> CollectRoots(ImmutableArray<PageToWrite> pageToWrites, IEnumerable<GroupPage> groups)
+    internal static ImmutableArray<RootLinkData> CollectRoots(ImmutableArray<PageToWrite> pageToWrites, IEnumerable<GroupPage> groups)
     {
         var pageTags = pageToWrites
             .Where(x => x.Depth == 0)
@@ -157,7 +157,7 @@ public static class Generate
     }
 
 
-    public static async Task<int> WriteAllPages(ImmutableArray<RootLinkData> roots, ImmutableArray<PageToWrite> pageToWrites, ImmutableArray<GroupPage> tags, Run run, VfsWrite vfsWrite,
+    internal static async Task<int> WriteAllPages(ImmutableArray<RootLinkData> roots, ImmutableArray<PageToWrite> pageToWrites, ImmutableArray<GroupPage> tags, Run run, VfsWrite vfsWrite,
         Site site, DirectoryInfo publicDir, TemplateDictionary templates)
     {
         // create all directories first, to avoid race conditions
@@ -289,9 +289,9 @@ public static class Generate
     }
 
     // todo(Gustav): rename tag concept to group
-    public record GroupPage(ImmutableArray<DirectoryInfo> TemplateFolders, DirectoryInfo DestDir, string Display,
+    internal record GroupPage(ImmutableArray<DirectoryInfo> TemplateFolders, DirectoryInfo DestDir, string Display,
         FileInfo Destination, string Html, string Text, ImmutableArray<SummaryForPost> Children, bool IsRoot, string GroupName);
-    public static ImmutableArray<GroupPage> CollectTagPages(Site site, DirectoryInfo publicDir, DirectoryInfo templates, ImmutableArray<PageToWrite> pages)
+    internal static ImmutableArray<GroupPage> CollectTagPages(Site site, DirectoryInfo publicDir, DirectoryInfo templates, ImmutableArray<PageToWrite> pages)
     {
         var tags = pages
             // flatten all pages to just names->values

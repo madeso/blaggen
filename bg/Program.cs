@@ -52,7 +52,7 @@ internal sealed class InitSiteCommand : AsyncCommand<InitSiteCommand.Settings>
         var run = new RunConsole();
         var vfsRead = new VfsReadFile();
         var vfsWrite = new VfsWriteFile();
-        return await Facade.InitSite(run, vfsRead, vfsWrite, VfsReadFile.GetCurrentDirectory());
+        return await Facade.InitSite(run, vfsRead, vfsWrite, Facade.GetCurrentDirectory());
     }
 }
 
@@ -96,7 +96,7 @@ internal sealed class GenerateCommand : AsyncCommand<GenerateCommand.Settings>
                 var run = new RunConsoleWithContext(ctx);
                 var vfs = new VfsReadFile();
                 var vfsWrite = new VfsWriteFile();
-                ret = await Facade.GenerateSiteFromCurrentDirectory(run, vfs, vfsWrite, VfsReadFile.GetCurrentDirectory());
+                ret = await Facade.GenerateSiteFromCurrentDirectory(run, vfs, vfsWrite, Facade.GetCurrentDirectory());
             });
         return ret;
     }
@@ -122,7 +122,7 @@ internal sealed class ServerCommand : AsyncCommand<ServerCommand.Settings>
                 var run = new RunConsoleWithContext(ctx);
                 var vfsCache = new VfsCachedFileRead();
 
-                var root = Input.FindRoot(vfsCache, VfsReadFile.GetCurrentDirectory());
+                var root = Facade.FindRoot(vfsCache, Facade.GetCurrentDirectory());
                 if (root == null)
                 {
                     run.WriteError("Unable to find root");
@@ -130,10 +130,9 @@ internal sealed class ServerCommand : AsyncCommand<ServerCommand.Settings>
                     return;
                 }
 
-                var publicDir = root.GetDir("public");
-                var serverVfs = new ServerVfs(publicDir);
+                var serverVfs = new ServerVfs(root);
 
-                ret = await Facade.StartServerAndMonitorForChanges(args.Port ?? 8080, run, vfsCache, serverVfs, root, publicDir, ConsoleKey.Escape);
+                ret = await Facade.StartServerAndMonitorForChanges(args.Port ?? 8080, run, vfsCache, serverVfs, root, ConsoleKey.Escape);
             });
         return ret;
     }
@@ -159,7 +158,7 @@ internal sealed class ListTagsCommand : AsyncCommand<ListTagsCommand.Settings>
                 var run = new RunConsoleWithContext(ctx);
                 var vfsRead = new VfsReadFile();
 
-                var root = Input.FindRoot(vfsRead, VfsReadFile.GetCurrentDirectory());
+                var root = Facade.FindRoot(vfsRead, Facade.GetCurrentDirectory());
                 if (root == null)
                 {
                     run.WriteError("Unable to find root");
@@ -204,7 +203,7 @@ internal sealed class AddTagCommand : AsyncCommand<AddTagCommand.Settings>
                 var run = new RunConsoleWithContext(ctx);
                 var vfsRead = new VfsReadFile();
 
-                var root = Input.FindRoot(vfsRead, VfsReadFile.GetCurrentDirectory());
+                var root = Facade.FindRoot(vfsRead, Facade.GetCurrentDirectory());
                 if (root == null)
                 {
                     run.WriteError("Unable to find root");
@@ -248,7 +247,7 @@ internal sealed class RemoveTagCommand : AsyncCommand<RemoveTagCommand.Settings>
                 var run = new RunConsoleWithContext(ctx);
                 var vfsRead = new VfsReadFile();
 
-                var root = Input.FindRoot(vfsRead, VfsReadFile.GetCurrentDirectory());
+                var root = Facade.FindRoot(vfsRead, Facade.GetCurrentDirectory());
                 if (root == null)
                 {
                     run.WriteError("Unable to find root");

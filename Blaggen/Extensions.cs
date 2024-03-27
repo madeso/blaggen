@@ -6,34 +6,34 @@ using System.Threading.Channels;
 namespace Blaggen;
 
 
-public static class FileExtensions
+internal static class FileExtensions
 {
-    public static DirectoryInfo GetDir(this DirectoryInfo dir, string sub)
+    internal static DirectoryInfo GetDir(this DirectoryInfo dir, string sub)
     {
         return new DirectoryInfo(Path.Join(dir.FullName, sub));
     }
 
-    public static DirectoryInfo GetSubDirs(this DirectoryInfo dir, IEnumerable<string> sub)
+    internal static DirectoryInfo GetSubDirs(this DirectoryInfo dir, IEnumerable<string> sub)
     {
         return sub.Aggregate(dir, (current, name) => current.GetDir(name));
     }
 
-    public static DirectoryInfo GetSubDirs(this DirectoryInfo dir, params string[] sub)
+    internal static DirectoryInfo GetSubDirs(this DirectoryInfo dir, params string[] sub)
     {
         return sub.Aggregate(dir, (current, name) => current.GetDir(name));
     }
 
-    public static FileInfo GetFile(this DirectoryInfo dir, string file)
+    internal static FileInfo GetFile(this DirectoryInfo dir, string file)
     {
         return new FileInfo(Path.Join(dir.FullName, file));
     }
 
-    public static FileInfo ChangeExtension(this FileInfo file, string newExtension)
+    internal static FileInfo ChangeExtension(this FileInfo file, string newExtension)
     {
         return new FileInfo(Path.ChangeExtension(file.FullName, newExtension));
     }
 
-    public static async Task<string?> LoadFileOrNull(this FileInfo path, Run run, VfsRead vfs)
+    internal static async Task<string?> LoadFileOrNull(this FileInfo path, Run run, VfsRead vfs)
     {
         try { return await vfs.ReadAllTextAsync(path); }
         catch (Exception x)
@@ -43,12 +43,12 @@ public static class FileExtensions
         }
     }
 
-    public static string DisplayNameForFile(this FileInfo file) => Path.GetRelativePath(Environment.CurrentDirectory, file.FullName);
+    internal static string DisplayNameForFile(this FileInfo file) => Path.GetRelativePath(Environment.CurrentDirectory, file.FullName);
 }
 
-public static class ImmutableArrayExtensions
+internal static class ImmutableArrayExtensions
 {
-    public static ImmutableArray<T> PopBack<T>(this ImmutableArray<T> data)
+    internal static ImmutableArray<T> PopBack<T>(this ImmutableArray<T> data)
     {
         if (data.Length == 0) { return data; }
         var ret = data.RemoveAt(data.Length - 1);
@@ -56,10 +56,10 @@ public static class ImmutableArrayExtensions
     }
 }
 
-public static class IterTools
+internal static class IterTools
 {
     // returns: initial+p0, initial+p0+p1, initial+p0+p1+p2 ...
-    public static IEnumerable<R> Accumulate<T, R>(this IEnumerable<T> src, R initial, Func<T, R, R> add)
+    internal static IEnumerable<R> Accumulate<T, R>(this IEnumerable<T> src, R initial, Func<T, R, R> add)
     {
         var current = initial;
         foreach (var t in src)
@@ -69,7 +69,7 @@ public static class IterTools
         }
     }
 
-    public static IEnumerable<T> Where<T>(this IEnumerable<T> src, Func<T, bool> predicate, Action<T> fail)
+    internal static IEnumerable<T> Where<T>(this IEnumerable<T> src, Func<T, bool> predicate, Action<T> fail)
     {
         foreach (var t in src)
         {
@@ -84,7 +84,7 @@ public static class IterTools
         }
     }
 
-    public static async Task<List<T>> ToListAsync<T>(this IAsyncEnumerable<T> asyncEnumerable)
+    internal static async Task<List<T>> ToListAsync<T>(this IAsyncEnumerable<T> asyncEnumerable)
     {
         if (null == asyncEnumerable)
             throw new ArgumentNullException(nameof(asyncEnumerable));
@@ -99,9 +99,9 @@ public static class IterTools
     }
 }
 
-public static class ChannelExtension
+internal static class ChannelExtension
 {
-    public static async IAsyncEnumerable<T> ReadAsyncOrCancel<T>(this ChannelReader<T> reader, [EnumeratorCancellation] CancellationToken ct)
+    internal static async IAsyncEnumerable<T> ReadAsyncOrCancel<T>(this ChannelReader<T> reader, [EnumeratorCancellation] CancellationToken ct)
     {
         while (await reader.WaitToReadAsync(ct))
         {

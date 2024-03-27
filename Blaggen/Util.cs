@@ -1,11 +1,11 @@
 ﻿namespace Blaggen;
 
-public class ColCounter<T>
+internal class ColCounter<T>
     where T : notnull
 {
     private readonly Dictionary<T, int> data = new();
 
-    public void Add(T key, int count)
+    internal void Add(T key, int count)
     {
         if (data.TryGetValue(key, out var value) == false)
         {
@@ -20,12 +20,12 @@ public class ColCounter<T>
         data[key] = value;
     }
 
-    public void AddOne(T key)
+    internal void AddOne(T key)
     {
         Add(key, 1);
     }
 
-    public IEnumerable<(T, int)> MostCommon()
+    internal IEnumerable<(T, int)> MostCommon()
     {
         return data
                 .OrderByDescending(x => x.Value)
@@ -33,12 +33,12 @@ public class ColCounter<T>
             ;
     }
 
-    public int GetTotalCount()
+    internal int GetTotalCount()
     {
         return data.Select(x => x.Value).Sum();
     }
 
-    public void Update(ColCounter<T> rhs)
+    internal void Update(ColCounter<T> rhs)
     {
         foreach (var (key, count) in rhs.data)
         {
@@ -61,13 +61,13 @@ public class ColCounter<T>
         }
     }
 
-    public IEnumerable<T> Keys => data.Keys;
-    public IEnumerable<KeyValuePair<T, int>> Items => data;
+    internal IEnumerable<T> Keys => data.Keys;
+    internal IEnumerable<KeyValuePair<T, int>> Items => data;
 }
 
-public static class ColCounterUtil
+internal static class ColCounterUtil
 {
-    public static ColCounter<T> ToColCounter<T>(this IEnumerable<T> items) where T : notnull
+    internal static ColCounter<T> ToColCounter<T>(this IEnumerable<T> items) where T : notnull
     {
         var r = new ColCounter<T>();
 

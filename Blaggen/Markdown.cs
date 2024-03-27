@@ -9,18 +9,18 @@ using Markdown.ColorCode;
 
 namespace Blaggen;
 
-public interface IDocumentParser
+internal interface IDocumentParser
 {
     IDocument Parse(string markdownContent);
 }
 
-public interface IDocument
+internal interface IDocument
 {
     string ToHtml();
     string ToPlainText();
 }
 
-public class MarkdownParser : IDocumentParser
+internal class MarkdownParser : IDocumentParser
 {
     private readonly MarkdownPipeline pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
@@ -28,14 +28,14 @@ public class MarkdownParser : IDocumentParser
         .UseColorCode( StyleDictionary.DefaultLight )
         .Build();
 
-    public record Document(MarkdownDocument Doc, MarkdownPipeline pipeline) : IDocument
+    internal record Document(MarkdownDocument Doc, MarkdownPipeline pipeline) : IDocument
     {
-        public string ToHtml()
+        string IDocument.ToHtml()
         {
             return Doc.ToHtml(pipeline);
         }
 
-        public string ToPlainText()
+        string IDocument.ToPlainText()
         {
             // stolen from Markdig implementation of ToPlainText since that isn't exposed
             var writer = new StringWriter();
@@ -53,7 +53,7 @@ public class MarkdownParser : IDocumentParser
         }
     }
 
-    public IDocument Parse(string content)
+    IDocument IDocumentParser.Parse(string content)
     {
         var src = content.Replace("\r", "");
         var doc = Markdig.Markdown.Parse(src);

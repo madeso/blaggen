@@ -1,8 +1,8 @@
 ﻿namespace Blaggen;
 
-public static class EditDistance
+internal static class EditDistance
 {
-    public static IEnumerable<string> ClosestMatches(string input, int maxDiff, IEnumerable<string> candidates)
+    internal static IEnumerable<string> ClosestMatches(string input, int maxDiff, IEnumerable<string> candidates)
     {
         return candidates
             .Select(name => new { Name = name, Distance = Calculate(input, name) })

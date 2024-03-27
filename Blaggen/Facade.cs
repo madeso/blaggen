@@ -238,8 +238,9 @@ public static class Facade
     }
 
     public static async Task<int> StartServerAndMonitorForChanges(int port, Run run,
-        VfsCachedFileRead vfsCache, ServerVfs serverVfs, DirectoryInfo root, DirectoryInfo publicDir, ConsoleKey abortKey)
+        VfsCachedFileRead vfsCache, ServerVfs serverVfs, DirectoryInfo root, ConsoleKey abortKey)
     {
+        var publicDir = root.GetDir("public");
         await GenerateSite(false, run, vfsCache, serverVfs, root, publicDir);
 
         var watchForChanges = true;
@@ -447,6 +448,9 @@ public static class Facade
 
         return 0;
     }
+
+    public static DirectoryInfo GetCurrentDirectory() => VfsReadFile.GetCurrentDirectory();
+    public static DirectoryInfo? FindRoot(VfsRead vfs, DirectoryInfo start) => Input.FindRoot(vfs, start);
 
     private static async Task<ImmutableArray<Post>> ExtractPostsWhere(Run run, VfsRead vfs, DirectoryInfo root, string group, string where)
     {

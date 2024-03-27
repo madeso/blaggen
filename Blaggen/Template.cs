@@ -2,6 +2,9 @@
 using System.Globalization;
 using System.Text;
 
+using System.Runtime.CompilerServices;
+[assembly: InternalsVisibleTo("BlaggenTest")]
+
 namespace Blaggen;
 
 /*
@@ -22,39 +25,38 @@ namespace Blaggen;
 // todo(Gustav): add foo.bar and .foobar accessors to access subdicts and global dicts
 // todo(Gustav): add documentation to properties and functions so error messages can be more helpful, this also means we can generate documentation for the current build
 // todo(Gustav): should return values always be strings? properties return datetime that format functions could format
-
-public static class Template
+internal static class Template
 {
-    public record Location(FileInfo File, int Line, int Offset);
-    public record Error(Location Location, string Message);
-    public record FuncArgument(Location Location, string Argument);
+    internal record Location(FileInfo File, int Line, int Offset);
+    internal record Error(Location Location, string Message);
+    internal record FuncArgument(Location Location, string Argument);
 
     // parse arguments, return function call or error
-    public delegate (Func, ImmutableArray<Error>) FuncGenerator(Location call, ImmutableArray<FuncArgument> arguments);
+    internal delegate (Func, ImmutableArray<Error>) FuncGenerator(Location call, ImmutableArray<FuncArgument> arguments);
 
     // apply dynamic string function and return result
-    public delegate string Func(string arg);
+    internal delegate string Func(string arg);
 
     
-    public class Definition<TParent>
+    internal class Definition<TParent>
     {
         private readonly Dictionary<string, Func<TParent, string>> attributes = new ();
         private readonly Dictionary<string, Func<TParent, bool>> bools = new();
         private readonly Dictionary<string, Func<Node, (Func<TParent, string>, ImmutableArray<Error>)>> children = new();
 
-        public Definition<TParent> AddVar(string name, Func<TParent, string> getter)
+        internal Definition<TParent> AddVar(string name, Func<TParent, string> getter)
         {
             attributes.Add(name, getter);
             return this;
         }
 
-        public Definition<TParent> AddBool(string name, Func<TParent, bool> getter)
+        internal Definition<TParent> AddBool(string name, Func<TParent, bool> getter)
         {
             bools.Add(name, getter);
             return this;
         }
 
-        public Definition<TParent> AddList<TChild>(string name, Func<TParent, IEnumerable<TChild>> childSelector, Definition<TChild> childDef)
+        internal Definition<TParent> AddList<TChild>(string name, Func<TParent, IEnumerable<TChild>> childSelector, Definition<TChild> childDef)
         {
             children.Add(name, node =>
             {
@@ -134,7 +136,7 @@ public static class Template
         }
     }
 
-    public static async Task<(Func<T, string>, ImmutableArray<Error>)> Parse<T>(FileInfo path, VfsRead vfs, Dictionary<string, FuncGenerator> functions, DirectoryInfo includeDir, Definition<T> definition)
+    internal static async Task<(Func<T, string>, ImmutableArray<Error>)> Parse<T>(FileInfo path, VfsRead vfs, Dictionary<string, FuncGenerator> functions, DirectoryInfo includeDir, Definition<T> definition)
     {
         var source = await vfs.ReadAllTextAsync(path);
         var (tokens, lexerErrors) = Scanner(path, source);
@@ -148,7 +150,7 @@ public static class Template
         return definition.Validate(node);
     }
 
-    public static Dictionary<string, FuncGenerator> DefaultFunctions()
+    internal static Dictionary<string, FuncGenerator> DefaultFunctions()
     {
         var culture = new CultureInfo("en-US", false);
 

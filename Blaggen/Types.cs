@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 namespace Blaggen;
 
 
-public class SiteData
+internal class SiteData
 {
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
@@ -28,14 +28,14 @@ public class SiteData
     public string Url => BaseUrl.EndsWith('/') ? BaseUrl.TrimEnd('/') : BaseUrl;
 
     [JsonIgnore]
-    public CultureInfo CultureInfo => new CultureInfo(Culture, false);
+    internal CultureInfo CultureInfo => new CultureInfo(Culture, false);
 
-    public string ShortDateToString(DateTime dt)
+    internal string ShortDateToString(DateTime dt)
     {
         return dt.ToString(ShortDateFormat, CultureInfo);
     }
 
-    public string LongDateToString(DateTime dt)
+    internal string LongDateToString(DateTime dt)
     {
         return dt.ToString(ShortDateFormat, CultureInfo);
     }
@@ -65,6 +65,6 @@ public class FrontMatter
 }
 
 // todo(Gustav): add associated files to be generated...
-public record Post(Guid Id, bool IsIndex, ImmutableArray<string> RelativePath, FrontMatter Front, FileInfo SourceFile, string Name, string MarkdownHtml, string MarkdownPlainText, string Markdown);
-public record Dir(Guid Id, string Title, string Name, ImmutableArray<Post> Posts, ImmutableArray<Dir> Dirs);
-public record Site(SiteData Data, Dir Root);
+internal record Post(Guid Id, bool IsIndex, ImmutableArray<string> RelativePath, FrontMatter Front, FileInfo SourceFile, string Name, string MarkdownHtml, string MarkdownPlainText, string Markdown);
+internal record Dir(Guid Id, string Title, string Name, ImmutableArray<Post> Posts, ImmutableArray<Dir> Dirs);
+internal record Site(SiteData Data, Dir Root);

@@ -4,11 +4,11 @@ using System.Text;
 namespace Blaggen;
 
 
-public class TemplateDictionary
+internal class TemplateDictionary
 {
-    public ImmutableHashSet<string> Extensions { get; }
+    internal ImmutableHashSet<string> Extensions { get; }
     private ImmutableDictionary<string, Func<Generate.PageData, string>> LoadedTemplates { get; } // can't use FileInfo as a key
-    public Func<Generate.PageData, string>? GetTemplateOrNull(FileInfo file) =>  LoadedTemplates.TryGetValue(file.FullName, out var contents) ? contents : null;
+    internal Func<Generate.PageData, string>? GetTemplateOrNull(FileInfo file) =>  LoadedTemplates.TryGetValue(file.FullName, out var contents) ? contents : null;
 
 
     private TemplateDictionary(ImmutableDictionary<string, Func<Generate.PageData, string>> td, ImmutableHashSet<string> ex)
@@ -18,7 +18,7 @@ public class TemplateDictionary
     }
 
 
-    public static async Task<TemplateDictionary> Load(Run run, VfsRead vfs, DirectoryInfo root, DirectoryInfo templateFolder, DirectoryInfo partialFolder)
+    internal static async Task<TemplateDictionary> Load(Run run, VfsRead vfs, DirectoryInfo root, DirectoryInfo templateFolder, DirectoryInfo partialFolder)
     {
         // todo(Gustav): warn if template files are missing
         var templateFiles = vfs.GetFilesRec(templateFolder)
@@ -53,14 +53,14 @@ public class TemplateDictionary
 
 
 
-public static class Input
+internal static class Input
 {
-    public const string SOURCE_START = "```json";
-    public const string SOURCE_END = "```";
-    public const string FRONTMATTER_SEP = "***"; // markdown hline
+    internal const string SOURCE_START = "```json";
+    internal const string SOURCE_END = "```";
+    internal const string FRONTMATTER_SEP = "***"; // markdown hline
 
 
-    public static DirectoryInfo? FindRoot(VfsRead vfs, DirectoryInfo? start)
+    internal static DirectoryInfo? FindRoot(VfsRead vfs, DirectoryInfo? start)
     {
         var current = start;
 
@@ -86,7 +86,7 @@ public static class Input
     }
 
 
-    public static (FrontMatter? frontmatter, string markdownContent) ParsePostToTuple(Run run,
+    internal static (FrontMatter? frontmatter, string markdownContent) ParsePostToTuple(Run run,
         IEnumerable<string> lines,
         FileInfo file)
     {
@@ -97,7 +97,7 @@ public static class Input
         return (frontmatter, markdownSource);
     }
 
-    public static string PostToFileData(Post post)
+    internal static string PostToFileData(Post post)
     {
         var json = JsonUtil.Write(post.Front);
         return string.Join('\n', SOURCE_START, json, SOURCE_END, FRONTMATTER_SEP, post.Markdown);
@@ -170,14 +170,14 @@ public static class Input
     }
 
 
-    public static async Task<SiteData?> LoadSiteData(Run run, VfsRead vfs, DirectoryInfo root)
+    internal static async Task<SiteData?> LoadSiteData(Run run, VfsRead vfs, DirectoryInfo root)
     {
         var path = root.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION);
         return await JsonUtil.Load<SiteData>(run, vfs, path);
     }
 
 
-    public static async Task<Site?> LoadSite(Run run, VfsRead vfs, DirectoryInfo root)
+    internal static async Task<Site?> LoadSite(Run run, VfsRead vfs, DirectoryInfo root)
     {
         var data = await LoadSiteData(run, vfs, root);
         if (data == null) { return null; }

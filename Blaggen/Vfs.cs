@@ -7,12 +7,12 @@ namespace Blaggen;
 
 public interface VfsRead
 {
-    bool Exists(FileInfo fileInfo);
+    public bool Exists(FileInfo fileInfo);
     public Task<string> ReadAllTextAsync(FileInfo path);
 
     public IEnumerable<FileInfo> GetFiles(DirectoryInfo dir);
-    IEnumerable<DirectoryInfo> GetDirectories(DirectoryInfo root);
-    IEnumerable<FileInfo> GetFilesRec(DirectoryInfo dir);
+    public IEnumerable<DirectoryInfo> GetDirectories(DirectoryInfo root);
+    public IEnumerable<FileInfo> GetFilesRec(DirectoryInfo dir);
 }
 
 public interface VfsWrite
@@ -54,7 +54,7 @@ public class VfsReadFile : VfsRead
         return root.GetDirectories();
     }
 
-    public static DirectoryInfo GetCurrentDirectory()
+    internal static DirectoryInfo GetCurrentDirectory()
     {
         return new DirectoryInfo(Environment.CurrentDirectory);
     }
@@ -124,7 +124,7 @@ public class VfsCachedFileRead : VfsReadFile
     }
 
     // return true if the content was updated
-    public async Task<bool> AddFileToCache(FileInfo file)
+    internal async Task<bool> AddFileToCache(FileInfo file)
     {
         try
         {
@@ -143,7 +143,7 @@ public class VfsCachedFileRead : VfsReadFile
         }
     }
 
-    public void Remove(FileInfo file)
+    internal void Remove(FileInfo file)
     {
         cache.TryRemove(file.FullName, out _);
     }

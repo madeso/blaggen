@@ -5,7 +5,7 @@ using Tomlyn.Syntax;
 
 namespace Blaggen;
 
-public static class Hugo
+internal static class Hugo
 {
     private const string TOML_CONTENT_SEPARATOR = "+++";
     // private const string YAML_CONTENT_SEPARATOR = "---";
@@ -81,9 +81,9 @@ public static class Hugo
     }
 }
 
-public static class TomlExtensions
+internal static class TomlExtensions
 {
-    public static IEnumerable<SyntaxNode> IterChildren(this SyntaxNode node)
+    internal static IEnumerable<SyntaxNode> IterChildren(this SyntaxNode node)
     {
         for (int i = 0; i < node.ChildrenCount; i += 1)
         {
@@ -95,7 +95,7 @@ public static class TomlExtensions
         }
     }
 
-    public static string KeyString(this KeyValueSyntax kv)
+    internal static string KeyString(this KeyValueSyntax kv)
     {
         return kv.Key?.Key switch
         {
@@ -106,7 +106,7 @@ public static class TomlExtensions
         } ?? throw new NullReferenceException();
     }
 
-    public static string GetStringValue(this ValueSyntax value)
+    internal static string GetStringValue(this ValueSyntax value)
     {
         return value switch
         {

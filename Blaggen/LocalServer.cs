@@ -1,6 +1,5 @@
 ﻿using System.Collections.Immutable;
 using System.Net;
-using System.Net.Sockets;
 using System.Text;
 using Spectre.Console;
 
@@ -10,13 +9,13 @@ public class ServerVfs : VfsWrite
 {
     public ServerVfs(DirectoryInfo root)
     {
-        this.root = root;
+        this.root = root.GetDir("public");
     }
 
     private readonly DirectoryInfo root;
     private readonly Dictionary<string, string> content = new();
 
-    public string? GetContent(string url)
+    internal string? GetContent(string url)
     {
         var split = url.Split('/', StringSplitOptions.RemoveEmptyEntries).ToImmutableArray();
         var pathToFileSplit = url.EndsWith('/') ? split.Concat(new[] { "index.html" }) : split;
@@ -39,7 +38,7 @@ public class ServerVfs : VfsWrite
     }
 }
 
-public class LocalServer
+internal class LocalServer
 {
     private static async Task HandleIncomingConnections(Run run, ServerVfs vfs, HttpListener listener, CancellationToken ct)
     {
@@ -91,7 +90,7 @@ public class LocalServer
     }
 
 
-    public static async Task<int> Run(Run run, ServerVfs vfs, int port, CancellationToken ct)
+    internal static async Task<int> Run(Run run, ServerVfs vfs, int port, CancellationToken ct)
     {
         var url = $"http://localhost:{port}/";
         var listener = new HttpListener();
