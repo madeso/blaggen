@@ -452,6 +452,9 @@ public static class Facade
     public static DirectoryInfo GetCurrentDirectory() => VfsReadFile.GetCurrentDirectory();
     public static DirectoryInfo? FindRoot(VfsRead vfs, DirectoryInfo start) => Input.FindRoot(vfs, start);
 
+    private record PostWithTags(HashSet<string> Props, Post Post);
+    private record PostWithOptionalTags(HashSet<string>? Props, Post Post);
+
     private static async Task<ImmutableArray<Post>> ExtractPostsWhere(Run run, VfsRead vfs, DirectoryInfo root, string group, string where)
     {
         run.Status("Parsing directory");
@@ -463,8 +466,11 @@ public static class Facade
 
         run.Status("Collecting");
         var selected = AllDirs(site.Root)
-                .Select(p => p.Front.TagData.TryGetValue(group, out var props) ? (Props: props, Post: p) : (null, p))
+                .Select(p => p.Front.TagData.TryGetValue(group, out var props)
+                    ? new PostWithOptionalTags(props, p)
+                    : new PostWithOptionalTags(null, p))
                 .Where(p => p.Props != null)
+                .Select(p => new PostWithTags(p.Props!, p.Post))
                 .ToImmutableArray()
             ;
 
@@ -475,7 +481,7 @@ public static class Facade
         }
 
         var posts = selected
-                .Where(p => p.Props!.Contains(where))
+                .Where(p => p.Props.Contains(where))
                 .Select(p => p.Post)
                 .ToImmutableArray()
             ;
