@@ -260,7 +260,7 @@ public static class Facade
             ;
 
         var completedTask = await Task.WhenAny(tasks);
-        cts.Cancel();
+        await cts.CancelAsync();
 
         return await completedTask;
 
