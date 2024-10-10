@@ -39,7 +39,7 @@ internal class MarkdownParser
     private readonly MarkdownPipeline pipeline = new MarkdownPipelineBuilder()
         .UseAdvancedExtensions()
         // todo(Gustav): fix colorcode or implement own to avoid specifying styling in the pipeline
-        .UseColorCode( StyleDictionary.DefaultLight )
+        .UseColorCode()
         .Build();
 
     internal ParsedMarkdown Parse(string content)

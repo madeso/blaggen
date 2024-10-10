@@ -10,7 +10,7 @@ namespace BlaggenTest;
 public class TestNewPost : TestBase
 {
     [Fact]
-    public async void CreateSimplePostInRoot()
+    public async Task CreateSimplePostInRoot()
     {
         var cwd = new DirectoryInfo(@"C:\test\");
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
@@ -33,7 +33,7 @@ public class TestNewPost : TestBase
     }
 
     [Fact]
-    public async void CreateComplexPostInRoot()
+    public async Task CreateComplexPostInRoot()
     {
         var cwd = new DirectoryInfo(@"C:\test\");
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
@@ -56,7 +56,7 @@ public class TestNewPost : TestBase
     }
 
     [Fact]
-    public async void CreateComplexPromotedPost()
+    public async Task CreateComplexPromotedPost()
     {
         var cwd = new DirectoryInfo(@"C:\test\");
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
@@ -79,7 +79,7 @@ public class TestNewPost : TestBase
     }
 
     [Fact]
-    public async void CantCreateExisting()
+    public async Task CantCreateExisting()
     {
         var cwd = new DirectoryInfo(@"C:\test\");
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
@@ -101,7 +101,7 @@ public class TestNewPost : TestBase
     }
 
     [Fact]
-    public async void CantCreatePostInEmptyFolder()
+    public async Task CantCreatePostInEmptyFolder()
     {
         var cwd = new DirectoryInfo(@"C:\test\");
 

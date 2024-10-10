@@ -46,7 +46,7 @@ public class TemplateTest
     private readonly DirectoryInfo cwd = new(@"C:\test\");
 
     [Fact]
-    public async void Test1()
+    public async Task Test1()
     {
         var file = cwd.GetFile("test.txt");
         read.AddContent(file, "{{artist}} - {{title}} ({{album}})");
@@ -59,7 +59,7 @@ public class TemplateTest
     }
 
     [Fact]
-    public async void Test1Alt()
+    public async Task Test1Alt()
     {
         var file = cwd.GetFile("test.txt");
         // quoting attributes like strings should also work
@@ -73,7 +73,7 @@ public class TemplateTest
     }
 
     [Fact]
-    public async void Test1WithSpaces()
+    public async Task Test1WithSpaces()
     {
         var file = cwd.GetFile("test.txt");
         // quoting attributes like strings should also work
@@ -87,7 +87,7 @@ public class TemplateTest
     }
 
     [Fact]
-    public async void Test2()
+    public async Task Test2()
     {
         var file = cwd.GetFile("test.txt");
         read.AddContent(file, "{{artist}} - {{title | title}} ( {{- album -}} )");
@@ -100,7 +100,7 @@ public class TemplateTest
     }
 
     [Fact]
-    public async void Test3()
+    public async Task Test3()
     {
         var file = cwd.GetFile("test.txt");
         read.AddContent(file, "{{track | zfill(3)}} {{- /** a comment **/ -}}  . {{title | title}}");
@@ -114,7 +114,7 @@ public class TemplateTest
     }
 
     [Fact]
-    public async void Test4()
+    public async Task Test4()
     {
         var file = cwd.GetFile("test.txt");
         read.AddContent(file, "{{#songs}}[{{title}}]{{/songs}}");
@@ -128,7 +128,7 @@ public class TemplateTest
     }
 
     [Fact]
-    public async void Test4Readable()
+    public async Task Test4Readable()
     {
         var file = cwd.GetFile("test.txt");
         read.AddContent(file, "{{range songs}}[{{title}}]{{end}}");
@@ -142,7 +142,7 @@ public class TemplateTest
     }
 
     [Fact]
-    public async void Test5()
+    public async Task Test5()
     {
         var file = cwd.GetFile("test.txt");
         read.AddContent(file, "{{range songs}} {{- include \"include.txt\" -}} {{end}}");
@@ -157,7 +157,7 @@ public class TemplateTest
     }
 
     [Fact]
-    public async void Test5Alt()
+    public async Task Test5Alt()
     {
         var file = cwd.GetFile("test.txt");
         // use quotes to escape include keyword
@@ -173,7 +173,7 @@ public class TemplateTest
     }
 
     [Fact]
-    public async void Test6()
+    public async Task Test6()
     {
         var file = cwd.GetFile("test.txt");
         read.AddContent(file, "{{range songs}} {{- include file -}} {{end}}");
@@ -188,7 +188,7 @@ public class TemplateTest
     }
 
     [Fact]
-    public async void Test7If()
+    public async Task Test7If()
     {
         var file = cwd.GetFile("test.txt");
         read.AddContent(file, "{{range songs -}} [ {{- if star -}} {{- title -}} {{- end -}} ] {{- end}}");

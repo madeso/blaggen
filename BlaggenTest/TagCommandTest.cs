@@ -21,7 +21,7 @@ public class TagCommandTest : TestBase
 
 
     [Fact]
-    public async void ErrorRun()
+    public async Task ErrorRun()
     {
         read.AddContent(Constants.CalculateTemplateDirectory(cwd).GetFile("_post.mustache.html"), "{{content_text}}");
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
@@ -40,7 +40,7 @@ public class TagCommandTest : TestBase
 
 
     [Fact]
-    public async void SimpleRun()
+    public async Task SimpleRun()
     {
         read.AddContent(Constants.CalculateTemplateDirectory(cwd).GetFile("_post.mustache.html"), "{{content_text}}");
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");

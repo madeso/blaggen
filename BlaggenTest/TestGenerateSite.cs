@@ -20,7 +20,7 @@ public class TestGenerateSite : TestBase
     }
 
     [Fact]
-    public async void ErrorWithNoTemplates()
+    public async Task ErrorWithNoTemplates()
     {
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
 
@@ -36,7 +36,7 @@ public class TestGenerateSite : TestBase
     }
 
     [Fact]
-    public async void ErrorWithNoPosts()
+    public async Task ErrorWithNoPosts()
     {
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
         read.AddContent(Constants.CalculateTemplateDirectory(cwd).GetFile("_post.mustache.html"), "{{content_text}}");
@@ -53,7 +53,7 @@ public class TestGenerateSite : TestBase
     }
 
     [Fact]
-    public async void SimpleRun()
+    public async Task SimpleRun()
     {
         read.AddContent(Constants.CalculateTemplateDirectory(cwd).GetFile("_post.mustache.html"), "{{content_text}}");
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
@@ -74,7 +74,7 @@ public class TestGenerateSite : TestBase
     }
 
     [Fact]
-    public async void RootsShouldBeValid()
+    public async Task RootsShouldBeValid()
     {
         // missing: ({{& Url}})";
         const string mustache = "{{#roots}}{{Name}}: {{Url}}{{? IsSelected}} (selected){{/IsSelected}}\n{{/roots}}";

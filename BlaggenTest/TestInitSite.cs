@@ -9,7 +9,7 @@ namespace BlaggenTest;
 public class TestInitSite : TestBase
 {
     [Fact]
-    public async void SimpleRun()
+    public async Task SimpleRun()
     {
         var cwd = new DirectoryInfo(@"C:\test\");
 
@@ -26,7 +26,7 @@ public class TestInitSite : TestBase
     }
 
     [Fact]
-    public async void FailWithExistingSite()
+    public async Task FailWithExistingSite()
     {
         var cwd = new DirectoryInfo(@"C:\test\");
         read.AddContent(cwd.Parent!.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");

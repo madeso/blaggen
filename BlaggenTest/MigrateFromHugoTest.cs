@@ -18,7 +18,7 @@ public class MigrateFromHugoTest : TestBase
     }
 
     [Fact]
-    public async void SimpleRun()
+    public async Task SimpleRun()
     {
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
 
