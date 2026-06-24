@@ -23,7 +23,7 @@ public class TagCommandTest : TestBase
     [Fact]
     public async Task ErrorRun()
     {
-        read.AddContent(Constants.CalculateTemplateDirectory(cwd).GetFile("_post.mustache.html"), "{{content_text}}");
+        read.AddContent(Constants.CalculateTemplateDirectoryFromString(Constants.DEFAULT_TEMPLATE_NAME, cwd).GetFile("_post.mustache.html"), "{{content_text}}");
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
 
         read.AddContent(content.GetFile("post.md"), "{}\n***\nThis is a post");
@@ -42,7 +42,7 @@ public class TagCommandTest : TestBase
     [Fact]
     public async Task SimpleRun()
     {
-        read.AddContent(Constants.CalculateTemplateDirectory(cwd).GetFile("_post.mustache.html"), "{{content_text}}");
+        read.AddContent(Constants.CalculateTemplateDirectoryFromString(Constants.DEFAULT_TEMPLATE_NAME, cwd).GetFile("_post.mustache.html"), "{{content_text}}");
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
 
         read.AddContent(content.GetFile("post.md"), "{\"date\": \"2020-01-01T00:00:00\", \"tags\": {\"tags\": [\"dog\"]}}\n***\nThis is a post");

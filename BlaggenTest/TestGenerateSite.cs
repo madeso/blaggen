@@ -29,7 +29,7 @@ public class TestGenerateSite : TestBase
         {
             ret.Should().Be(-1);
             run.Messages.Should().ContainSingle().Which
-                .Should().Be($"No templates found in [red]{Constants.CalculateTemplateDirectory(cwd)}[/]");
+                .Should().Be($"No templates found in [red]{Constants.CalculateTemplateDirectoryFromString(Constants.DEFAULT_TEMPLATE_NAME, cwd)}[/]");
         }
 
         write.RemainingFiles.Should().BeEmpty();
@@ -39,7 +39,7 @@ public class TestGenerateSite : TestBase
     public async Task ErrorWithNoPosts()
     {
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
-        read.AddContent(Constants.CalculateTemplateDirectory(cwd).GetFile("_post.mustache.html"), "{{content_text}}");
+        read.AddContent(Constants.CalculateTemplateDirectoryFromString(Constants.DEFAULT_TEMPLATE_NAME, cwd).GetFile("_post.mustache.html"), "{{content_text}}");
 
         var ret = await Facade.GenerateSiteFromCurrentDirectory(run, read, write, cwd);
         using (new AssertionScope())
@@ -55,7 +55,7 @@ public class TestGenerateSite : TestBase
     [Fact]
     public async Task SimpleRun()
     {
-        read.AddContent(Constants.CalculateTemplateDirectory(cwd).GetFile("_post.mustache.html"), "{{content_text}}");
+        read.AddContent(Constants.CalculateTemplateDirectoryFromString(Constants.DEFAULT_TEMPLATE_NAME, cwd).GetFile("_post.mustache.html"), "{{content_text}}");
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
 
         read.AddContent(content.GetFile("post.md"), "{}\n***\nThis is a post");
@@ -78,8 +78,8 @@ public class TestGenerateSite : TestBase
     {
         // missing: ({{& Url}})";
         const string mustache = "{{#roots}}{{Name}}: {{Url}}{{? IsSelected}} (selected){{/IsSelected}}\n{{/roots}}";
-        read.AddContent(Constants.CalculateTemplateDirectory(cwd).GetFile("_post.mustache.html"), mustache);
-        read.AddContent(Constants.CalculateTemplateDirectory(cwd).GetFile("_dir.mustache.html"), mustache);
+        read.AddContent(Constants.CalculateTemplateDirectoryFromString(Constants.DEFAULT_TEMPLATE_NAME, cwd).GetFile("_post.mustache.html"), mustache);
+        read.AddContent(Constants.CalculateTemplateDirectoryFromString(Constants.DEFAULT_TEMPLATE_NAME, cwd).GetFile("_dir.mustache.html"), mustache);
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
 
         read.AddContent(content.GetFile("_index.md"),

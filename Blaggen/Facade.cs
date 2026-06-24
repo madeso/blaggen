@@ -137,7 +137,7 @@ public static class Facade
             return -1;
         }
 
-        var templateFolder = Constants.CalculateTemplateDirectory(root);
+        var templateFolder = Constants.CalculateTemplateDirectory(site.Data, root);
         var partialFolder = root.GetDir("partials");
 
         var templates = await TemplateDictionary.Load(run, vfs, root, templateFolder, partialFolder);
