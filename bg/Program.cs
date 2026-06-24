@@ -21,6 +21,7 @@ internal class Program
         {
             config.AddCommand<InitSiteCommand>("init");
             config.AddCommand<NewPostCommand>("new");
+            config.AddCommand<MigrateCommand>("migrate").WithAlias("from-hugo");
             config.AddCommand<GenerateCommand>("generate").WithAlias("publish").WithAlias("build");
             config.AddCommand<ServerCommand>("server").WithAlias("serve").WithAlias("dev");
 
@@ -102,6 +103,28 @@ internal sealed class GenerateCommand : AsyncCommand<GenerateCommand.Settings>
     }
 }
 
+
+[Description("Migrate a hugo blog to blaggen")]
+internal sealed class MigrateCommand : AsyncCommand<MigrateCommand.Settings>
+{
+    public sealed class Settings : CommandSettings
+    {
+    }
+
+    public override async Task<int> ExecuteAsync([NotNull] CommandContext context, [NotNull] Settings args)
+    {
+        var ret = 0;
+        await AnsiConsole.Status()
+            .StartAsync("Working...", async ctx =>
+            {
+                var run = new RunConsoleWithContext(ctx);
+                var vfs = new VfsReadFile();
+                var vfsWrite = new VfsWriteFile();
+                ret = await Facade.MigrateFromHugo(run, vfs, vfsWrite, Facade.GetCurrentDirectory());
+            });
+        return ret;
+    }
+}
 
 [Description("Start a local server and watch for changes")]
 internal sealed class ServerCommand : AsyncCommand<ServerCommand.Settings>
