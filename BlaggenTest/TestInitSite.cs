@@ -17,7 +17,7 @@ public class TestInitSite : TestBase
         using (new AssertionScope())
         {
             ret.Should().Be(0);
-            run.Errors.Should().BeEmpty();
+            run.Messages.Should().BeEmpty();
         }
 
         // test content?

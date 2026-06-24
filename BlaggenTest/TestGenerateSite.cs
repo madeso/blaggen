@@ -28,8 +28,8 @@ public class TestGenerateSite : TestBase
         using (new AssertionScope())
         {
             ret.Should().Be(-1);
-            run.Errors.Should().ContainSingle().Which
-                .Should().Be($"No templates found in {Constants.CalculateTemplateDirectory(cwd)}");
+            run.Messages.Should().ContainSingle().Which
+                .Should().Be($"No templates found in [red]{Constants.CalculateTemplateDirectory(cwd)}[/]");
         }
 
         write.RemainingFiles.Should().BeEmpty();
@@ -45,7 +45,7 @@ public class TestGenerateSite : TestBase
         using (new AssertionScope())
         {
             ret.Should().Be(-1);
-            run.Errors.Should().ContainSingle().Which
+            run.Messages.Should().ContainSingle().Which
                 .Should().Be("No pages were generated.");
         }
 

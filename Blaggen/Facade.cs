@@ -8,7 +8,9 @@ namespace Blaggen;
 
 public interface Run
 {
-    public void WriteError(string message);
+    public void WriteError(FormattableString message);
+    public void WriteInfo(FormattableString message);
+
     public bool HasError();
     public void Status(string message);
 }
@@ -22,7 +24,7 @@ public static class Facade
         var existingSite = Input.FindRoot(read, currentDirectory);
         if (existingSite != null)
         {
-            run.WriteError($"Site already exists at {existingSite.FullName}");
+            run.WriteError($"Site already exists at [red]{existingSite.FullName}[/]");
             return -1;
         }
 
@@ -50,13 +52,13 @@ public static class Facade
 
     public static async Task<int> NewPost(Run run, VfsRead vfs, VfsWrite vfsWrite, FileInfo path)
     {
-        if (vfs.Exists(path)) { run.WriteError($"Post {path} already exist"); return -1; }
+        if (vfs.Exists(path)) { run.WriteError($"Post [red]{path}[/] already exist"); return -1; }
 
         var pathDir = path.Directory;
-        if (pathDir == null) { run.WriteError($"Post {path} isn't rooted"); return -1; }
+        if (pathDir == null) { run.WriteError($"Post [red]{path}[/] isn't rooted"); return -1; }
 
         var root = Input.FindRoot(vfs, pathDir);
-        if (root == null) { run.WriteError("Unable to find root"); return -1; }
+        if (root == null) { run.WriteError($"Unable to find root"); return -1; }
 
         var site = await Input.LoadSiteData(run, vfs, root);
         if (site == null) { return -1; }
@@ -64,7 +66,7 @@ public static class Facade
         // todo(Gustav): create _index.md for each directory depending on setting
         var contentFolder = Constants.GetContentDirectory(root);
         var relative = Path.GetRelativePath(contentFolder.FullName, path.FullName);
-        if (relative.Contains("..")) { run.WriteError($"Post {pathDir} must be a subpath of {contentFolder}"); return -1; }
+        if (relative.Contains("..")) { run.WriteError($"Post [red]{pathDir}[/] must be a subpath of [blue]{contentFolder}[/]"); return -1; }
 
         var postNameBase = Path.GetFileNameWithoutExtension(path.Name);
         if (postNameBase == Constants.INDEX_NAME)
@@ -78,7 +80,7 @@ public static class Facade
         await vfsWrite.WriteAllTextAsync(path, content);
 
         Debug.Assert(run.HasError() == false);
-        AnsiConsole.MarkupLineInterpolated($"Wrote [blue]${path.FullName}[/]");
+        run.WriteInfo($"Wrote [blue]${path.FullName}[/]");
         return 0;
     }
 
@@ -86,7 +88,7 @@ public static class Facade
     public static Task<int> MigrateFromHugo(Run run, VfsRead vfsRead, VfsWrite vfsWrite, DirectoryInfo currentDirectory)
     {
         var root = Input.FindRoot(vfsRead, currentDirectory);
-        if (root == null) { run.WriteError("Unable to find root"); return Task.FromResult(-1); }
+        if (root == null) { run.WriteError($"Unable to find root"); return Task.FromResult(-1); }
 
         run.Status("Finding files");
         var contentFolder = Constants.GetContentDirectory(root);
@@ -101,13 +103,13 @@ public static class Facade
             var lines = (await vfsRead.ReadAllTextAsync(file)).Split('\n');
             if (false == Hugo.LooksLikeHugoMarkdown(lines))
             {
-                AnsiConsole.MarkupLineInterpolated($"Ignored [red]${file.FullName}[/]");
+                run.WriteInfo($"Ignored [red]${file.FullName}[/]");
                 return;
             }
             var (frontMatter, markdown) = Hugo.ParseHugoYaml(lines, file);
             var newContent = GeneratePost(markdown, frontMatter);
             await vfsWrite.WriteAllTextAsync(file, newContent);
-            AnsiConsole.MarkupLineInterpolated($"Updated [blue]${file.FullName}[/]");
+            run.WriteInfo($"Updated [blue]${file.FullName}[/]");
         });
         Task.WaitAll(writeTasks.ToArray());
 
@@ -117,7 +119,7 @@ public static class Facade
     public static async Task<int> GenerateSiteFromCurrentDirectory(Run run, VfsRead vfs, VfsWrite vfsWrite, DirectoryInfo currentDirectory)
     {
         var root = Input.FindRoot(vfs, currentDirectory);
-        if (root == null) { run.WriteError("Unable to find root"); return -1; }
+        if (root == null) { run.WriteError($"Unable to find root"); return -1; }
         var publicDir = root.GetDir("public");
 
         return await GenerateSite(true, run, vfs, vfsWrite, root, publicDir);
@@ -142,7 +144,7 @@ public static class Facade
 
         if (templates.Extensions.Count == 0)
         {
-            run.WriteError($"No templates found in {templateFolder}");
+            run.WriteError($"No templates found in [red]{templateFolder}[/]");
             return -1;
         }
 
@@ -156,13 +158,13 @@ public static class Facade
 
         if (numberOfPagesGenerated == 0)
         {
-            run.WriteError("No pages were generated.");
+            run.WriteError($"No pages were generated.");
             return -1;
         }
 
         var timeEnd = DateTime.Now;
         var timeTaken = timeEnd - timeStart;
-        if (print) AnsiConsole.MarkupLineInterpolated($"Wrote [green]{numberOfPagesGenerated}[/] files in [blue]{timeTaken}[/]");
+        if (print) run.WriteInfo($"Wrote [green]{numberOfPagesGenerated}[/] files in [blue]{timeTaken}[/]");
 
         return run.HasError() ? -1 : 0;
     }
@@ -210,12 +212,12 @@ public static class Facade
             while (true)
             {
                 if (ex == null) return;
-                run.WriteError($"Message: {ex.Message}");
+                run.WriteError($"Message: [red]{ex.Message}[/]");
                 var sr = ex.StackTrace;
                 if (sr != null)
                 {
-                    run.WriteError("Stacktrace:");
-                    run.WriteError(sr);
+                    run.WriteError($"Stacktrace:");
+                    run.WriteError($"{sr}");
                 }
                 ex = ex.InnerException;
             }
@@ -370,7 +372,7 @@ public static class Facade
 
         if (selected.Length == 0)
         {
-            run.WriteError($"{tag} is not a valid group");
+            run.WriteError($"[red]{tag}[/red] is not a valid group");
             return -1;
         }
 
@@ -378,10 +380,10 @@ public static class Facade
             .SelectMany(p => p!)
             .ToColCounter<string>()
             ;
-        AnsiConsole.WriteLine($"{keys.Keys.Count()} unique keys(s) for {tag}");
+        run.WriteInfo($"[blue]{keys.Keys.Count()}[/] unique keys(s) for [red]{tag}[red]");
         foreach (var (key, count) in keys.MostCommon())
         {
-            AnsiConsole.WriteLine($" - {key} {count}");
+            run.WriteInfo($" - [red]{key}[/red]: [blue]{count}[/blue]");
         }
 
         return 0;

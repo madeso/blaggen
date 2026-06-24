@@ -1,4 +1,5 @@
 ﻿using Blaggen;
+using Microsoft.VisualStudio.TestPlatform.CommunicationUtilities;
 
 namespace BlaggenTest;
 
@@ -121,25 +122,34 @@ internal class VfsWriteTest : VfsWrite
 
 internal class RunTest : Run
 {
-    public List<string> Errors { get; } = new();
+    private bool error = false;
+    public List<string> Messages { get; } = new();
+
+    public IEnumerable<string> Errors => error ? Messages : [];
 
     public bool HasError()
     {
-        return Errors.Count > 0;
+        return error;
     }
 
     public void Status(string message)
     {
     }
 
-    public void WriteError(string message)
+    public void WriteError(FormattableString message)
     {
-        Errors.Add(message);
+        Messages.Add(message.ToString());
+        error = true;
+    }
+
+    public void WriteInfo(FormattableString message)
+    {
+        Messages.Add(message.ToString());
     }
 
     internal string GetOutput()
     {
-        return string.Join("\n", Errors);
+        return string.Join("\n", Messages);
     }
 }
 

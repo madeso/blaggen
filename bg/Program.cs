@@ -125,7 +125,7 @@ internal sealed class ServerCommand : AsyncCommand<ServerCommand.Settings>
                 var root = Facade.FindRoot(vfsCache, Facade.GetCurrentDirectory());
                 if (root == null)
                 {
-                    run.WriteError("Unable to find root");
+                    run.WriteError($"Unable to find root");
                     ret = -1;
                     return;
                 }
@@ -161,7 +161,7 @@ internal sealed class ListTagsCommand : AsyncCommand<ListTagsCommand.Settings>
                 var root = Facade.FindRoot(vfsRead, Facade.GetCurrentDirectory());
                 if (root == null)
                 {
-                    run.WriteError("Unable to find root");
+                    run.WriteError($"Unable to find root");
                     ret = -1;
                     return;
                 }
@@ -206,7 +206,7 @@ internal sealed class AddTagCommand : AsyncCommand<AddTagCommand.Settings>
                 var root = Facade.FindRoot(vfsRead, Facade.GetCurrentDirectory());
                 if (root == null)
                 {
-                    run.WriteError("Unable to find root");
+                    run.WriteError($"Unable to find root");
                     ret = -1;
                     return;
                 }
@@ -250,7 +250,7 @@ internal sealed class RemoveTagCommand : AsyncCommand<RemoveTagCommand.Settings>
                 var root = Facade.FindRoot(vfsRead, Facade.GetCurrentDirectory());
                 if (root == null)
                 {
-                    run.WriteError("Unable to find root");
+                    run.WriteError($"Unable to find root");
                     ret = -1;
                     return;
                 }
@@ -271,10 +271,15 @@ public class RunConsole : Run
 {
     private int errorCount = 0;
 
-    public void WriteError(string message)
+    public void WriteError(FormattableString message)
     {
         AnsiConsole.MarkupLineInterpolated($"[red]ERROR[/]: {message}");
         errorCount += 1;
+    }
+
+    public void WriteInfo(FormattableString message)
+    {
+        AnsiConsole.MarkupLineInterpolated(message);
     }
 
     public bool HasError()
@@ -297,10 +302,15 @@ public class RunConsoleWithContext : Run
         this.context = ctx;
     }
 
-    public void WriteError(string message)
+    public void WriteError(FormattableString message)
     {
         AnsiConsole.MarkupLineInterpolated($"[red]ERROR[/]: {message}");
         errorCount += 1;
+    }
+
+    public void WriteInfo(FormattableString message)
+    {
+        AnsiConsole.MarkupLineInterpolated(message);
     }
 
     public bool HasError()

@@ -32,7 +32,7 @@ public class TagCommandTest : TestBase
         using (new AssertionScope())
         {
             ret.Should().Be(-1);
-            run.Errors.Should().BeEquivalentTo("tags is not a valid group");
+            run.Messages.Should().BeEquivalentTo("tags is not a valid group");
         }
 
         write.RemainingFiles.Should().BeEmpty();
@@ -52,7 +52,7 @@ public class TagCommandTest : TestBase
         using (new AssertionScope())
         {
             ret.Should().Be(0);
-            run.Errors.Should().BeEmpty();
+            run.Messages.Should().BeEmpty();
 
             write.GetLines(content.GetFile("post.md"))
                 .Should().BeEquivalentTo(

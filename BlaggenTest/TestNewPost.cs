@@ -96,7 +96,7 @@ public class TestNewPost : TestBase
             ret.Should().Be(-1);
             write.RemainingFiles.Should().BeEmpty();
             run.Errors.Should().ContainSingle()
-                .Which.Should().Be($"Post {postFile.FullName} already exist");
+                .Which.Should().Be($"Post [red]{postFile.FullName}[/] already exist");
         }
     }
 
@@ -114,7 +114,7 @@ public class TestNewPost : TestBase
         {
             ret.Should().Be(-1);
             write.RemainingFiles.Should().BeEmpty();
-            run.Errors.Should().ContainSingle()
+            run.Messages.Should().ContainSingle()
                 .Which.Should().Be("Unable to find root");
         }
     }
