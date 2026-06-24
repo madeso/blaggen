@@ -20,7 +20,7 @@ internal static class Constants
 
     internal static DirectoryInfo CalculateTemplateDirectoryFromString(string templateName, DirectoryInfo root)
     {
-        return root.GetDir("templates").GetDir(templateName);
+        return root.GetDir("themes").GetDir(templateName);
     }
 
     internal static DirectoryInfo CalculateTemplateDirectory(SiteData site, DirectoryInfo root)

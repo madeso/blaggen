@@ -17,7 +17,7 @@ internal class SiteData
     [JsonPropertyName("culture")]
     public string Culture { get; set; } = "en-US";
 
-    [JsonPropertyName("template")]
+    [JsonPropertyName("theme")]
     public string TemplateName { get; set; } = Constants.DEFAULT_TEMPLATE_NAME;
 
     [JsonPropertyName("short_date_format")]

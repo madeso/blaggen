@@ -8,6 +8,7 @@ internal class TemplateDictionary
 {
     internal ImmutableHashSet<string> Extensions { get; }
     private ImmutableDictionary<string, Func<Generate.PageData, string>> LoadedTemplates { get; } // can't use FileInfo as a key
+
     internal Func<Generate.PageData, string>? GetTemplateOrNull(FileInfo file) =>  LoadedTemplates.TryGetValue(file.FullName, out var contents) ? contents : null;
 
 
