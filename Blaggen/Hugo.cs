@@ -1,5 +1,7 @@
-﻿using System.Text.Json;
+﻿using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using Spectre.Console;
 using Tomlyn;
 using Tomlyn.Syntax;
 
@@ -51,12 +53,21 @@ internal static class Hugo
                     // https://github.com/dotnet/runtime/issues/52611
                     var json = JsonSerializer.Deserialize<JsonElement>(node.ToJsonString());
 
-                    static JsonNode ToJson(SyntaxNode? kv)
+                    static JsonNode JsonArrayFromYamlArray(ArraySyntax arr)
                     {
-                        return kv switch
+                        var arraySyntax = arr.IterChildren().ToArray();
+                        if (arraySyntax.Length != 3) throw new Exception("Weird array");
+                        var arrayBody = arraySyntax[1];
+                        var children = arrayBody.IterChildren().Select(x => ((ArrayItemSyntax)x).Value).ToArray();
+                        return new JsonArray(children.Select(ToJson).ToArray());
+                    }
+
+                    static JsonNode ToJson(SyntaxNode? yamlKeyVal)
+                    {
+                        return yamlKeyVal switch
                         {
                             null => null,
-                            ArraySyntax arr => new JsonArray(arr.IterChildren().Select(ToJson).ToArray()),
+                            ArraySyntax arr => JsonArrayFromYamlArray(arr),
                             BareKeySyntax v => JsonValue.Create(v.Key?.Text),
                             StringValueSyntax v => JsonValue.Create(v.Value),
                             // BareKeyOrStringValueSyntax v => throw new NotImplementedException(),
@@ -67,7 +78,7 @@ internal static class Hugo
                             InlineTableSyntax inlineTableSyntax => throw new NotImplementedException(),
                             IntegerValueSyntax v => JsonValue.Create(v.Value),
                             KeySyntax key => ToJson(key.Key),
-                            _ => throw new ArgumentOutOfRangeException(nameof(kv))
+                            _ => throw new ArgumentOutOfRangeException(nameof(yamlKeyVal))
                         } ?? throw new NullReferenceException();
                     }
 

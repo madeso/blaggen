@@ -44,6 +44,7 @@ public class MigrateFromHugoTest : TestBase
             date = 2022-09-27T05:26:12Z
             draft = false
             title = "Cool"
+            people = ["Dude", "Car"]
             +++
             Cool!
             """);
