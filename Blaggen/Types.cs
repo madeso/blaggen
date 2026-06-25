@@ -5,6 +5,19 @@ using System.Text.Json.Serialization;
 
 namespace Blaggen;
 
+// Taxonomy / Term / Value(the posts)
+internal class Taxonomy
+{
+    [JsonPropertyName("singular")]
+    public string Singular { get; set; } = string.Empty;
+
+    [JsonPropertyName("plural")]
+    public string Plural { get; set; } = string.Empty;
+
+    // todo(Gustav): introduce later to speed up generation
+    // [JsonPropertyName("terms")]
+    // public HashSet<string> Terms { get; set; } = new HashSet<string>();
+}
 
 internal class SiteData
 {
@@ -25,6 +38,9 @@ internal class SiteData
 
     [JsonPropertyName("long_date_format")]
     public string LongDateFormat { get; set; } = "G";
+
+    [JsonPropertyName("tags")]
+    public Dictionary<string, Taxonomy> Tags = new Dictionary<string, Taxonomy>();
 
     [JsonPropertyName("url")]
     public string BaseUrl { get; set; } = string.Empty;
@@ -57,6 +73,11 @@ public class FrontMatter
 
     [JsonPropertyName("date")]
     public DateTime Date { get; set; } = DateTime.Now;
+
+    // if whitespace or empty, the value is _default and is the template type to use
+    [JsonPropertyName("type")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Type { get; set; } = null;
 
     // a dictionary since there is a difference between tags the concept and "tags" the tag
     // a site could also choose to tag posts with "authors", group or whatever tags may fit the content
