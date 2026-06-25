@@ -321,7 +321,7 @@ internal static class Generate
         var groupPages = tags.Select(tag =>
                 new GroupPage(templateFolders, publicDir, tag.Display, publicDir.GetFile(tag.Relative),
                     $"<h1>{tag.Display}</h1", tag.Display,
-                    tag.Items.Select(x => new SummaryForPost(x.Display, "", "", x.Relative, $"{x.Posts.Length}", "", "", $"{tag.Relative}/{x.Relative}.html")).ToImmutableArray(), true, tag.Relative
+                    [..tag.Items.Select(x => new SummaryForPost(x.Display, "", "", x.Relative, $"{x.Posts.Length}", "", "", $"{tag.Relative}/{x.Relative}.html"))], true, tag.Relative
                 )).ToArray();
 
         // generate each page: bruce willis/whatever/etc
@@ -329,12 +329,12 @@ internal static class Generate
             new GroupPage(ImmutableArray.Create(templates.GetSubDirs(tag.Relative), templates),
                 publicDir.GetDir(group.Relative), tag.Display, publicDir.GetDir(group.Relative).GetFile(tag.Relative),
                 $"<h1>{tag.Display}</h1>", tag.Display,
-                tag.Posts
-                    .Select(p=>MakeSummaryForPost(p, site)).ToImmutableArray(), false, group.Relative
-                )
-        )).ToArray();
+                [..tag.Posts.Select(p=>MakeSummaryForPost(p, site))],
+                false, group.Relative
+            )
+        )).ToImmutableArray();
         
-        return groupPages.Concat(eachTagPage).ToImmutableArray();
+        return [..groupPages.Concat(eachTagPage)];
 
         static ImmutableArray<Post> PagesWithTags(ImmutableArray<PageToWrite> pages, string groupName, string groupValue)
         {
