@@ -122,14 +122,14 @@ public static class Facade
         if (root == null) { run.WriteError($"Unable to find root"); return -1; }
         var publicDir = root.GetDir("public");
 
-        return await GenerateSite(true, run, vfs, vfsWrite, root, publicDir);
+        return await GenerateSite(run, vfs, vfsWrite, root, publicDir);
     }
 
-    public static async Task<int> GenerateSite(bool print, Run run, VfsRead vfs, VfsWrite vfsWrite, DirectoryInfo root, DirectoryInfo publicDir)
+    public static async Task<int> GenerateSite(Run run, VfsRead vfs, VfsWrite vfsWrite, DirectoryInfo root, DirectoryInfo publicDir)
     {
         var timeStart = DateTime.Now;
 
-        if (print) run.Status("Parsing directory");
+        run.Status("Parsing directory");
 
         var site = await Input.LoadSite(run, vfs, root);
         if (site == null)
@@ -141,17 +141,17 @@ public static class Facade
         var partialFolder = root.GetDir("partials");
 
         var templates = await TemplateDictionary.Load(run, vfs, root, templateFolder, partialFolder);
-
         if (templates.Extensions.Count == 0)
         {
             run.WriteError($"No templates found in [red]{templateFolder}[/]");
             return -1;
         }
 
-        if (print) run.Status("Writing data to disk");
+        run.Status("Writing data to disk");
         var pages = Generate.ListPagesForSite(site, publicDir, templateFolder).ToImmutableArray();
         var tags = Generate.CollectTagPages(site, publicDir, templateFolder, pages);
         var roots = Generate.CollectRoots(pages, tags);
+
         var numberOfPagesGenerated =
             await Generate.WriteAllPages(roots, pages, tags, run, vfsWrite, site, publicDir, templates);
         // todo(Gustav): copy static files
@@ -164,7 +164,7 @@ public static class Facade
 
         var timeEnd = DateTime.Now;
         var timeTaken = timeEnd - timeStart;
-        if (print) run.WriteInfo($"Wrote [green]{numberOfPagesGenerated}[/] files in [blue]{timeTaken}[/]");
+        run.WriteInfo($"Wrote [green]{numberOfPagesGenerated}[/] files in [blue]{timeTaken}[/]");
 
         return run.HasError() ? -1 : 0;
     }
@@ -243,7 +243,7 @@ public static class Facade
         VfsCachedFileRead vfsCache, ServerVfs serverVfs, DirectoryInfo root, ConsoleKey abortKey)
     {
         var publicDir = root.GetDir("public");
-        await GenerateSite(false, run, vfsCache, serverVfs, root, publicDir);
+        await GenerateSite(run, vfsCache, serverVfs, root, publicDir);
 
         var watchForChanges = true;
 
@@ -302,7 +302,7 @@ public static class Facade
                 }
 
                 // todo(Gustav): print only errors
-                await GenerateSite(false, run, vfsCache, serverVfs, root, publicDir);
+                await GenerateSite(run, vfsCache, serverVfs, root, publicDir);
             }
 
             return 0;
