@@ -131,7 +131,7 @@ public static class Facade
 
         run.Status("Parsing directory");
 
-        var site = await Input.LoadSite(run, vfs, root);
+        var site = await Input.LoadEntireSite(run, vfs, root);
         if (site == null)
         {
             return -1;
@@ -337,7 +337,7 @@ public static class Facade
     public static async Task<int> ListGroups(Run run, VfsReadFile vfs, DirectoryInfo root)
     {
         run.Status("Parsing directory");
-        var site = await Input.LoadSite(run, vfs, root);
+        var site = await Input.LoadEntireSite(run, vfs, root);
         if (site == null)
         {
             return -1;
@@ -358,7 +358,7 @@ public static class Facade
     public static async Task<int> LisGroupsWithTag(Run run, VfsReadFile vfs, DirectoryInfo root, string tag)
     {
         run.Status("Parsing directory");
-        var site = await Input.LoadSite(run, vfs, root);
+        var site = await Input.LoadEntireSite(run, vfs, root);
         if (site == null)
         {
             return -1;
@@ -460,7 +460,7 @@ public static class Facade
     private static async Task<ImmutableArray<Post>> ExtractPostsWhere(Run run, VfsRead vfs, DirectoryInfo root, string group, string where)
     {
         run.Status("Parsing directory");
-        var site = await Input.LoadSite(run, vfs, root);
+        var site = await Input.LoadEntireSite(run, vfs, root);
         if (site == null)
         {
             return ImmutableArray<Post>.Empty;

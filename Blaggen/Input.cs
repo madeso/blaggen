@@ -178,7 +178,7 @@ internal static class Input
     }
 
 
-    internal static async Task<Site?> LoadSite(Run run, VfsRead vfs, DirectoryInfo root)
+    internal static async Task<Site?> LoadEntireSite(Run run, VfsRead vfs, DirectoryInfo root)
     {
         var data = await LoadSiteData(run, vfs, root);
         if (data == null) { return null; }
