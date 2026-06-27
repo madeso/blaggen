@@ -11,7 +11,7 @@ internal class TemplateDictionary
     }
 
 
-    internal static async Task<TemplateDictionary> Load(Run run, VfsRead vfs, DirectoryInfo root, DirectoryInfo templateFolder, DirectoryInfo partialFolder)
+    internal static async Task<TemplateDictionary?> Load(Run run, VfsRead vfs, DirectoryInfo root, DirectoryInfo templateFolder, DirectoryInfo partialFolder)
     {
         // todo(Gustav): warn if template files are missing
         var template_files = vfs.GetFilesRec(templateFolder)
@@ -65,23 +65,7 @@ internal static class Input
         return current;
     }
 
-
-    private static Post? ParsePost(Run run, IEnumerable<string> lines, FileInfo file, ImmutableArray<string> relativePath, MarkdownParser markdown)
-    {
-        var (frontmatter, markdownContent) = ParsePostToTuple(run, lines, file);
-
-        if (frontmatter == null)
-        {
-            return null;
-        }
-
-        return CreatePost(file, relativePath, markdown, markdownContent, frontmatter);
-    }
-
-
-    internal static (FrontMatter? frontmatter, string markdownContent) ParsePostToTuple(Run run,
-        IEnumerable<string> lines,
-        FileInfo file)
+    internal static (FrontMatter? frontmatter, string markdownContent) ParsePostToTuple(Run run, IEnumerable<string> lines, FileInfo file)
     {
         var (frontmatter_source, markdown_source) = ParseGenericPostData(lines, file, FRONTMATTER_SEP,
             lt => lt is SOURCE_START or SOURCE_END, skips: 0);
@@ -96,21 +80,21 @@ internal static class Input
         return string.Join('\n', SOURCE_START, json, SOURCE_END, FRONTMATTER_SEP, post.Markdown);
     }
 
-    internal static string GenerateSummary(string markdownText)
+    internal static string GenerateSummary(string text)
     {
         // hacky way to generate a summary
         const string ELLIPSIS = "...";
         const int WORDS_IN_AUTO_SUMMARY = 25;
 
-        var lines_without_ending_dot = markdownText
+        var lines_without_ending_dot = text
             .Split('\n', StringSplitOptions.TrimEntries)
             .Select(x => x.TrimEnd('.').Trim()); // split into lines and remove ending dot
         // todo(Gustav): normalize whitespace
         var sentences = string.Join(". ", lines_without_ending_dot); // join into a long string again with a dot at the end
         var summary = string.Join(' ', sentences.Split(' ').Take(WORDS_IN_AUTO_SUMMARY)) + ELLIPSIS;
-        return summary.Length < markdownText.Length
+        return summary.Length < text.Length
                 ? summary
-                : markdownText
+                : text
             ;
     }
 
@@ -149,76 +133,30 @@ internal static class Input
     }
 
 
-    internal static async Task<SiteData?> LoadSiteData(Run run, VfsRead vfs, DirectoryInfo root)
+    internal static async Task<SiteConfig?> LoadSiteConfig(Run run, VfsRead vfs, DirectoryInfo root)
     {
         var path = root.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION);
-        return await JsonUtil.Load<SiteData>(run, vfs, path);
+        return await JsonUtil.Load<SiteConfig>(run, vfs, path);
     }
 
 
     internal static async Task<Site?> LoadEntireSite(Run run, VfsRead vfs, DirectoryInfo root)
     {
-        var data = await LoadSiteData(run, vfs, root);
-        if (data == null) { return null; }
+        var config = await LoadSiteConfig(run, vfs, root);
+        if (config == null) { return null; }
 
         var markdown = new MarkdownParser();
 
-        var content = await LoadDir(run, vfs, Constants.GetContentDirectory(root), ImmutableArray.Create<string>(), true, markdown);
+        var content = await LoadDir(run, vfs, Constants.GetContentDirectory(root), [], markdown);
         if (content == null) { return null; }
 
-        return new Site(data, content);
+        return new Site(config, content);
     }
 
 
-    private static async Task<Section?> LoadDir(Run run, VfsRead vfs, DirectoryInfo root, ImmutableArray<string> relativePaths, bool isContentFolder, MarkdownParser markdown)
+    private static async Task<Section?> LoadDir(Run run, VfsRead vfs, DirectoryInfo root, ImmutableArray<string> relative_paths, MarkdownParser markdown)
     {
-        var name = root.Name;
-        var relativePathsIncludingSelf = isContentFolder ? relativePaths : relativePaths.Add(name);
-
-        var markdownFiles = vfs.GetFiles(root).Where(f => f.Extension == ".md");
-        var postFiles = await LoadPosts(run, vfs, markdownFiles, relativePathsIncludingSelf, markdown).ToListAsync();
-        var dirs = await LoadDirsWithoutNulls(run, vfs, vfs.GetDirectories(root), relativePathsIncludingSelf, markdown).ToListAsync();
-
-        // remove dirs that only contain a index
-        var dirsAsPosts = dirs.Where(dir => dir.Posts.Length == 1 && dir.Posts[0].Name == Constants.INDEX_NAME).ToImmutableArray();
-        var dirsToRemove = dirsAsPosts.Select(dir => dir.Id).ToImmutableHashSet();
-        dirs.RemoveAll(dir => dirsToRemove.Contains(dir.Id));
-
-        // "move" those index pages one level up and promote to regular pages
-        var additionalPosts = dirsAsPosts.Select(dir => dir.Posts[0])
-            .Select(post => new {Post=post, Name=post.SourceFile.Directory?.Name})
-            .Where(data => data.Name != null, data => run.WriteError($"{data.Post.Name} is missing a directory: {data.Post.SourceFile}"))
-            .Select(data => data.Post with { IsIndex = false, RelativePath = data.Post.RelativePath.PopBack(), Name = data.Name! })
-            ;
-
-        // todo(Gustav): if dir is missing a entry, optionally add a empty _index page
-
-        // todo(Gustav): figure out a better Section title
-        var posts = postFiles.Concat(additionalPosts).OrderByDescending(p => p.Front.Date).ToImmutableArray();
-        return new Section(Guid.NewGuid(), name, name, posts, dirs.ToImmutableArray());
-
-        static async IAsyncEnumerable<Section> LoadDirsWithoutNulls(Run run, VfsRead vfs, IEnumerable<DirectoryInfo> dirs, ImmutableArray<string> relativePaths, MarkdownParser markdown)
-        {
-            foreach (var d in dirs)
-            {
-                if (d == null) { continue; }
-
-                var dir = await LoadDir(run, vfs, d, relativePaths, false, markdown);
-                if (dir == null) { continue; }
-
-                yield return dir;
-            }
-        }
-
-        static async IAsyncEnumerable<Post> LoadPosts(Run run, VfsRead vfs, IEnumerable<FileInfo> files, ImmutableArray<string> relativePaths, MarkdownParser markdown)
-        {
-            foreach (var f in files)
-            {
-                var post = ParsePost(run, (await vfs.ReadAllTextAsync(f)).Split('\n'), f, relativePaths, markdown);
-                if (post == null) { continue; }
-
-                yield return post;
-            }
-        }
+        // todo(Gustav): implement
+        return null;
     }
 }

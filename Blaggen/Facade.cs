@@ -28,7 +28,7 @@ public static class Facade
             return -1;
         }
 
-        var site = new SiteData { Name = "My new blog" };
+        var site = new SiteConfig { Name = "My new blog" };
         var site_path = currentDirectory.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION);
         await vfs.WriteAllTextAsync(site_path, JsonUtil.Write(site));
 
@@ -60,7 +60,7 @@ public static class Facade
         var root = Input.FindRoot(vfs, path_dir);
         if (root == null) { run.WriteError($"Unable to find root"); return -1; }
 
-        var site = await Input.LoadSiteData(run, vfs, root);
+        var site = await Input.LoadSiteConfig(run, vfs, root);
         if (site == null) { return -1; }
 
         // todo(Gustav): create _index.md for each directory depending on setting
@@ -139,21 +139,22 @@ public static class Facade
             return -1;
         }
 
-        var template_folder = Constants.CalculateTemplateDirectory(site.Data, root);
+        var template_folder = Constants.CalculateTemplateDirectory(site.Config, root);
         var partial_folder = root.GetDir("partials");
 
         var templates = await TemplateDictionary.Load(run, vfs, root, template_folder, partial_folder);
-        if (templates.Extensions.Count == 0)
+        if (templates == null)
         {
             run.WriteError($"No templates found in [red]{template_folder}[/]");
             return -1;
         }
 
         // todo(Gustav): generate page
+        int number_of_pages_generated = -42;
 
         var time_end = DateTime.Now;
         var time_taken = time_end - time_start;
-        run.WriteInfo($"Wrote [green]{numberOfPagesGenerated}[/] files in [blue]{time_taken}[/]");
+        run.WriteInfo($"Wrote [green]{number_of_pages_generated}[/] files in [blue]{time_taken}[/]");
 
         return run.HasError() ? -1 : 0;
     }

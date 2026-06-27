@@ -19,7 +19,7 @@ internal class Taxonomy
     // public HashSet<string> Terms { get; set; } = new HashSet<string>();
 }
 
-internal class SiteData
+internal class SiteConfig
 {
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
@@ -31,7 +31,7 @@ internal class SiteData
     public string Culture { get; set; } = "en-US";
 
     [JsonPropertyName("theme")]
-    public string TemplateName { get; set; } = Constants.DEFAULT_TEMPLATE_NAME;
+    public string TemplateName { get; set; } = "theme";
 
     [JsonPropertyName("short_date_format")]
     public string ShortDateFormat { get; set; } = "g";
@@ -90,4 +90,4 @@ public class FrontMatter
 // todo(Gustav): add associated files to be generated...
 internal record Post(Guid Id, bool IsIndex, ImmutableArray<string> RelativePath, FrontMatter Front, FileInfo SourceFile, string Name, string MarkdownHtml, string MarkdownPlainText, string Markdown);
 internal record Section(Guid Id, string Title, string Name, ImmutableArray<Post> Posts, ImmutableArray<Section> Dirs);
-internal record Site(SiteData Data, Section Root);
+internal record Site(SiteConfig Config, Section Root);

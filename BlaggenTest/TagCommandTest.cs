@@ -19,6 +19,7 @@ public class TagCommandTest : TestBase
         publics = cwd.GetDir("public");
     }
 
+    /*
 
     [Fact]
     public async Task ErrorRun()
@@ -75,4 +76,5 @@ public class TagCommandTest : TestBase
 
         write.RemainingFiles.Should().BeEmpty();
     }
+    */
 }

@@ -74,6 +74,6 @@ internal static class Generate
     {
         var rel = post.IsIndex ? post.RelativePath.PopBack() : post.RelativePath;
         var relative = string.Join('/', rel.Add("index"));
-        return $"{site.Data.Url}/{relative}";
+        return $"{site.Config.Url}/{relative}";
     }
 }

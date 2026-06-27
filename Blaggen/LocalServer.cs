@@ -18,18 +18,18 @@ public class ServerVfs : VfsWrite
     internal string? GetContent(string url)
     {
         var split = url.Split('/', StringSplitOptions.RemoveEmptyEntries).ToImmutableArray();
-        var pathToFileSplit = url.EndsWith('/') ? split.Concat(new[] { "index.html" }) : split;
+        var path_to_file_split = url.EndsWith('/') ? split.Concat(["index.html"]) : split;
 
-        var relativePath = string.Join(Path.DirectorySeparatorChar, pathToFileSplit);
+        var relative_path = string.Join(Path.DirectorySeparatorChar, path_to_file_split);
 
-        var fullPath = Path.Join(root.FullName, relativePath);
-        if (content.TryGetValue(fullPath, out var fileData) == false)
+        var full_path = Path.Join(root.FullName, relative_path);
+        if (content.TryGetValue(full_path, out var file_data) == false)
         {
             // AnsiConsole.WriteLine($"Generated path {fullPath} for {relativePath} in directory {Root.FullName}");
             return null;
         }
 
-        return fileData;
+        return file_data;
     }
 
     public Task WriteAllTextAsync(FileInfo path, string contents)

@@ -9,11 +9,11 @@ using Markdown.ColorCode;
 
 namespace Blaggen;
 
-internal record ParsedMarkdown(MarkdownDocument Doc, MarkdownPipeline pipeline)
+internal record ParsedMarkdown(MarkdownDocument Doc, MarkdownPipeline Pipeline)
 {
     internal string ToHtml()
     {
-        return Doc.ToHtml(pipeline);
+        return Doc.ToHtml(Pipeline);
     }
 
     internal string ToPlainText()
@@ -26,7 +26,7 @@ internal record ParsedMarkdown(MarkdownDocument Doc, MarkdownPipeline pipeline)
             EnableHtmlForInline = false,
             EnableHtmlEscape = false,
         };
-        pipeline.Setup(renderer);
+        Pipeline.Setup(renderer);
 
         renderer.Render(Doc);
         writer.Flush();

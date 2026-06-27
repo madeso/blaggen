@@ -14,7 +14,7 @@ internal static class Constants
         return root.GetDir("themes").GetDir(templateName);
     }
 
-    internal static DirectoryInfo CalculateTemplateDirectory(SiteData site, DirectoryInfo root)
+    internal static DirectoryInfo CalculateTemplateDirectory(SiteConfig site, DirectoryInfo root)
     {
         return CalculateTemplateDirectoryFromString(site.TemplateName, root);
     }
