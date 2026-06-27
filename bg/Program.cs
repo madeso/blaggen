@@ -190,8 +190,8 @@ internal sealed class ListTagsCommand : AsyncCommand<ListTagsCommand.Settings>
                 }
 
                 ret = string.IsNullOrWhiteSpace(args.Name)
-                    ? await Facade.ListGroups(run, vfsRead, root)
-                    : await Facade.LisGroupsWithTag(run, vfsRead, root, args.Name)
+                    ? await Facade.ListTaxonomies(run, vfsRead, root)
+                    : await Facade.ListTermsForTaxonomy(run, vfsRead, root, args.Name)
                     ;
             });
         return ret;
@@ -236,7 +236,7 @@ internal sealed class AddTagCommand : AsyncCommand<AddTagCommand.Settings>
 
                 var vfsWrite = new VfsWriteFile();
 
-                ret = await Facade.AddTagsToGroup(run, vfsRead, vfsWrite, root, args.Group, args.Where, args.What);
+                ret = await Facade.AddAdditionalTermToTaxonomy(run, vfsRead, vfsWrite, root, args.Group, args.Where, args.What);
             });
         return ret;
     }

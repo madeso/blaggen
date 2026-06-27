@@ -6,27 +6,19 @@ namespace Blaggen;
 
 internal class TemplateDictionary
 {
-    internal ImmutableHashSet<string> Extensions { get; }
-    private ImmutableDictionary<string, Func<Generate.PageData, string>> LoadedTemplates { get; } // can't use FileInfo as a key
-
-    internal Func<Generate.PageData, string>? GetTemplateOrNull(FileInfo file) =>  LoadedTemplates.TryGetValue(file.FullName, out var contents) ? contents : null;
-
-
-    private TemplateDictionary(ImmutableDictionary<string, Func<Generate.PageData, string>> td, ImmutableHashSet<string> ex)
+    private TemplateDictionary()
     {
-        Extensions = ex;
-        LoadedTemplates = td;
     }
 
 
     internal static async Task<TemplateDictionary> Load(Run run, VfsRead vfs, DirectoryInfo root, DirectoryInfo templateFolder, DirectoryInfo partialFolder)
     {
         // todo(Gustav): warn if template files are missing
-        var templateFiles = vfs.GetFilesRec(templateFolder)
-            .Where(f => f.Name.Contains(Constants.MUSTACHE_TEMPLATE_POSTFIX))
+        var template_files = vfs.GetFilesRec(templateFolder)
+            .Where(f => f.Name.Contains(""))
             .ToImmutableArray();
 
-        var unloaded = templateFiles.Select(
+        var unloaded = template_files.Select(
             async file => new
             {
                 File = file,
@@ -47,8 +39,8 @@ internal class TemplateDictionary
                 .ToImmutableDictionary(x => x.File.FullName, x => x.Parsed.Item1)
             ;
 
-        var extensions = templateFiles.Select(file => file.Extension.ToLowerInvariant()).ToImmutableHashSet();
-        return new TemplateDictionary(dict, extensions);
+        var extensions = template_files.Select(file => file.Extension.ToLowerInvariant()).ToImmutableHashSet();
+        return new TemplateDictionary();
     }
 }
 
@@ -91,11 +83,11 @@ internal static class Input
         IEnumerable<string> lines,
         FileInfo file)
     {
-        var (frontmatterSource, markdownSource) = ParseGenericPostData(lines, file, FRONTMATTER_SEP,
+        var (frontmatter_source, markdown_source) = ParseGenericPostData(lines, file, FRONTMATTER_SEP,
             lt => lt is SOURCE_START or SOURCE_END, skips: 0);
 
-        var frontmatter = JsonUtil.Parse<FrontMatter>(run, file, frontmatterSource);
-        return (frontmatter, markdownSource);
+        var frontmatter = JsonUtil.Parse<FrontMatter>(run, file, frontmatter_source);
+        return (frontmatter, markdown_source);
     }
 
     internal static string PostToFileData(Post post)
@@ -104,70 +96,56 @@ internal static class Input
         return string.Join('\n', SOURCE_START, json, SOURCE_END, FRONTMATTER_SEP, post.Markdown);
     }
 
-
-    internal static Post CreatePost(FileInfo file, ImmutableArray<string> relativePath, MarkdownParser markdown, string markdownContent,
-        FrontMatter frontmatter)
+    internal static string GenerateSummary(string markdownText)
     {
-        var markdownDocument = markdown.Parse(markdownContent);
-        var markdownHtml = markdownDocument.ToHtml();
-        var markdownText = markdownDocument.ToPlainText();
+        // hacky way to generate a summary
+        const string ELLIPSIS = "...";
+        const int WORDS_IN_AUTO_SUMMARY = 25;
 
-        if (string.IsNullOrEmpty(frontmatter.Summary))
-        {
-            // hacky way to generate a summary
-            const string ELLIPSIS = "...";
-            const int WORDS_IN_AUTO_SUMMARY = 25;
-
-            var linesWithoutEndingDot = markdownText
-                .Split('\n', StringSplitOptions.TrimEntries)
-                .Select(x => x.TrimEnd('.').Trim()); // split into lines and remove ending dot
-            // todo(Gustav): normalize whitespace
-            var sentences = string.Join(". ", linesWithoutEndingDot); // join into a long string again with a dot at the end
-            var summary = string.Join(' ', sentences.Split(' ').Take(WORDS_IN_AUTO_SUMMARY)) + ELLIPSIS;
-            frontmatter.Summary = summary.Length < markdownText.Length
-                    ? summary
-                    : markdownText
-                ;
-        }
-
-        var nameWithoutExtension = Path.GetFileNameWithoutExtension(file.Name);
-
-        return new Post(Guid.NewGuid(), nameWithoutExtension == Constants.INDEX_NAME,
-            relativePath.Add(nameWithoutExtension), frontmatter, file, nameWithoutExtension, markdownHtml, markdownText, markdownContent);
+        var lines_without_ending_dot = markdownText
+            .Split('\n', StringSplitOptions.TrimEntries)
+            .Select(x => x.TrimEnd('.').Trim()); // split into lines and remove ending dot
+        // todo(Gustav): normalize whitespace
+        var sentences = string.Join(". ", lines_without_ending_dot); // join into a long string again with a dot at the end
+        var summary = string.Join(' ', sentences.Split(' ').Take(WORDS_IN_AUTO_SUMMARY)) + ELLIPSIS;
+        return summary.Length < markdownText.Length
+                ? summary
+                : markdownText
+            ;
     }
 
 
-    internal static (string frontmatter, string markdown) ParseGenericPostData(IEnumerable<string> lines, FileInfo file, string contentSeparator, Func<string, bool> frontMatterIgnores, int skips)
+    internal static (string frontmatter, string markdown) ParseGenericPostData(IEnumerable<string> lines, FileInfo file, string content_separator, Func<string, bool> front_matter_ignores, int skips)
     {
-        var frontmatterJson = new StringBuilder();
-        var markdownContent = new StringBuilder();
-        var parsingFrontmatter = true;
+        var frontmatter = new StringBuilder();
+        var markdown = new StringBuilder();
+        var is_parsing_frontmatter = true;
 
         foreach (var line in lines.Skip(skips))
         {
-            if (parsingFrontmatter)
+            if (is_parsing_frontmatter)
             {
                 var lt = line.Trim();
-                if (lt.Contains(contentSeparator))
+                if (lt.Contains(content_separator))
                 {
-                    parsingFrontmatter = false;
+                    is_parsing_frontmatter = false;
                     continue;
                 }
 
-                if (frontMatterIgnores(lt))
+                if (front_matter_ignores(lt))
                 {
                     continue;
                 }
 
-                frontmatterJson.AppendLine(line);
+                frontmatter.AppendLine(line);
             }
             else
             {
-                markdownContent.AppendLine(line);
+                markdown.AppendLine(line);
             }
         }
 
-        return (frontmatterJson.ToString(), markdownContent.ToString());
+        return (frontmatter.ToString(), markdown.ToString());
     }
 
 
@@ -192,7 +170,7 @@ internal static class Input
     }
 
 
-    private static async Task<Dir?> LoadDir(Run run, VfsRead vfs, DirectoryInfo root, ImmutableArray<string> relativePaths, bool isContentFolder, MarkdownParser markdown)
+    private static async Task<Section?> LoadDir(Run run, VfsRead vfs, DirectoryInfo root, ImmutableArray<string> relativePaths, bool isContentFolder, MarkdownParser markdown)
     {
         var name = root.Name;
         var relativePathsIncludingSelf = isContentFolder ? relativePaths : relativePaths.Add(name);
@@ -215,11 +193,11 @@ internal static class Input
 
         // todo(Gustav): if dir is missing a entry, optionally add a empty _index page
 
-        // todo(Gustav): figure out a better Dir title
+        // todo(Gustav): figure out a better Section title
         var posts = postFiles.Concat(additionalPosts).OrderByDescending(p => p.Front.Date).ToImmutableArray();
-        return new Dir(Guid.NewGuid(), name, name, posts, dirs.ToImmutableArray());
+        return new Section(Guid.NewGuid(), name, name, posts, dirs.ToImmutableArray());
 
-        static async IAsyncEnumerable<Dir> LoadDirsWithoutNulls(Run run, VfsRead vfs, IEnumerable<DirectoryInfo> dirs, ImmutableArray<string> relativePaths, MarkdownParser markdown)
+        static async IAsyncEnumerable<Section> LoadDirsWithoutNulls(Run run, VfsRead vfs, IEnumerable<DirectoryInfo> dirs, ImmutableArray<string> relativePaths, MarkdownParser markdown)
         {
             foreach (var d in dirs)
             {

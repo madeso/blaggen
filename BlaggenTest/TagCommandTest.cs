@@ -28,7 +28,7 @@ public class TagCommandTest : TestBase
 
         read.AddContent(content.GetFile("post.md"), "{}\n***\nThis is a post");
 
-        var ret = await Facade.AddTagsToGroup(run, read, write, cwd, "tags", "dog", "cat");
+        var ret = await Facade.AddAdditionalTermToTaxonomy(run, read, write, cwd, "tags", "dog", "cat");
         using (new AssertionScope())
         {
             ret.Should().Be(-1);
@@ -48,7 +48,7 @@ public class TagCommandTest : TestBase
         read.AddContent(content.GetFile("post.md"), "{\"date\": \"2020-01-01T00:00:00\", \"tags\": {\"tags\": [\"dog\"]}}\n***\nThis is a post");
         read.AddContent(content.GetFile("untouched.md"), "{}\n***\nThis post is untouched");
 
-        var ret = await Facade.AddTagsToGroup(run, read, write, cwd, "tags", "dog", "cat");
+        var ret = await Facade.AddAdditionalTermToTaxonomy(run, read, write, cwd, "tags", "dog", "cat");
         using (new AssertionScope())
         {
             ret.Should().Be(0);

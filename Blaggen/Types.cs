@@ -79,10 +79,9 @@ public class FrontMatter
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Type { get; set; } = null;
 
-    // a dictionary since there is a difference between tags the concept and "tags" the tag
-    // a site could also choose to tag posts with "authors", group or whatever tags may fit the content
-    [JsonPropertyName("tags")]
-    public Dictionary<string, HashSet<string>> TagData { get; set; } = new();
+    // note: tag concept is a kind of taxonomy, as is category
+    [JsonPropertyName("taxonomy")]
+    public Dictionary<string, HashSet<string>> TaxonomyData { get; set; } = new();
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
@@ -90,5 +89,5 @@ public class FrontMatter
 
 // todo(Gustav): add associated files to be generated...
 internal record Post(Guid Id, bool IsIndex, ImmutableArray<string> RelativePath, FrontMatter Front, FileInfo SourceFile, string Name, string MarkdownHtml, string MarkdownPlainText, string Markdown);
-internal record Dir(Guid Id, string Title, string Name, ImmutableArray<Post> Posts, ImmutableArray<Dir> Dirs);
-internal record Site(SiteData Data, Dir Root);
+internal record Section(Guid Id, string Title, string Name, ImmutableArray<Post> Posts, ImmutableArray<Section> Dirs);
+internal record Site(SiteData Data, Section Root);
