@@ -69,7 +69,7 @@ public static class Facade
         if (relative.Contains("..")) { run.WriteError($"Post [red]{path_dir}[/] must be a subpath of [blue]{content_folder}[/]"); return -1; }
 
         var post_name_base = Path.GetFileNameWithoutExtension(path.Name);
-        if (post_name_base == Constants.INDEX_NAME)
+        if (post_name_base == Constants.SECTION_INDEX_NAME)
         {
             post_name_base = path.Directory!.Name;
         }

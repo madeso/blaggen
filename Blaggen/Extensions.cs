@@ -84,6 +84,17 @@ internal static class IterTools
         }
     }
 
+    internal static IEnumerable<T> NonNull<T>(this IEnumerable<T?> src)
+    {
+        foreach (var t in src)
+        {
+            if (t != null)
+            {
+                yield return t;
+            }
+        }
+    }
+
     internal static async Task<List<T>> ToListAsync<T>(this IAsyncEnumerable<T> asyncEnumerable)
     {
         if (null == asyncEnumerable)

@@ -87,7 +87,12 @@ public class FrontMatter
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }
 
+enum PostType
+{
+    Post, Section
+}
+
 // todo(Gustav): add associated files to be generated...
-internal record Post(Guid Id, bool IsIndex, ImmutableArray<string> RelativePath, FrontMatter Front, FileInfo SourceFile, string Name, string MarkdownHtml, string MarkdownPlainText, string Markdown);
-internal record Section(Guid Id, string Title, string Name, ImmutableArray<Post> Posts, ImmutableArray<Section> Dirs);
+internal record Post(PostType Type, FrontMatter Front, FileInfo SourceFile, string Markdown);
+internal record Section(Post? Post, ImmutableArray<Post>? Posts, ImmutableArray<Section> Dirs);
 internal record Site(SiteConfig Config, Section Root);

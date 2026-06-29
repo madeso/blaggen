@@ -148,15 +148,79 @@ internal static class Input
         var markdown = new MarkdownParser();
 
         var content = await LoadDir(run, vfs, Constants.GetContentDirectory(root), [], markdown);
-        if (content == null) { return null; }
+        var section = content.Section;
+        if (section == null)
+        {
+            run.WriteError($"Root only contains a post");
+            return null;
+        }
 
-        return new Site(config, content);
+        return new Site(config, section);
     }
 
+    private record ParsedPost(Post Post, bool PromoteThisPost);
 
-    private static async Task<Section?> LoadDir(Run run, VfsRead vfs, DirectoryInfo root, ImmutableArray<string> relative_paths, MarkdownParser markdown)
+    private record SectionOrPost(Section? Section, Post? Post);
+
+    private static async Task<SectionOrPost> LoadDir(Run run, VfsRead vfs, DirectoryInfo root, ImmutableArray<string> relative_paths, MarkdownParser markdown_parser)
     {
-        // todo(Gustav): implement
-        return null;
+        var files_async = vfs.GetFiles(root).Select(async f =>
+        {
+            var lines = (await vfs.ReadAllTextAsync(f)).Split('\n');
+            var (fm, markdown_source) = ParsePostToTuple(run, lines, f);
+            if (fm == null) return null;
+
+            var is_index = f.Name == Constants.SECTION_INDEX_NAME;
+            var is_promoted = f.Name == Constants.TURN_DIR_INTO_POST_NAME;
+
+            var post = new Post(is_index ? PostType.Section : PostType.Post, fm, f, markdown_source);
+            return new ParsedPost(post, is_promoted);
+        }).ToImmutableArray();
+        var dirs_async = vfs.GetDirectories(root).Select(async d =>
+            await LoadDir(run, vfs, d, [..relative_paths.Append(d.Name)], markdown_parser)
+        ).ToImmutableArray();
+
+        await Task.WhenAll(files_async.Select(x => (Task)x).Concat(dirs_async.Select(x => (Task)x)));
+
+        var promoted = new List<Post?>();
+        var dirs = dirs_async.Select(x => x.Result)
+            .Where(x => x.Section != null, x => promoted.Add(x.Post))
+            .Select(x => x.Section).NonNull()
+            .ToImmutableArray();
+        var files_all = files_async.Select(x => x.Result).NonNull()
+            .Concat(promoted.NonNull().Select(x => new ParsedPost(x, false)))
+            .ToImmutableArray();
+
+        var has_promoted = files_all.Any(x => x.PromoteThisPost);
+        if (files_all.Length == 1 && has_promoted)
+        {
+            // only has one post and it is promoted
+            return new SectionOrPost(null, files_all[0].Post);
+        }
+
+        if (has_promoted)
+        {
+            var msg = PostsToMessage(files_all.Where(x => x.PromoteThisPost).Select(x => x.Post));
+            run.WriteInfo($"Detected promoted post [blue]{msg}[/]but dir has many posts, promotion ignored");
+        }
+
+        var index_posts = new List<Post>();
+        var files = files_all.Select(x => x.Post).Where(x => x.Type == PostType.Post, index_posts.Add)
+            .ToImmutableArray();
+
+        if (index_posts.Count > 1)
+        {
+            var msg = PostsToMessage(index_posts);
+            run.WriteInfo($"Detected too many index posts: [blue]{msg}[/], ignored all but first");
+        }
+
+        return new SectionOrPost(new Section(index_posts.FirstOrDefault(), files, dirs), null);
+    }
+
+    private static string PostsToMessage(IEnumerable<Post> posts)
+    {
+        var promoted_files = posts.Select(x => x.SourceFile.ToString());
+        var promoted_message = string.Join(", ", promoted_files);
+        return promoted_message;
     }
 }

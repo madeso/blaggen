@@ -72,8 +72,9 @@ internal static class Generate
 
     private static string GenerateAbsoluteUrl(Site site, Post post)
     {
-        var rel = post.IsIndex ? post.RelativePath.PopBack() : post.RelativePath;
-        var relative = string.Join('/', rel.Add("index"));
-        return $"{site.Config.Url}/{relative}";
+        return "";
+        // var rel = post.IsIndex ? post.RelativePath.PopBack() : post.RelativePath;
+        // var relative = string.Join('/', rel.Add("index"));
+        // return $"{site.Config.Url}/{relative}";
     }
 }
