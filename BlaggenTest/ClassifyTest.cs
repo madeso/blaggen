@@ -10,27 +10,22 @@ using Xunit;
 
 public class ClassifyTest : TestBase
 {
-    DirectoryInfo cwd = new DirectoryInfo(@"C:\test\");
+    private readonly DirectoryInfo cwd = new(@"C:\test\");
     private static readonly DateTime Christmas = new(2024, 12, 24);
 
-    private FileInfo Post(DirectoryInfo root, string path, string? title = null)
+    private FileInfo Post(DirectoryInfo root, string path, string title)
     {
         var splits = path.Split('/');
         var dir = splits.SkipLast(1).Aggregate(root, (current, sub) => current.GetDir(sub));
         var file = dir.GetFile(splits[^1]);
-        read.AddContent(file, Facade.GeneratePostWithTitle(title ?? path, new FrontMatter {Date = Christmas}));
+        read.AddContent(file, Facade.GeneratePostWithTitle(title, new FrontMatter {Date = Christmas}));
 
         return file;
     }
 
-    private static ImmutableArray<T> A<T>(params T[] it) => [..it];
-
-    [Fact]
-    public async Task JustRoot()
+    private async Task RunTest(Action<Site> validate)
     {
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
-
-        var source = Post(cwd, "content/_index.md", "index");
 
         var site = await Input.LoadEntireSite(run, read, cwd);
         site.Should().NotBeNull();
@@ -38,8 +33,7 @@ public class ClassifyTest : TestBase
 
         using (new AssertionScope())
         {
-            site.Root.Dirs.Should().BeEmpty();
-            site.Root.Posts.Should().BeEquivalentTo(A(P(source, "index")), IgnoreMarkdown);
+            validate(site);
             run.Errors.Should().BeEmpty();
         }
 
@@ -48,32 +42,67 @@ public class ClassifyTest : TestBase
 
     private static EquivalencyAssertionOptions<ImmutableArray<Post>> IgnoreMarkdown(EquivalencyAssertionOptions<ImmutableArray<Post>> options)
         => options.Excluding(ctx => ctx.Path.EndsWith("Markdown"));
-
+    private static EquivalencyAssertionOptions<ImmutableArray<Section>> IgnoreMarkdownSect(EquivalencyAssertionOptions<ImmutableArray<Section>> options)
+        => options.Excluding(ctx => ctx.Path.EndsWith("Markdown"));
     private static Post P(FileInfo file, string title)
+        => new(PostType.Post, new FrontMatter { Date = Christmas, Title = title }, file, "markdown should be ignored");
+    private static ImmutableArray<T> A<T>(params T[] it)
+        => [.. it];
+
+    [Fact]
+    public async Task IndexFile()
     {
-        return new Post(PostType.Post, new FrontMatter {Date = Christmas, Title = title}, file, "markdown should be ignored");
+        var source = Post(cwd, "content/_index.md", "index");
+        await RunTest(site =>
+        {
+            site.Root.Dirs.Should().BeEmpty();
+            site.Root.Posts.Should().BeEquivalentTo(A(P(source, "index")), IgnoreMarkdown);
+        });
     }
 
     [Fact]
-    public async Task SomeFiles()
+    public async Task Hello()
     {
-        read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
-
-        Post(cwd, "content/hello.md");
-        Post(cwd, "content/post/index.md");
-        Post(cwd, "content/post/_index.md");
-        Post(cwd, "content/post/hello.md");
-
-        var site = await Input.LoadEntireSite(run, read, cwd);
-        site.Should().NotBeNull();
-        if (site == null) return;
-
-        using (new AssertionScope())
+        var source = Post(cwd, "content/hello.md", "Hello");
+        await RunTest(site =>
         {
             site.Root.Dirs.Should().BeEmpty();
-            run.Errors.Should().BeEmpty();
-        }
+            site.Root.Posts.Should().BeEquivalentTo(A(P(source, "Hello")), IgnoreMarkdown);
+        });
+    }
 
-        write.RemainingFiles.Should().BeEmpty();
+    [Fact]
+    public async Task Promoted()
+    {
+        var source = Post(cwd, "content/post/index.md", "Promoted post");
+        await RunTest(site =>
+        {
+            var map = site.DebugString();
+            var sect = new Section(P(source, "Promoted post"), [], []);
+            site.Root.Dirs.Should().BeEquivalentTo(A(sect));
+            // site.Root.Posts.Should().BeEmpty();
+        });
+    }
+
+    [Fact]
+    public async Task DirInSub()
+    {
+        var source = Post(cwd, "content/post/_index.md", "Dir");
+        await RunTest(site =>
+        {
+            site.Root.Dirs.Should().BeEmpty();
+            site.Root.Posts.Should().BeEquivalentTo(A(P(source, "Dir")), IgnoreMarkdown);
+        });
+    }
+
+    [Fact]
+    public async Task HelloInSub()
+    {
+        var source = Post(cwd, "content/post/hello.md", "Hello");
+        await RunTest(site =>
+        {
+            site.Root.Dirs.Should().BeEmpty();
+            site.Root.Posts.Should().BeEquivalentTo(A(P(source, "Hello")), IgnoreMarkdown);
+        });
     }
 }

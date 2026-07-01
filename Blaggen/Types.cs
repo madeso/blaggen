@@ -1,5 +1,6 @@
 ﻿using System.Collections.Immutable;
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -95,4 +96,28 @@ enum PostType
 // todo(Gustav): add associated files to be generated...
 internal record Post(PostType Type, FrontMatter Front, FileInfo SourceFile, string Markdown);
 internal record Section(Post? Post, ImmutableArray<Post>? Posts, ImmutableArray<Section> Dirs);
-internal record Site(SiteConfig Config, Section Root);
+internal record Site(SiteConfig Config, Section Root)
+{
+    public string DebugString()
+    {
+        var sb = new StringBuilder();
+        AddSection(Root, 0);
+
+        void AddSection(Section root, int depth)
+        {
+            var indent = new string(' ', depth * 2);
+            foreach (var s in root.Dirs)
+            {
+                sb.AppendLine($"{indent}dir");
+                AddSection(s, depth+1);
+            }
+
+            foreach (var f in root.Posts)
+            {
+                sb.AppendLine($"{indent}{f.SourceFile.Name}");
+            }
+        }
+
+        return sb.ToString();
+    }
+}
