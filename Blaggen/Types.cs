@@ -95,7 +95,7 @@ enum PostType
 
 // todo(Gustav): add associated files to be generated...
 internal record Post(PostType Type, FrontMatter Front, FileInfo SourceFile, string Markdown);
-internal record Section(Post? Post, ImmutableArray<Post>? Posts, ImmutableArray<Section> Dirs);
+internal record Section(string Name, Post? Post, ImmutableArray<Post>? Posts, ImmutableArray<Section> Dirs);
 internal record Site(SiteConfig Config, Section Root)
 {
     public string DebugString()
@@ -105,16 +105,22 @@ internal record Site(SiteConfig Config, Section Root)
 
         void AddSection(Section root, int depth)
         {
-            var indent = new string(' ', depth * 2);
+            var indent = new string('\t', depth);
+
+            if (root.Post != null)
+            {
+                sb.AppendLine($"{indent}{root.Post.Front.Title}({root.Post.SourceFile})");
+            }
+
             foreach (var s in root.Dirs)
             {
-                sb.AppendLine($"{indent}dir");
+                sb.AppendLine($"{indent}{s.Name}/");
                 AddSection(s, depth+1);
             }
 
-            foreach (var f in root.Posts)
+            foreach (var f in root.Posts ?? [])
             {
-                sb.AppendLine($"{indent}{f.SourceFile.Name}");
+                sb.AppendLine($"{indent}{f.Front.Title}({f.SourceFile})");
             }
         }
 

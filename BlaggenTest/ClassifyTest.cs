@@ -78,7 +78,8 @@ public class ClassifyTest : TestBase
         await RunTest(site =>
         {
             var map = site.DebugString();
-            var sect = new Section(P(source, "Promoted post"), [], []);
+            map.Should().Be("");
+            var sect = new Section("", P(source, "Promoted post"), [], []);
             site.Root.Dirs.Should().BeEquivalentTo(A(sect));
             // site.Root.Posts.Should().BeEmpty();
         });

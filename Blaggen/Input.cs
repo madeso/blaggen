@@ -214,7 +214,7 @@ internal static class Input
             run.WriteInfo($"Detected too many index posts: [blue]{msg}[/], ignored all but first");
         }
 
-        return new SectionOrPost(new Section(index_posts.FirstOrDefault(), files, dirs), null);
+        return new SectionOrPost(new Section(root.Name, index_posts.FirstOrDefault(), files, dirs), null);
     }
 
     private static string PostsToMessage(IEnumerable<Post> posts)
