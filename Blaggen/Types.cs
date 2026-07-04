@@ -98,32 +98,34 @@ internal record Post(PostType Type, FrontMatter Front, FileInfo SourceFile, stri
 internal record Section(string Name, Post? Post, ImmutableArray<Post>? Posts, ImmutableArray<Section> Dirs);
 internal record Site(SiteConfig Config, Section Root)
 {
-    public string DebugString()
+    public ImmutableArray<string> DebugString
     {
-        var sb = new StringBuilder();
-        AddSection(Root, 0);
-
-        void AddSection(Section root, int depth)
+        get
         {
-            var indent = new string('\t', depth);
+            var sb = new List<string>();
+            AddSection(Root, 0);
+            return [..sb];
 
-            if (root.Post != null)
+            void AddSection(Section root, int depth)
             {
-                sb.AppendLine($"{indent}{root.Post.Front.Title}({root.Post.SourceFile})");
-            }
+                var indent = new string(' ', depth*2);
 
-            foreach (var s in root.Dirs)
-            {
-                sb.AppendLine($"{indent}{s.Name}/");
-                AddSection(s, depth+1);
-            }
+                if (root.Post != null)
+                {
+                    sb.Add($"{indent}{root.Post.Front.Title}({root.Post.SourceFile})");
+                }
 
-            foreach (var f in root.Posts ?? [])
-            {
-                sb.AppendLine($"{indent}{f.Front.Title}({f.SourceFile})");
+                foreach (var s in root.Dirs)
+                {
+                    sb.Add($"{indent}{s.Name}/");
+                    AddSection(s, depth+1);
+                }
+
+                foreach (var f in root.Posts ?? [])
+                {
+                    sb.Add($"{indent}{f.Front.Title}({f.SourceFile})");
+                }
             }
         }
-
-        return sb.ToString();
     }
 }

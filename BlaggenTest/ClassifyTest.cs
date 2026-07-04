@@ -77,11 +77,10 @@ public class ClassifyTest : TestBase
         var source = Post(cwd, "content/post/index.md", "Promoted post");
         await RunTest(site =>
         {
-            var map = site.DebugString();
-            map.Should().Be("");
-            var sect = new Section("", P(source, "Promoted post"), [], []);
-            site.Root.Dirs.Should().BeEquivalentTo(A(sect));
-            // site.Root.Posts.Should().BeEmpty();
+            site.DebugString.Should().BeEquivalentTo([
+                "post/",
+                @"  Promoted post(C:\test\content\post\index.md)"
+            ]);
         });
     }
 
