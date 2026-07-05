@@ -164,17 +164,19 @@ internal static class Input
 
     private static async Task<SectionOrPost> LoadDir(Run run, VfsRead vfs, DirectoryInfo root, ImmutableArray<string> relative_paths, MarkdownParser markdown_parser)
     {
+        var section_name = root.Name;
+
         var files_async = vfs.GetFiles(root).Select(async f =>
         {
             var lines = (await vfs.ReadAllTextAsync(f)).Split('\n');
             var (fm, markdown_source) = ParsePostToTuple(run, lines, f);
             if (fm == null) return null;
 
-            var name = Path.GetFileNameWithoutExtension(f.Name);
-            var is_index = name == Constants.SECTION_INDEX_NAME;
-            var is_promoted = name == Constants.TURN_DIR_INTO_POST_NAME;
+            var file_name_without_extension = Path.GetFileNameWithoutExtension(f.Name);
+            var is_index = file_name_without_extension == Constants.SECTION_INDEX_NAME_NO_EXT;
+            var is_promoted = file_name_without_extension == Constants.TURN_DIR_INTO_POST_NAME_NO_EXT;
 
-            var post = new Post(is_index ? PostType.Section : PostType.Post, fm, f, markdown_source);
+            var post = new Post(is_index ? "index" : file_name_without_extension, is_index ? PostType.Section : PostType.Post, fm, f, markdown_source);
             return new ParsedPost(post, is_promoted);
         }).ToImmutableArray();
         var dirs_async = vfs.GetDirectories(root).Select(async d =>
@@ -196,7 +198,7 @@ internal static class Input
         if (files_all.Length == 1 && has_promoted)
         {
             // only has one post and it is promoted
-            return new SectionOrPost(null, files_all[0].Post);
+            return new SectionOrPost(null, files_all[0].Post with {Name = section_name});
         }
 
         if (has_promoted)
@@ -215,7 +217,7 @@ internal static class Input
             run.WriteInfo($"Detected too many index posts: [blue]{msg}[/], ignored all but first");
         }
 
-        return new SectionOrPost(new Section(root.Name, index_posts.FirstOrDefault(), files, dirs), null);
+        return new SectionOrPost(new Section(section_name, index_posts.FirstOrDefault(), files, dirs), null);
     }
 
     private static string PostsToMessage(IEnumerable<Post> posts)

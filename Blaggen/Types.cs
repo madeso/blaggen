@@ -94,7 +94,7 @@ enum PostType
 }
 
 // todo(Gustav): add associated files to be generated...
-internal record Post(PostType Type, FrontMatter Front, FileInfo SourceFile, string Markdown);
+internal record Post(string Name, PostType Type, FrontMatter Front, FileInfo SourceFile, string Markdown);
 internal record Section(string Name, Post? Post, ImmutableArray<Post>? Posts, ImmutableArray<Section> Dirs);
 internal record Site(SiteConfig Config, Section Root)
 {
@@ -112,7 +112,7 @@ internal record Site(SiteConfig Config, Section Root)
 
                 if (root.Post != null)
                 {
-                    sb.Add($"{indent}{root.Post.Front.Title}({root.Post.SourceFile})");
+                    AddPost(root.Post);
                 }
 
                 foreach (var s in root.Dirs)
@@ -123,7 +123,14 @@ internal record Site(SiteConfig Config, Section Root)
 
                 foreach (var f in root.Posts ?? [])
                 {
-                    sb.Add($"{indent}{f.Front.Title}({f.SourceFile})");
+                    AddPost(f);
+                }
+
+                return;
+
+                void AddPost(Post post)
+                {
+                    sb.Add($"{indent}{post.Front.Title}({post.SourceFile}) => {post.Name}");
                 }
             }
         }
