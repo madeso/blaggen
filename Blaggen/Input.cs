@@ -170,8 +170,9 @@ internal static class Input
             var (fm, markdown_source) = ParsePostToTuple(run, lines, f);
             if (fm == null) return null;
 
-            var is_index = f.Name == Constants.SECTION_INDEX_NAME;
-            var is_promoted = f.Name == Constants.TURN_DIR_INTO_POST_NAME;
+            var name = Path.GetFileNameWithoutExtension(f.Name);
+            var is_index = name == Constants.SECTION_INDEX_NAME;
+            var is_promoted = name == Constants.TURN_DIR_INTO_POST_NAME;
 
             var post = new Post(is_index ? PostType.Section : PostType.Post, fm, f, markdown_source);
             return new ParsedPost(post, is_promoted);

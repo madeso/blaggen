@@ -52,34 +52,35 @@ public class ClassifyTest : TestBase
     [Fact]
     public async Task IndexFile()
     {
-        var source = Post(cwd, "content/_index.md", "index");
+        Post(cwd, "content/_index.md", "index");
         await RunTest(site =>
         {
-            site.Root.Dirs.Should().BeEmpty();
-            site.Root.Posts.Should().BeEquivalentTo(A(P(source, "index")), IgnoreMarkdown);
+            site.DebugString.Should().BeEquivalentTo([
+                @"index(C:\test\content\_index.md)"
+            ]);
         });
     }
 
     [Fact]
     public async Task Hello()
     {
-        var source = Post(cwd, "content/hello.md", "Hello");
+        Post(cwd, "content/hello.md", "Hello");
         await RunTest(site =>
         {
-            site.Root.Dirs.Should().BeEmpty();
-            site.Root.Posts.Should().BeEquivalentTo(A(P(source, "Hello")), IgnoreMarkdown);
+            site.DebugString.Should().BeEquivalentTo([
+                @"Hello(C:\test\content\hello.md)"
+            ]);
         });
     }
 
     [Fact]
     public async Task Promoted()
     {
-        var source = Post(cwd, "content/post/index.md", "Promoted post");
+        Post(cwd, "content/post/index.md", "Promoted post");
         await RunTest(site =>
         {
             site.DebugString.Should().BeEquivalentTo([
-                "post/",
-                @"  Promoted post(C:\test\content\post\index.md)"
+                @"Promoted post(C:\test\content\post\index.md)"
             ]);
         });
     }
@@ -87,22 +88,26 @@ public class ClassifyTest : TestBase
     [Fact]
     public async Task DirInSub()
     {
-        var source = Post(cwd, "content/post/_index.md", "Dir");
+        Post(cwd, "content/post/_index.md", "Dir");
         await RunTest(site =>
         {
-            site.Root.Dirs.Should().BeEmpty();
-            site.Root.Posts.Should().BeEquivalentTo(A(P(source, "Dir")), IgnoreMarkdown);
+            site.DebugString.Should().BeEquivalentTo([
+                "post/",
+                @"  Dir(C:\test\content\post\_index.md)"
+            ]);
         });
     }
 
     [Fact]
     public async Task HelloInSub()
     {
-        var source = Post(cwd, "content/post/hello.md", "Hello");
+        Post(cwd, "content/post/hello.md", "Hello");
         await RunTest(site =>
         {
-            site.Root.Dirs.Should().BeEmpty();
-            site.Root.Posts.Should().BeEquivalentTo(A(P(source, "Hello")), IgnoreMarkdown);
+            site.DebugString.Should().BeEquivalentTo([
+                "post/",
+                @"  Hello(C:\test\content\post\hello.md)"
+            ]);
         });
     }
 }

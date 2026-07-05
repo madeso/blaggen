@@ -7,8 +7,8 @@ internal static class Constants
 {
     internal const string ROOT_FILENAME_WITH_EXTENSION = "site.blaggen.json";
 
-    internal const string SECTION_INDEX_NAME = "_index";
-    internal const string TURN_DIR_INTO_POST_NAME = "index";
+    internal const string SECTION_INDEX_NAME_NO_EXT = "_index";
+    internal const string TURN_DIR_INTO_POST_NAME_NO_EXT = "index";
 
     internal static DirectoryInfo CalculateTemplateDirectoryFromString(string templateName, DirectoryInfo root)
     {
