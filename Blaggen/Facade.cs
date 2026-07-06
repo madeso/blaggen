@@ -150,7 +150,7 @@ public static class Facade
         }
 
         // todo(Gustav): generate page
-        int number_of_pages_generated = -42;
+        int number_of_pages_generated = await Generate.WriteSite(run, site, vfs_write, templates, public_dir);
 
         var time_end = DateTime.Now;
         var time_taken = time_end - time_start;
@@ -382,7 +382,7 @@ public static class Facade
 
     private static IEnumerable<Post> AllPosts(Section root)
     {
-        foreach (var p in root.Posts)
+        foreach (var p in root.Posts ?? [])
         {
             yield return p;
         }

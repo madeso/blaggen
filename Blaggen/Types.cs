@@ -95,7 +95,7 @@ enum PostType
 
 // todo(Gustav): add associated files to be generated...
 internal record Post(string Name, PostType Type, FrontMatter Front, FileInfo SourceFile, string Markdown);
-internal record Section(string Name, Post? Post, ImmutableArray<Post>? Posts, ImmutableArray<Section> Dirs);
+internal record Section(string Name, Post? Post, ImmutableArray<Post>? Posts, ImmutableArray<Section> Dirs, DirectoryInfo SourceDir);
 internal record Site(SiteConfig Config, Section Root)
 {
     public ImmutableArray<string> DebugString

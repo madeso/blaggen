@@ -1,65 +1,20 @@
 ﻿using System.Collections.Immutable;
-using System.Security.Cryptography.X509Certificates;
-using System.Xml.Linq;
-using Microsoft.VisualBasic;
-using static Blaggen.Generate;
 
 namespace Blaggen;
 
 internal static class Generate
 {
     // data to mustache
-    internal record SummaryForPost(
-        string Title,
-        string TimeShort,
-        string TimeLong,
-        string Name,
-        string Summary,
-        string FullHtml,
-        string FullText,
-        string RelativeUrl
-        );
-    internal record RootLink(string Name, string Url, bool IsSelected);
-    internal record PageData(Site Site, ImmutableArray<RootLink> Roots, ImmutableArray<SummaryForPost> Pages,
-            string Title,
-            string Summary,
-            string Url,
-            string ContentHtml,
-            string ContentText,
-            string TimeShort,
-            string TimeLong
-        );
-
-    private static Template.Definition<SummaryForPost> MakeSummaryForPostDef() => new Template.Definition<SummaryForPost>()
-        .AddVar("title", s => s.Title)
-        .AddVar("time_short", s => s.TimeShort)
-        .AddVar("time_long", s => s.TimeLong)
-        .AddVar("name", s => s.Name)
-        .AddVar("summary", s => s.Summary)
-        .AddVar("full_html", s => s.FullHtml)
-        .AddVar("full_text", s => s.FullText)
-        .AddVar("url", s => s.RelativeUrl)
-    ;
+    internal record TemplatePostData(string Data);
+    internal record TemplateSectionData(string Data);
 
     
-    private static Template.Definition<RootLink> MakeRootLinkDef() => new Template.Definition<RootLink>()
-        .AddVar("Name", link => link.Name)
-        .AddVar("Url", link => link.Url)
-        .AddBool("IsSelected", link => link.IsSelected)
+    internal static Template.Definition<TemplatePostData> MakePostData() => new Template.Definition<TemplatePostData>()
+        .AddVar("Name", link => link.Data)
     ;
 
-    // todo(Gustav): add more data
-    // todo(Gustav): generate full url
-    internal static Template.Definition<PageData> MakePageDataDef() => new Template.Definition<PageData>()
-        .AddVar("title", page => page.Title)
-        .AddVar("summary", page => page.Summary)
-        .AddVar("url", page => page.Url)
-        .AddVar("content_html", page => page.ContentHtml)
-        .AddVar("content_text", page => page.ContentText)
-        .AddVar("time_short", page => page.TimeShort)
-        .AddVar("time_long", page => page.TimeLong)
-        .AddList("pages", page=>page.Pages, MakeSummaryForPostDef())
-        .AddList("roots", page=>page.Roots, MakeRootLinkDef())
+    internal static Template.Definition<TemplateSectionData> MakeSectionData() => new Template.Definition<TemplateSectionData>()
+        .AddVar("Name", link => link.Data)
     ;
 
     private static string GetRelativePath(DirectoryInfo public_dir, FileInfo x)
@@ -76,5 +31,70 @@ internal static class Generate
         // var rel = post.IsIndex ? post.RelativePath.PopBack() : post.RelativePath;
         // var relative = string.Join('/', rel.Add("index"));
         // return $"{site.Config.Url}/{relative}";
+    }
+
+    public static async Task<int> WriteSite(Run run, Site site, VfsWrite vfs_write, TemplateDictionary templates,
+        DirectoryInfo public_dir)
+    {
+        return await WriteSiteRec(site.Root, []);
+        
+
+        async Task<int> WriteSiteRec(Section section, ImmutableArray<string> dirs)
+        {
+            int pages = 0;
+            // write section
+            if(section.Post != null)
+            {
+                var data = Input.TemplateDataFromSection(site, section, section.Post);
+                var gen = FindInTemplate(dirs, g => g.Section);
+                if (gen == null)
+                {
+                    run.WriteError($"No template found for section {section.SourceDir}");
+                }
+                else
+                {
+                    await vfs_write.WriteAllTextAsync(public_dir.GetSubDirs(dirs).GetFile(section.Post.Name + ".html"),
+                        gen(data));
+                    pages += 1;
+                }
+            }
+
+            // write pages
+            foreach (var p in section.Posts ?? [])
+            {
+                var data = Input.TemplateDataFromPost(site, p);
+                var gen = FindInTemplate(dirs, g => g.Post);
+                if (gen == null)
+                {
+                    run.WriteError($"No template found for post {p.SourceFile}");
+                }
+                else
+                {
+                    await vfs_write.WriteAllTextAsync(public_dir.GetSubDirs(dirs).GetFile(p.Name + ".html"),
+                        gen(data));
+                    pages += 1;
+                }
+            }
+
+            // write sub sections
+            foreach (var s in section.Dirs)
+            {
+                pages += await WriteSiteRec(s, dirs.Add(section.Name));
+            }
+
+            return pages;
+        }
+
+        T? FindInTemplate<T>(ImmutableArray<string> dirs, Func<TemplateFolder, T> selector) where T : class?
+        {
+            var d = dirs;
+            while (true)
+            {
+                var found = templates.GetProp(d, selector);
+                if (found != null) return found;
+                if (d.Length == 0) return null;
+                d = d.PopBack();
+            }
+        }
     }
 }

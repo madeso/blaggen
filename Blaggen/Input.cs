@@ -3,44 +3,63 @@ using System.Text;
 
 namespace Blaggen;
 
+internal record TemplateFolder(Func<Generate.TemplatePostData, string>? Post, Func<Generate.TemplateSectionData, string>? Section);
 
 internal class TemplateDictionary
 {
-    private TemplateDictionary()
+    private readonly Dictionary<string, TemplateFolder> templates;
+
+    private TemplateDictionary(Dictionary<string, TemplateFolder> templates)
     {
+        this.templates = templates;
     }
 
+    public T? GetProp<T>(ImmutableArray<string> dirs, Func<TemplateFolder, T> selector) where T : class?
+    {
+        return templates.TryGetValue(KeyFrom(dirs), out var group) ? selector(group) : null;
+    }
 
     internal static async Task<TemplateDictionary?> Load(Run run, VfsRead vfs, DirectoryInfo root, DirectoryInfo templateFolder, DirectoryInfo partialFolder)
     {
-        // todo(Gustav): warn if template files are missing
-        var template_files = vfs.GetFilesRec(templateFolder)
-            .Where(f => f.Name.Contains(""))
-            .ToImmutableArray();
+        var ret = new Dictionary<string, TemplateFolder>();
+        await LoadTemplateRecursive(templateFolder, []);
+        return new TemplateDictionary(ret);
 
-        var unloaded = template_files.Select(
-            async file => new
-            {
-                File = file,
-                Parsed = await Template.Parse(file, vfs, Template.DefaultFunctions(), partialFolder, Generate.MakePageDataDef())
-            }
-        );
-        var loaded = (await Task.WhenAll(unloaded))
-            .ToImmutableArray();
-
-        var errors = loaded.SelectMany(x => x.Parsed.Item2);
-        foreach (var error in errors)
+        async Task LoadTemplateRecursive(DirectoryInfo dir, ImmutableArray<string> pattern)
         {
-            run.WriteError($"{error.Location.File}({error.Location.Line}:{error.Location.Offset}): {error.Message}");
+            var post = await LoadSingleTemplate(Constants.TEMPLATE_POST, dir, Generate.MakePostData());
+            var section = await LoadSingleTemplate(Constants.TEMPLATE_SECTION, dir, Generate.MakeSectionData());
+
+            if (post != null || section != null)
+            {
+                ret.Add(KeyFrom(pattern), new TemplateFolder(post, section));
+            }
+
+            foreach (var d in vfs.GetDirectories(dir))
+            {
+                await LoadTemplateRecursive(d, pattern.Add(d.Name));
+            }
         }
 
-        var dict = loaded
-                .Where(x => x.Parsed.Item2.IsEmpty)
-                .ToImmutableDictionary(x => x.File.FullName, x => x.Parsed.Item1)
-            ;
+        async Task<Func<T, string>?> LoadSingleTemplate<T>(string name, DirectoryInfo dir, Template.Definition<T> def) where T : class
+        {
+            var post_file = dir.GetFile(name + ".html");
+            if (vfs.Exists(post_file) == false) return null;
 
-        var extensions = template_files.Select(file => file.Extension.ToLowerInvariant()).ToImmutableHashSet();
-        return new TemplateDictionary();
+            var (func, errors) = await Template.Parse(post_file, vfs, Template.DefaultFunctions(), partialFolder, def);
+
+            foreach (var error in errors)
+            {
+                run.WriteError($"{error.Location.File}({error.Location.Line}:{error.Location.Offset}): {error.Message}");
+            }
+
+            return func;
+        }
+    }
+
+    private static string KeyFrom(ImmutableArray<string> pattern)
+    {
+        return string.Join('/', pattern);
     }
 }
 
@@ -217,7 +236,7 @@ internal static class Input
             run.WriteInfo($"Detected too many index posts: [blue]{msg}[/], ignored all but first");
         }
 
-        return new SectionOrPost(new Section(section_name, index_posts.FirstOrDefault(), files, dirs), null);
+        return new SectionOrPost(new Section(section_name, index_posts.FirstOrDefault(), files, dirs, root), null);
     }
 
     private static string PostsToMessage(IEnumerable<Post> posts)
@@ -225,5 +244,15 @@ internal static class Input
         var promoted_files = posts.Select(x => x.SourceFile.ToString());
         var promoted_message = string.Join(", ", promoted_files);
         return promoted_message;
+    }
+
+    public static Generate.TemplateSectionData TemplateDataFromSection(Site site, Section section, Post section_post)
+    {
+        throw new NotImplementedException();
+    }
+
+    public static Generate.TemplatePostData TemplateDataFromPost(Site site, Post post)
+    {
+        throw new NotImplementedException();
     }
 }

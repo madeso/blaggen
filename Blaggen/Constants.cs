@@ -10,6 +10,9 @@ internal static class Constants
     internal const string SECTION_INDEX_NAME_NO_EXT = "_index";
     internal const string TURN_DIR_INTO_POST_NAME_NO_EXT = "index";
 
+    internal const string TEMPLATE_POST = "post";
+    internal const string TEMPLATE_SECTION = "section";
+
     internal static DirectoryInfo CalculateTemplateDirectoryFromString(string templateName, DirectoryInfo root)
     {
         return root.GetDir("themes").GetDir(templateName);
