@@ -245,14 +245,4 @@ internal static class Input
         var promoted_message = string.Join(", ", promoted_files);
         return promoted_message;
     }
-
-    public static Generate.TemplateSectionData TemplateDataFromSection(Site site, Section section, Post section_post)
-    {
-        throw new NotImplementedException();
-    }
-
-    public static Generate.TemplatePostData TemplateDataFromPost(Site site, Post post)
-    {
-        throw new NotImplementedException();
-    }
 }

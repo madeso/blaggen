@@ -5,9 +5,21 @@ namespace Blaggen;
 internal static class Generate
 {
     // data to mustache
-    internal record TemplatePostData(string Data);
-    internal record TemplateSectionData(string Data);
+    internal record TemplatePostData(string Data)
+    {
+        public static TemplatePostData From(Site site, Post post)
+        {
+            throw new NotImplementedException();
+        }
+    }
 
+    internal record TemplateSectionData(string Data)
+    {
+        public static TemplateSectionData From(Site site, Section section)
+        {
+            throw new NotImplementedException();
+        }
+    }
     
     internal static Template.Definition<TemplatePostData> MakePostData() => new Template.Definition<TemplatePostData>()
         .AddVar("Name", link => link.Data)
@@ -43,9 +55,8 @@ internal static class Generate
         {
             int pages = 0;
             // write section
-            if(section.Post != null)
             {
-                var data = Input.TemplateDataFromSection(site, section, section.Post);
+                var data = TemplateSectionData.From(site, section);
                 var gen = FindInTemplate(dirs, g => g.Section);
                 if (gen == null)
                 {
@@ -53,7 +64,7 @@ internal static class Generate
                 }
                 else
                 {
-                    await vfs_write.WriteAllTextAsync(public_dir.GetSubDirs(dirs).GetFile(section.Post.Name + ".html"),
+                    await vfs_write.WriteAllTextAsync(public_dir.GetSubDirs(dirs).GetFile("index.html"),
                         gen(data));
                     pages += 1;
                 }
@@ -62,7 +73,7 @@ internal static class Generate
             // write pages
             foreach (var p in section.Posts ?? [])
             {
-                var data = Input.TemplateDataFromPost(site, p);
+                var data = TemplatePostData.From(site, p);
                 var gen = FindInTemplate(dirs, g => g.Post);
                 if (gen == null)
                 {
@@ -70,7 +81,7 @@ internal static class Generate
                 }
                 else
                 {
-                    await vfs_write.WriteAllTextAsync(public_dir.GetSubDirs(dirs).GetFile(p.Name + ".html"),
+                    await vfs_write.WriteAllTextAsync(public_dir.GetSubDirs(dirs).GetDir(p.Name).GetFile("index.html"),
                         gen(data));
                     pages += 1;
                 }
