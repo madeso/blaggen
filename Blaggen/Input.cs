@@ -96,7 +96,7 @@ internal static class Input
     internal static string PostToFileData(Post post)
     {
         var json = JsonUtil.Write(post.Front);
-        return string.Join('\n', SOURCE_START, json, SOURCE_END, FRONTMATTER_SEP, post.Markdown);
+        return string.Join('\n', SOURCE_START, json, SOURCE_END, FRONTMATTER_SEP, post.Html);
     }
 
     internal static string GenerateSummary(string text)
@@ -195,7 +195,9 @@ internal static class Input
             var is_index = file_name_without_extension == Constants.SECTION_INDEX_NAME_NO_EXT;
             var is_promoted = file_name_without_extension == Constants.TURN_DIR_INTO_POST_NAME_NO_EXT;
 
-            var post = new Post(is_index ? "index" : file_name_without_extension, is_index ? PostType.Section : PostType.Post, fm, f, markdown_source);
+            var markdown = markdown_parser.Parse(markdown_source);
+
+            var post = new Post(is_index ? "index" : file_name_without_extension, is_index ? PostType.Section : PostType.Post, fm, f, markdown.ToHtml(), markdown.ToPlainText());
             return new ParsedPost(post, is_promoted);
         }).ToImmutableArray();
         var dirs_async = vfs.GetDirectories(root).Select(async d =>

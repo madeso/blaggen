@@ -68,6 +68,12 @@ internal static class Template
             return this;
         }
 
+        public Definition<TParent> Add(Action<Definition<TParent>> cb)
+        {
+            cb(this);
+            return this;
+        }
+
         private static string SyntaxError(TParent _) => "Syntax error";
 
         internal (Func<TParent, string>, ImmutableArray<Error>) Validate(Node node)

@@ -5,28 +5,53 @@ namespace Blaggen;
 internal static class Generate
 {
     // data to mustache
-    internal record TemplatePostData(string Data)
+    internal record TemplatePostData(Site Site, Post Post);
+
+    internal record TemplateSectionData(Site Site, Section Section)
     {
-        public static TemplatePostData From(Site site, Post post)
-        {
-            throw new NotImplementedException();
-        }
+        internal Post Post { get; } = Section.Post ??
+                                      new Post(Section.Name, PostType.Section, new FrontMatter(), new FileInfo(@"C:\missing.md"), "", "");
     }
 
-    internal record TemplateSectionData(string Data)
+    internal static class TemplateHelpers
     {
-        public static TemplateSectionData From(Site site, Section section)
+        public static void AddPost<T>(Template.Definition<T> self, Func<T, Post> post)
         {
-            throw new NotImplementedException();
+            self.AddVar("Title", link => post(link).Front.Title);
+            self.AddVar("ContentHtml", link => post(link).Html);
+            self.AddVar("ContentText", link => post(link).Plain);
         }
     }
     
     internal static Template.Definition<TemplatePostData> MakePostData() => new Template.Definition<TemplatePostData>()
-        .AddVar("Name", link => link.Data)
+        .AddVar("Site", link => link.Site.Config.Name)
+        .Add(self =>
+        {
+            TemplateHelpers.AddPost(self, x => x.Post);
+        })
+    ;
+
+    private static Template.Definition<Post> MakePostLink() => new Template.Definition<Post>()
+        .AddVar("Link", x => x.Name)
+        .Add(self =>
+        {
+            TemplateHelpers.AddPost(self, x => x);
+        })
+    ;
+    private static Template.Definition<Section> MakeSectionLink() => new Template.Definition<Section>()
+        .AddVar("Title", x => x.Post?.Front.Title ?? x.Name)
+        .AddVar("Link", x=>x.Name)
     ;
 
     internal static Template.Definition<TemplateSectionData> MakeSectionData() => new Template.Definition<TemplateSectionData>()
-        .AddVar("Name", link => link.Data)
+        .AddVar("Site", link => link.Site.Config.Name)
+        .AddBool("hasPost", x => x.Section.Post != null)
+        .Add(self =>
+        {
+            TemplateHelpers.AddPost(self, x => x.Post);
+        })
+        .AddList("Posts", x => x.Section.Posts ?? [], MakePostLink())
+        .AddList("Sections", x => x.Section.Dirs, MakeSectionLink())
     ;
 
     private static string GetRelativePath(DirectoryInfo public_dir, FileInfo x)
@@ -56,7 +81,7 @@ internal static class Generate
             int pages = 0;
             // write section
             {
-                var data = TemplateSectionData.From(site, section);
+                var data = new TemplateSectionData(site, section);
                 var gen = FindInTemplate(dirs, g => g.Section);
                 if (gen == null)
                 {
@@ -73,7 +98,7 @@ internal static class Generate
             // write pages
             foreach (var p in section.Posts ?? [])
             {
-                var data = TemplatePostData.From(site, p);
+                var data = new TemplatePostData(site, p);
                 var gen = FindInTemplate(dirs, g => g.Post);
                 if (gen == null)
                 {
