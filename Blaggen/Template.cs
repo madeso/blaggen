@@ -142,14 +142,14 @@ internal static class Template
         }
     }
 
-    internal static async Task<(Func<T, string>, ImmutableArray<Error>)> Parse<T>(FileInfo path, VfsRead vfs, Dictionary<string, FuncGenerator> functions, DirectoryInfo includeDir, Definition<T> definition)
+    internal static async Task<(Func<T, string>, ImmutableArray<Error>)> Parse<T>(FileInfo path, VfsRead vfs, Dictionary<string, FuncGenerator> functions, DirectoryInfo include_dir, Definition<T> definition)
     {
         var source = await vfs.ReadAllTextAsync(path);
         var (tokens, lexerErrors) = Scanner(path, source);
         if (lexerErrors.Length > 0)
         { return (_ => "Lexing failed", lexerErrors); }
 
-        var (node, parseErrors) = await Parse(tokens, functions, includeDir, path.Extension, vfs);
+        var (node, parseErrors) = await Parse(tokens, functions, include_dir, path.Extension, vfs);
         if (parseErrors.Length > 0)
         { return (_ => "Parsing failed", parseErrors); }
 

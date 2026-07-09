@@ -19,10 +19,17 @@ internal class TemplateDictionary
         return templates.TryGetValue(KeyFrom(dirs), out var group) ? selector(group) : null;
     }
 
-    internal static async Task<TemplateDictionary?> Load(Run run, VfsRead vfs, DirectoryInfo root, DirectoryInfo templateFolder, DirectoryInfo partialFolder)
+    internal static async Task<TemplateDictionary?> Load(Run run, VfsRead vfs, DirectoryInfo root, DirectoryInfo template_folder)
     {
         var ret = new Dictionary<string, TemplateFolder>();
-        await LoadTemplateRecursive(templateFolder, []);
+        var partial_folder = template_folder.GetDir("partials");
+        var layout_folder = template_folder.GetDir("layouts");
+        await LoadTemplateRecursive(layout_folder, []);
+        if (ret.Count == 0)
+        {
+            run.WriteError($"Found no layouts in [red]{layout_folder}[/]");
+            return null;
+        }
         return new TemplateDictionary(ret);
 
         async Task LoadTemplateRecursive(DirectoryInfo dir, ImmutableArray<string> pattern)
@@ -34,6 +41,10 @@ internal class TemplateDictionary
             {
                 ret.Add(KeyFrom(pattern), new TemplateFolder(post, section));
             }
+            else
+            {
+                // run.WriteInfo($"No templates in {dir}");
+            }
 
             foreach (var d in vfs.GetDirectories(dir))
             {
@@ -44,9 +55,13 @@ internal class TemplateDictionary
         async Task<Func<T, string>?> LoadSingleTemplate<T>(string name, DirectoryInfo dir, Template.Definition<T> def) where T : class
         {
             var post_file = dir.GetFile(name + ".html");
-            if (vfs.Exists(post_file) == false) return null;
+            if (vfs.Exists(post_file) == false)
+            {
+                // run.WriteInfo($"Missing file {post_file}");
+                return null;
+            }
 
-            var (func, errors) = await Template.Parse(post_file, vfs, Template.DefaultFunctions(), partialFolder, def);
+            var (func, errors) = await Template.Parse(post_file, vfs, Template.DefaultFunctions(), partial_folder, def);
 
             foreach (var error in errors)
             {
@@ -59,7 +74,9 @@ internal class TemplateDictionary
 
     private static string KeyFrom(ImmutableArray<string> pattern)
     {
-        return string.Join('/', pattern);
+        var ret = string.Join('/', pattern);
+        if (ret == "") return "_default";
+        return ret;
     }
 }
 
@@ -185,7 +202,7 @@ internal static class Input
     {
         var section_name = root.Name;
 
-        var files_async = vfs.GetFiles(root).Select(async f =>
+        var files_async = vfs.GetFiles(root).Where(f => f.Extension.ToLowerInvariant() == ".md") .Select(async f =>
         {
             var lines = (await vfs.ReadAllTextAsync(f)).Split('\n');
             var (fm, markdown_source) = ParsePostToTuple(run, lines, f);

@@ -327,7 +327,8 @@ public class RunConsoleWithContext : Run
 
     public void WriteError(FormattableString message)
     {
-        AnsiConsole.MarkupLineInterpolated($"[red]ERROR[/]: {message}");
+        AnsiConsole.Markup("[red]ERROR[/]");
+        AnsiConsole.MarkupLineInterpolated(message);
         errorCount += 1;
     }
 
