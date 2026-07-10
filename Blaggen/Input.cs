@@ -1,4 +1,5 @@
 ﻿using System.Collections.Immutable;
+using System.Globalization;
 using System.Text;
 
 namespace Blaggen;
@@ -19,8 +20,15 @@ internal class TemplateDictionary
         return templates.TryGetValue(KeyFrom(dirs), out var group) ? selector(group) : null;
     }
 
-    internal static async Task<TemplateDictionary?> Load(Run run, VfsRead vfs, DirectoryInfo root, DirectoryInfo template_folder)
+    internal static async Task<TemplateDictionary?> Load(Run run, VfsRead vfs, DirectoryInfo root, DirectoryInfo template_folder, SiteConfig site_config)
     {
+        var functions = Template.DefaultFunctions();
+        var site_culture = site_config.CultureInfo;
+        foreach(var (name, format) in site_config.DateFormats)
+        {
+            functions.Add("DateFormat" + name, Template.NoArguments(x => DateTime.Parse(x, CultureInfo.InvariantCulture).ToString(format, site_culture)));
+        }
+
         var ret = new Dictionary<string, TemplateFolder>();
         var partial_folder = template_folder.GetDir("partials");
         var layout_folder = template_folder.GetDir("layouts");
@@ -61,7 +69,7 @@ internal class TemplateDictionary
                 return null;
             }
 
-            var (func, errors) = await Template.Parse(post_file, vfs, Template.DefaultFunctions(), partial_folder, def);
+            var (func, errors) = await Template.Parse(post_file, vfs, functions, partial_folder, def);
 
             foreach (var error in errors)
             {

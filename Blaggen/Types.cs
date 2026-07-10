@@ -35,10 +35,11 @@ internal class SiteConfig
     public string TemplateName { get; set; } = "theme";
 
     [JsonPropertyName("short_date_format")]
-    public string ShortDateFormat { get; set; } = "g";
-
-    [JsonPropertyName("long_date_format")]
-    public string LongDateFormat { get; set; } = "G";
+    public Dictionary<string, string> DateFormats { get; set; } = new()
+    {
+        {"Short", "g"},
+        {"Long", "G"},
+    };
 
     [JsonPropertyName("tags")]
     public Dictionary<string, Taxonomy> Tags = new Dictionary<string, Taxonomy>();
@@ -49,16 +50,6 @@ internal class SiteConfig
 
     [JsonIgnore]
     internal CultureInfo CultureInfo => new CultureInfo(Culture, false);
-
-    internal string ShortDateToString(DateTime dt)
-    {
-        return dt.ToString(ShortDateFormat, CultureInfo);
-    }
-
-    internal string LongDateToString(DateTime dt)
-    {
-        return dt.ToString(ShortDateFormat, CultureInfo);
-    }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }

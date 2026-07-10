@@ -156,6 +156,21 @@ internal static class Template
         return definition.Validate(node);
     }
 
+    public static FuncGenerator NoArguments(Func<string, string> f)
+    {
+        return (location, args) =>
+        {
+            if (args.IsEmpty == false)
+            {
+                return (
+                    _ => "syntax error",
+                    ImmutableArray.Create(
+                        new Error(location, "Expected zero arguments")));
+            }
+            return (arg => f(arg), NoErrors);
+        };
+    }
+
     internal static Dictionary<string, FuncGenerator> DefaultFunctions()
     {
         var culture = new CultureInfo("en-US", false);
@@ -165,21 +180,6 @@ internal static class Template
         t.Add("lower", NoArguments(args => culture.TextInfo.ToLower(args)));
         t.Add("upper", NoArguments(args => culture.TextInfo.ToUpper(args)));
         t.Add("title", NoArguments(args => culture.TextInfo.ToTitleCase(args)));
-
-        static FuncGenerator NoArguments(Func<string, string> f)
-        {
-            return (location, args) =>
-            {
-                if (args.IsEmpty == false)
-                {
-                    return (
-                        _ => "syntax error",
-                        ImmutableArray.Create(
-                            new Error(location, "Expected zero arguments")));
-                }
-                return (arg => f(arg), NoErrors);
-            };
-        }
         
         t.Add("rtrim", OptionalStringArgument((str, spaceChars) => str.TrimEnd(spaceChars.ToCharArray()), " \t\n\r"));
         t.Add("ltrim", OptionalStringArgument((str, spaceChars) => str.TrimStart(spaceChars.ToCharArray()), " \t\n\r"));

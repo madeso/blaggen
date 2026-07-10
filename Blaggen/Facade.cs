@@ -141,7 +141,7 @@ public static class Facade
 
         var template_folder = Constants.CalculateTemplateDirectory(site.Config, root);
 
-        var templates = await TemplateDictionary.Load(run, vfs, root, template_folder);
+        var templates = await TemplateDictionary.Load(run, vfs, root, template_folder, site.Config);
         if (templates == null)
         {
             run.WriteError($"No templates found in [red]{template_folder}[/]");

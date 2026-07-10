@@ -1,4 +1,5 @@
 ﻿using System.Collections.Immutable;
+using System.Globalization;
 
 namespace Blaggen;
 
@@ -10,7 +11,7 @@ internal static class Generate
     internal record TemplateSectionData(Site Site, Section Section)
     {
         internal Post Post { get; } = Section.Post ??
-                                      new Post(Section.Name, PostType.Section, new FrontMatter(), new FileInfo(@"C:\missing.md"), "", "");
+                                      new Post("index", PostType.Section, new FrontMatter(), new FileInfo(@"C:\missing.md"), "", "");
     }
 
     internal static class TemplateHelpers
@@ -20,6 +21,7 @@ internal static class Generate
             self.AddVar("Title", link => post(link).Front.Title);
             self.AddVar("ContentHtml", link => post(link).Html);
             self.AddVar("ContentText", link => post(link).Plain);
+            self.AddVar("Date", link => post(link).Front.Date.ToString(CultureInfo.InvariantCulture));
         }
     }
     
