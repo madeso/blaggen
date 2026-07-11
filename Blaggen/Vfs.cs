@@ -153,6 +153,19 @@ public class VfsWriteFile : VfsWrite
 {
     public async Task WriteAllTextAsync(FileInfo path, string contents)
     {
+        var dir = path.Directory;
+        if (dir != null)
+        {
+            if (dir.Exists)
+            {
+                // do nothing
+            }
+            else
+            {
+                // todo(Gustav): possible race condition, create all directories first, then write files?
+                dir.Create();
+            }
+        }
         await File.WriteAllTextAsync(path.FullName, contents);
     }
 }
