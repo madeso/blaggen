@@ -69,7 +69,7 @@ internal class TemplateDictionary
                 return null;
             }
 
-            var (func, errors) = await Template.Parse(post_file, vfs, functions, partial_folder, def);
+            var (func, errors) = await Template.Parse(post_file, vfs, functions, partial_folder, def, Template.Escape_Html);
 
             foreach (var error in errors)
             {

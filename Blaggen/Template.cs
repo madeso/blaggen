@@ -1,8 +1,8 @@
 ﻿using System.Collections.Immutable;
 using System.Globalization;
-using System.Text;
-
 using System.Runtime.CompilerServices;
+using System.Text;
+using System.Web;
 [assembly: InternalsVisibleTo("BlaggenTest")]
 
 namespace Blaggen;
@@ -27,22 +27,35 @@ namespace Blaggen;
 // todo(Gustav): should return values always be strings? properties return datetime that format functions could format
 internal static class Template
 {
+    internal record Str(string Value, bool IsEscaped);
+    internal delegate string EscapeFunction(Str s);
+    internal static string Escape_NoEscape(Str s) => s.Value;
+    internal static string Escape_Html(Str s) => s.IsEscaped ? s.Value : HttpUtility.HtmlEncode(s.Value);
+
+
+    static Str JoinStr(IEnumerable<Str> str, EscapeFunction escape)
+    {
+        var ss = str.Select(x => escape(x));
+        var combined = string.Join("", ss);
+        return new Str(combined, true);
+    }
+
     internal record Location(FileInfo File, int Line, int Offset);
     internal record Error(Location Location, string Message);
-    internal record FuncArgument(Location Location, string Argument);
+    internal record FuncArgument(Location Location, Str Argument);
 
     // parse arguments, return function call or error
     internal delegate (Func, ImmutableArray<Error>) FuncGenerator(Location call, ImmutableArray<FuncArgument> arguments);
 
     // apply dynamic string function and return result
-    internal delegate string Func(string arg);
+    internal delegate Str Func(Str arg);
 
     
     internal class Definition<TParent>
     {
         private readonly Dictionary<string, Func<TParent, string>> attributes = new ();
         private readonly Dictionary<string, Func<TParent, bool>> bools = new();
-        private readonly Dictionary<string, Func<Node, (Func<TParent, string>, ImmutableArray<Error>)>> children = new();
+        private readonly Dictionary<string, Func<Node, EscapeFunction, (Func<TParent, Str>, ImmutableArray<Error>)>> children = new();
 
         internal Definition<TParent> AddVar(string name, Func<TParent, string> getter)
         {
@@ -58,12 +71,12 @@ internal static class Template
 
         internal Definition<TParent> AddList<TChild>(string name, Func<TParent, IEnumerable<TChild>> childSelector, Definition<TChild> childDef)
         {
-            children.Add(name, node =>
+            children.Add(name, (node, esc) =>
             {
-                var (getter, errors) = childDef.Validate(node);
+                var (getter, errors) = childDef.Validate(node, esc);
                 if (errors.Length > 0) { return (SyntaxError, errors); }
 
-                return (parent => string.Join("", childSelector(parent).Select(getter)), NoErrors);
+                return (parent => JoinStr(childSelector(parent).Select(getter), esc), NoErrors);
             });
             return this;
         }
@@ -74,66 +87,72 @@ internal static class Template
             return this;
         }
 
-        private static string SyntaxError(TParent _) => "Syntax error";
+        private static Str SyntaxError(TParent _) => new("Syntax error", true);
 
-        internal (Func<TParent, string>, ImmutableArray<Error>) Validate(Node node)
+        internal (Func<TParent, Str>, ImmutableArray<Error>) Validate(Node node, EscapeFunction escape)
         {
             switch (node)
             {
                 case Node.Text text:
-                    return (_ => text.Value, NoErrors);
+                    return (_ => new Str(text.Value, true), NoErrors);
                 case Node.Attribute attribute:
                 {
                     if (false == attributes.TryGetValue(attribute.Name, out var getter))
                     {
-                        return (SyntaxError, ImmutableArray.Create(new Error(
+                        return (SyntaxError, [
+                            new Error(
                                 attribute.Location,
                                 $"Missing attribute ${attribute.Name}: {MatchStrings(attribute.Name, attributes.Keys)}"
-                            )));
+                            )
+                        ]);
                     }
-                    return (parent => getter(parent), NoErrors);
+                    return (parent => new Str(getter(parent), false), NoErrors);
                 }
                 case Node.If check:
                 {
                     if (false == bools.TryGetValue(check.Name, out var getter))
                     {
-                        return (SyntaxError, ImmutableArray.Create(new Error(
-                            check.Location,
-                            $"Missing bool {check.Name}: {MatchStrings(check.Name, bools.Keys)}"
-                        )));
+                        return (SyntaxError, [
+                            new Error(
+                                check.Location,
+                                $"Missing bool {check.Name}: {MatchStrings(check.Name, bools.Keys)}"
+                            )
+                        ]);
                     }
 
-                    var (body, errors) = Validate(check.Body);
+                    var (body, errors) = Validate(check.Body, escape);
                     if (errors.Length > 0) { return (SyntaxError, errors); }
 
-                    return (parent => getter(parent) ? body(parent) : string.Empty, NoErrors);
+                    return (parent => getter(parent) ? body(parent) : new Str(string.Empty, true), NoErrors);
                 }
                 case Node.Iterate iterate:
                 {
                     if (false == children.TryGetValue(iterate.Name, out var validator))
                     {
-                        return (SyntaxError, ImmutableArray.Create(new Error(
+                        return (SyntaxError, [
+                            new Error(
                                 iterate.Location,
                                 $"Missing array {iterate.Name}: {MatchStrings(iterate.Name, children.Keys)}"
-                            )));
+                            )
+                        ]);
                     }
-                    return validator(iterate.Body);
+                    return validator(iterate.Body, escape);
                 }
                 case Node.FunctionCall fc:
                 {
-                    var (getter, errors) = Validate(fc.Arg);
+                    var (getter, errors) = Validate(fc.Arg, escape);
                     if (errors.Length > 0) { return (SyntaxError, errors); }
 
                     return (parent => fc.Function(getter(parent)), NoErrors);
                 }
                 case Node.Group gr:
                 {
-                    var validatedArgs = gr.Nodes.Select(Validate).ToImmutableArray();
+                    var validatedArgs = gr.Nodes.Select(x => Validate(x, escape)).ToImmutableArray();
                     var errors = validatedArgs.SelectMany(x => x.Item2).Distinct().ToImmutableArray();
                     if (errors.Length > 0) { return (SyntaxError, errors); }
 
                     var getters = validatedArgs.Select(x => x.Item1).ToImmutableArray();
-                    return (parent => string.Join("", getters.Select(x => x(parent)).ToList()), NoErrors);
+                    return (parent => JoinStr(getters.Select(x => x(parent)), escape), NoErrors);
                 }
 
                 default:
@@ -142,7 +161,7 @@ internal static class Template
         }
     }
 
-    internal static async Task<(Func<T, string>, ImmutableArray<Error>)> Parse<T>(FileInfo path, VfsRead vfs, Dictionary<string, FuncGenerator> functions, DirectoryInfo include_dir, Definition<T> definition)
+    internal static async Task<(Func<T, string>, ImmutableArray<Error>)> Parse<T>(FileInfo path, VfsRead vfs, Dictionary<string, FuncGenerator> functions, DirectoryInfo include_dir, Definition<T> definition, EscapeFunction escape)
     {
         var source = await vfs.ReadAllTextAsync(path);
         var (tokens, lexerErrors) = Scanner(path, source);
@@ -153,21 +172,28 @@ internal static class Template
         if (parseErrors.Length > 0)
         { return (_ => "Parsing failed", parseErrors); }
 
-        return definition.Validate(node);
+        var (func, err) = definition.Validate(node, escape);
+
+        return (t => escape(func(t)), err);
     }
 
-    public static FuncGenerator NoArguments(Func<string, string> f)
+    public enum EscapeString
+    {
+        Yes,
+        No
+    }
+
+    public static FuncGenerator NoArguments(Func<string, string> f, EscapeString escape_string = EscapeString.Yes)
     {
         return (location, args) =>
         {
             if (args.IsEmpty == false)
             {
                 return (
-                    _ => "syntax error",
-                    ImmutableArray.Create(
-                        new Error(location, "Expected zero arguments")));
+                    _ => new Str("syntax error", false),
+                    [new Error(location, "Expected zero arguments")]);
             }
-            return (arg => f(arg), NoErrors);
+            return (arg => new Str(f(arg.Value), escape_string == EscapeString.No), NoErrors);
         };
     }
 
@@ -180,7 +206,8 @@ internal static class Template
         t.Add("lower", NoArguments(args => culture.TextInfo.ToLower(args)));
         t.Add("upper", NoArguments(args => culture.TextInfo.ToUpper(args)));
         t.Add("title", NoArguments(args => culture.TextInfo.ToTitleCase(args)));
-        
+        t.Add("safeHTML", NoArguments(args => args, EscapeString.No));
+
         t.Add("rtrim", OptionalStringArgument((str, spaceChars) => str.TrimEnd(spaceChars.ToCharArray()), " \t\n\r"));
         t.Add("ltrim", OptionalStringArgument((str, spaceChars) => str.TrimStart(spaceChars.ToCharArray()), " \t\n\r"));
         t.Add("trim", OptionalStringArgument((str, spaceChars) => str.Trim(spaceChars.ToCharArray()), " \t\n\r"));
@@ -192,12 +219,14 @@ internal static class Template
             {
                 return args.Length switch
                 {
-                    0 => (arg => f(arg, missing), NoErrors),
-                    1 => (arg => f(arg, args[0].Argument), NoErrors),
-                    _ => (_ => "syntax error",
-                        ImmutableArray.Create(new Error(
+                    0 => (arg => new Str(f(arg.Value, missing), false), NoErrors),
+                    1 => (arg => new Str(f(arg.Value, args[0].Argument.Value), false), NoErrors),
+                    _ => (_ => new Str("syntax error", false),
+                    [
+                        new Error(
                             location,
-                            "Expected zero or one string argument")))
+                            "Expected zero or one string argument")
+                    ])
                 };
             };
         }
@@ -208,19 +237,21 @@ internal static class Template
             {
                 return args.Length switch
                 {
-                    0 => (arg => f(arg, missing), NoErrors),
-                    1 => int.TryParse(args[0].Argument, out var number)
-                        ? (arg => f(arg, number), NoErrors)
-                        : (_ => "syntax error",
-                            ImmutableArray.Create(
-                                new Error(location, "This function takes zero or one int argument"),
+                    0 => (arg => new Str(f(arg.Value, missing), false), NoErrors),
+                    1 => int.TryParse(args[0].Argument.Value, out var number)
+                        ? (arg => new Str(f(arg.Value, number), false), NoErrors)
+                        : (_ => new Str("syntax error", false),
+                        [
+                            new Error(location, "This function takes zero or one int argument"),
                                 new Error(args[0].Location, "this is not a int")
-                                ))
+                        ])
                     ,
-                    _ => (_ => "syntax error",
-                        ImmutableArray.Create(new Error(
+                    _ => (_ => new Str("syntax error", false),
+                    [
+                        new Error(
                             location,
-                            "Expected zero or one int argument")))
+                            "Expected zero or one int argument")
+                    ])
                 };
             };
         }
@@ -230,7 +261,7 @@ internal static class Template
         return t;
 
         static (Func, ImmutableArray<Error>) SyntaxError(params Error[] errors)
-            => (_ => "syntax error", ImmutableArray.Create(errors));
+            => (_ => new Str("syntax error", false), [..errors]);
 
         static FuncGenerator StringStringArgument(Func<string, string, string, string> f)
         {
@@ -240,7 +271,7 @@ internal static class Template
                 {
                     return SyntaxError(new Error(location, "Expected two arguments"));
                 }
-                return (arg => f(arg, args[0].Argument, args[1].Argument), NoErrors);
+                return (arg => new Str(f(arg.Value, args[0].Argument.Value, args[1].Argument.Value), false), NoErrors);
             };
         }
 
@@ -253,17 +284,17 @@ internal static class Template
                     return SyntaxError(new Error(location, "Expected two arguments"));
                 }
 
-                if (int.TryParse(args[0].Argument, out var lhs) == false)
+                if (int.TryParse(args[0].Argument.Value, out var lhs) == false)
                 {
                     return SyntaxError(new Error(args[0].Location, "Not a integer"));
                 }
 
-                if (int.TryParse(args[1].Argument, out var rhs) == false)
+                if (int.TryParse(args[1].Argument.Value, out var rhs) == false)
                 {
                     return SyntaxError(new Error(args[1].Location, "Not a integer"));
                 }
 
-                return (arg => f(arg, lhs, rhs), NoErrors);
+                return (arg => new Str(f(arg.Value, lhs, rhs), false), NoErrors);
             };
         }
 
@@ -818,7 +849,7 @@ internal static class Template
             }
 
             var arg = Advance();
-            return new FuncArgument(arg.Location, arg.Value);
+            return new FuncArgument(arg.Location, new Str(arg.Value, true));
         }
 
         string ExtractAttributeName()

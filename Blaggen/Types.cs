@@ -34,7 +34,7 @@ internal class SiteConfig
     [JsonPropertyName("theme")]
     public string TemplateName { get; set; } = "theme";
 
-    [JsonPropertyName("short_date_format")]
+    [JsonPropertyName("dates")]
     public Dictionary<string, string> DateFormats { get; set; } = new()
     {
         {"Short", "g"},
