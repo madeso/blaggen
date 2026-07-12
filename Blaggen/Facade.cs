@@ -131,22 +131,30 @@ public static class Facade
     {
         var time_start = DateTime.Now;
 
-        run.Status("Parsing directory");
-
-        var site = await Input.LoadEntireSite(run, vfs, root);
-        if (site == null)
+        run.Status("Parsing site");
+        var config = await Input.LoadSiteConfig(run, vfs, root);
+        if (config == null)
         {
             return -1;
         }
 
-        var template_folder = Constants.CalculateTemplateDirectory(site.Config, root);
-
-        var templates = await TemplateDictionary.Load(run, vfs, root, template_folder, site.Config);
+        run.Status("Parsing templates");
+        var template_folder = Constants.CalculateTemplateDirectory(config, root);
+        var templates = await TemplateDictionary.Load(run, vfs, root, template_folder, config);
         if (templates == null)
         {
             run.WriteError($"No templates found in [red]{template_folder}[/]");
             return -1;
         }
+
+        run.Status("Parsing directory");
+        var section = await Input.LoadPosts(run, vfs, root);
+        if (section == null)
+        {
+            return -1;
+        }
+
+        var site = new Site(config, section);
 
         // todo(Gustav): generate page
         int number_of_pages_generated = await Generate.WriteSite(run, site, vfs_write, templates, public_dir);
@@ -327,7 +335,7 @@ public static class Facade
     public static async Task<int> ListTaxonomies(Run run, VfsReadFile vfs, DirectoryInfo root)
     {
         run.Status("Parsing directory");
-        var site = await Input.LoadEntireSite(run, vfs, root);
+        var site = await Input.LoadPosts(run, vfs, root);
         if (site == null)
         {
             return -1;
@@ -335,7 +343,7 @@ public static class Facade
 
         run.Status("Collecting");
         // todo(Gustav): also use ColCounter here?
-        var keys = AllPosts(site.Root).SelectMany(p => p.Front.TaxonomyData.Keys).ToHashSet();
+        var keys = AllPosts(site).SelectMany(p => p.Front.TaxonomyData.Keys).ToHashSet();
         AnsiConsole.WriteLine($"{keys.Count} unique group(s)");
         foreach (var key in keys)
         {
@@ -348,14 +356,14 @@ public static class Facade
     public static async Task<int> ListTermsForTaxonomy(Run run, VfsReadFile vfs, DirectoryInfo root, string taxonomy)
     {
         run.Status("Parsing directory");
-        var site = await Input.LoadEntireSite(run, vfs, root);
-        if (site == null)
+        var posts = await Input.LoadPosts(run, vfs, root);
+        if (posts == null)
         {
             return -1;
         }
 
         run.Status("Collecting");
-        var selected = AllPosts(site.Root)
+        var selected = AllPosts(posts)
             .Select(p => p.Front.TaxonomyData.TryGetValue(taxonomy, out var props) ? props : null)
             .Where(p => p != null)
             .ToImmutableArray();
@@ -450,14 +458,14 @@ public static class Facade
     private static async Task<ImmutableArray<Post>> ExtractPostsWithTerm(Run run, VfsRead vfs, DirectoryInfo root, string taxonomy, string term)
     {
         run.Status("Parsing directory");
-        var site = await Input.LoadEntireSite(run, vfs, root);
-        if (site == null)
+        var section = await Input.LoadPosts(run, vfs, root);
+        if (section == null)
         {
             return ImmutableArray<Post>.Empty;
         }
 
         run.Status("Collecting");
-        var selected = AllPosts(site.Root)
+        var selected = AllPosts(section)
                 .Select(p => p.Front.TaxonomyData.TryGetValue(taxonomy, out var props)
                     ? new PostWithOptionalTags(props, p)
                     : new PostWithOptionalTags(null, p))

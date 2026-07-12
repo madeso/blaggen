@@ -184,11 +184,8 @@ internal static class Input
     }
 
 
-    internal static async Task<Site?> LoadEntireSite(Run run, VfsRead vfs, DirectoryInfo root)
+    internal static async Task<Section?> LoadPosts(Run run, VfsRead vfs, DirectoryInfo root)
     {
-        var config = await LoadSiteConfig(run, vfs, root);
-        if (config == null) { return null; }
-
         var markdown = new MarkdownParser();
 
         var content = await LoadDir(run, vfs, Constants.GetContentDirectory(root), [], markdown);
@@ -199,7 +196,7 @@ internal static class Input
             return null;
         }
 
-        return new Site(config, section);
+        return section;
     }
 
     private record ParsedPost(Post Post, bool PromoteThisPost);

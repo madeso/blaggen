@@ -27,13 +27,17 @@ public class ClassifyTest : TestBase
     {
         read.AddContent(cwd.GetFile(Constants.ROOT_FILENAME_WITH_EXTENSION), "{}");
 
-        var site = await Input.LoadEntireSite(run, read, cwd);
-        site.Should().NotBeNull();
-        if (site == null) return;
+        var config = await Input.LoadSiteConfig(run, read, cwd);
+        config.Should().NotBeNull();
+        if (config == null) return;
+
+        var posts = await Input.LoadPosts(run, read, cwd);
+        posts.Should().NotBeNull();
+        if (posts == null) return;
 
         using (new AssertionScope())
         {
-            validate(site);
+            validate(new Site(config, posts));
             run.Errors.Should().BeEmpty();
         }
 
