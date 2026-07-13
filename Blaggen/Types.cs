@@ -42,7 +42,10 @@ internal class SiteConfig
     };
 
     [JsonPropertyName("tags")]
-    public Dictionary<string, Taxonomy> Tags = new Dictionary<string, Taxonomy>();
+    public Dictionary<string, Taxonomy> Tags = new();
+
+    [JsonPropertyName("params")]
+    public Dictionary<string, string> Params { get; set; } = new();
 
     [JsonPropertyName("url")]
     public string BaseUrl { get; set; } = string.Empty;

@@ -102,7 +102,7 @@ internal static class Template
                         return (SyntaxError, [
                             new Error(
                                 attribute.Location,
-                                $"Missing attribute ${attribute.Name}: {MatchStrings(attribute.Name, attributes.Keys)}"
+                                $"Missing attribute {attribute.Name}: {MatchStrings(attribute.Name, attributes.Keys)}"
                             )
                         ]);
                     }

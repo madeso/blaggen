@@ -23,10 +23,37 @@ internal static class Generate
             self.AddVar("ContentText", link => post(link).Plain);
             self.AddVar("Date", link => post(link).Front.Date.ToString(CultureInfo.InvariantCulture));
         }
+        public static void AddSite<T>(Template.Definition<T> self, Func<T, Site> site, SiteConfig config)
+        {
+            /*
+            array SiteMenus_main: No match in 0: []
+           array SiteMenus_main: No match in 2: [Posts, Sections]
+           attribute Content: did you mean [ContentHtml, ContentText, Site, Date, Title] of 5: [Site, Title, ContentHtml, ContentText, Date]
+           attribute Permalink: did you mean [Link, Title, Date] of 5: [Link, Title, ContentHtml, ContentText, Date]
+           attribute Site_BaseURL: did you mean [Site, Title, ContentText, Date] of 5: [Site, Title, ContentHtml, ContentText, Date]
+           attribute Site_BaseURL: did you mean [Site, Title, ContentText, Date] of 5: [Site, Title, ContentHtml, ContentText, Date]
+           attribute Site_BaseURL: did you mean [Site, Title, ContentText, Date] of 5: [Site, Title, ContentHtml, ContentText, Date]
+           attribute Site_BaseURL: did you mean [Site, Title, ContentText, Date] of 5: [Site, Title, ContentHtml, ContentText, Date]
+           attribute Site_BaseURL: did you mean [Site, Title, ContentText, Date] of 5: [Site, Title, ContentHtml, ContentText, Date]
+           attribute Site_BaseURL: did you mean [Site, Title, ContentText, Date] of 5: [Site, Title, ContentHtml, ContentText, Date]
+           attribute Site_BaseURL: did you mean [Site, Title, ContentText, Date] of 5: [Site, Title, ContentHtml, ContentText, Date]
+           attribute Site_BaseURL: did you mean [Site, Title, ContentText, Date] of 5: [Site, Title, ContentHtml, ContentText, Date]
+           attribute SiteTitle: did you mean [Title, Site, Date, ContentHtml, ContentText] of 5: [Site, Title, ContentHtml, ContentText, Date]
+           attribute SiteTitle: did you mean [Title, Site, Date, ContentHtml, ContentText] of 5: [Site, Title, ContentHtml, ContentText, Date]
+             */
+            self.AddVar("Site", link => site(link).Config.Name);
+            foreach(var key in config.Params.Keys)
+            {
+                self.AddVar($"SiteParams_{key}", link => site(link).Config.Params[key]);
+            }
+        }
     }
     
-    internal static Template.Definition<TemplatePostData> MakePostData() => new Template.Definition<TemplatePostData>()
-        .AddVar("Site", link => link.Site.Config.Name)
+    internal static Template.Definition<TemplatePostData> MakePostData(SiteConfig config) => new Template.Definition<TemplatePostData>()
+        .Add(self =>
+        {
+            TemplateHelpers.AddSite(self, x => x.Site, config);
+        })
         .Add(self =>
         {
             TemplateHelpers.AddPost(self, x => x.Post);
@@ -45,8 +72,11 @@ internal static class Generate
         .AddVar("Link", x=>x.Name)
     ;
 
-    internal static Template.Definition<TemplateSectionData> MakeSectionData() => new Template.Definition<TemplateSectionData>()
-        .AddVar("Site", link => link.Site.Config.Name)
+    internal static Template.Definition<TemplateSectionData> MakeSectionData(SiteConfig config) => new Template.Definition<TemplateSectionData>()
+        .Add(self =>
+        {
+            TemplateHelpers.AddSite(self, x => x.Site, config);
+        })
         .AddBool("hasPost", x => x.Section.Post != null)
         .Add(self =>
         {
