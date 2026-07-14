@@ -22,27 +22,21 @@ internal static class Generate
             self.AddVar("ContentHtml", link => post(link).Html);
             self.AddVar("ContentText", link => post(link).Plain);
             self.AddVar("Date", link => post(link).Front.Date.ToString(CultureInfo.InvariantCulture));
+
+            /*
+            attribute Permalink: did you mean [Link, Title, Date] of 5: [Link, Title, ContentHtml, ContentText, Date]
+            attribute Content: did you mean [ContentHtml, ContentText, Site, Date, Title] of 5: [Site, Title, ContentHtml, ContentText, Date]
+            */
         }
         public static void AddSite<T>(Template.Definition<T> self, Func<T, Site> site, SiteConfig config)
         {
             /*
             array SiteMenus_main: No match in 0: []
-           array SiteMenus_main: No match in 2: [Posts, Sections]
-           attribute Content: did you mean [ContentHtml, ContentText, Site, Date, Title] of 5: [Site, Title, ContentHtml, ContentText, Date]
-           attribute Permalink: did you mean [Link, Title, Date] of 5: [Link, Title, ContentHtml, ContentText, Date]
-           attribute Site_BaseURL: did you mean [Site, Title, ContentText, Date] of 5: [Site, Title, ContentHtml, ContentText, Date]
-           attribute Site_BaseURL: did you mean [Site, Title, ContentText, Date] of 5: [Site, Title, ContentHtml, ContentText, Date]
-           attribute Site_BaseURL: did you mean [Site, Title, ContentText, Date] of 5: [Site, Title, ContentHtml, ContentText, Date]
-           attribute Site_BaseURL: did you mean [Site, Title, ContentText, Date] of 5: [Site, Title, ContentHtml, ContentText, Date]
-           attribute Site_BaseURL: did you mean [Site, Title, ContentText, Date] of 5: [Site, Title, ContentHtml, ContentText, Date]
-           attribute Site_BaseURL: did you mean [Site, Title, ContentText, Date] of 5: [Site, Title, ContentHtml, ContentText, Date]
-           attribute Site_BaseURL: did you mean [Site, Title, ContentText, Date] of 5: [Site, Title, ContentHtml, ContentText, Date]
-           attribute Site_BaseURL: did you mean [Site, Title, ContentText, Date] of 5: [Site, Title, ContentHtml, ContentText, Date]
-           attribute SiteTitle: did you mean [Title, Site, Date, ContentHtml, ContentText] of 5: [Site, Title, ContentHtml, ContentText, Date]
-           attribute SiteTitle: did you mean [Title, Site, Date, ContentHtml, ContentText] of 5: [Site, Title, ContentHtml, ContentText, Date]
-             */
-            self.AddVar("Site", link => site(link).Config.Name);
-            foreach(var key in config.Params.Keys)
+            array SiteMenus_main: No match in 2: [Posts, Sections]
+            */
+            self.AddVar("Site_Title", link => site(link).Config.Name);
+            self.AddVar("Site_BaseURL", link => site(link).Config.Url);
+            foreach (var key in config.Params.Keys)
             {
                 self.AddVar($"SiteParams_{key}", link => site(link).Config.Params[key]);
             }
