@@ -56,6 +56,7 @@ internal static class Generate
 
     private static Template.Definition<Post> MakePostLink() => new Template.Definition<Post>()
         .AddVar("Link", x => x.Name)
+        .AddVar("Permalink", x => x.Name) // is this correct???
         .Add(self =>
         {
             TemplateHelpers.AddPost(self, x => x);
