@@ -124,16 +124,20 @@ public static class Facade
         if (root == null) { run.WriteError($"Unable to find root"); return -1; }
         var public_dir = root.GetDir("public");
 
-        return await GenerateSite(run, vfs, vfs_write, root, public_dir);
+        return await GenerateSite(run, vfs, vfs_write, root, public_dir, abort_on_errors: true);
     }
 
-    public static async Task<int> GenerateSite(Run run, VfsRead vfs, VfsWrite vfs_write, DirectoryInfo root, DirectoryInfo public_dir)
+    public static async Task<int> GenerateSite(Run run, VfsRead vfs, VfsWrite vfs_write, DirectoryInfo root, DirectoryInfo public_dir, bool abort_on_errors)
     {
         var time_start = DateTime.Now;
 
         run.Status("Parsing site");
         var config = await Input.LoadSiteConfig(run, vfs, root);
         if (config == null)
+        {
+            return -1;
+        }
+        if (abort_on_errors && run.HasError())
         {
             return -1;
         }
@@ -146,10 +150,18 @@ public static class Facade
             run.WriteError($"No templates found in [red]{template_folder}[/]");
             return -1;
         }
+        if (abort_on_errors && run.HasError())
+        {
+            return -1;
+        }
 
         run.Status("Parsing directory");
         var section = await Input.LoadPosts(run, vfs, root);
         if (section == null)
+        {
+            return -1;
+        }
+        if (abort_on_errors && run.HasError())
         {
             return -1;
         }
@@ -241,7 +253,7 @@ public static class Facade
         VfsCachedFileRead vfs_cache, ServerVfs server_vfs, DirectoryInfo root, ConsoleKey abort_key)
     {
         var public_dir = root.GetDir("public");
-        await GenerateSite(run, vfs_cache, server_vfs, root, public_dir);
+        await GenerateSite(run, vfs_cache, server_vfs, root, public_dir, abort_on_errors: false);
 
         var watch_for_changes = true;
 
@@ -300,7 +312,7 @@ public static class Facade
                 }
 
                 // todo(Gustav): print only errors
-                await GenerateSite(run, vfs_cache, server_vfs, root, public_dir);
+                await GenerateSite(run, vfs_cache, server_vfs, root, public_dir, abort_on_errors:false);
             }
 
             return 0;
