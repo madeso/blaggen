@@ -50,9 +50,11 @@ internal static class Template
     // apply dynamic string function and return result
     internal delegate Str Func(Str arg);
 
-    
-    internal class Definition<TParent>
+
+    internal class Definition<TParent>(string? name = null)
     {
+        internal string TemplateName { get; } = name ?? typeof(TParent).Name ?? "";
+
         private readonly Dictionary<string, Func<TParent, string>> attributes = new ();
         private readonly Dictionary<string, Func<TParent, bool>> bools = new();
         private readonly Dictionary<string, Func<Node, EscapeFunction, (Func<TParent, Str>, ImmutableArray<Error>)>> children = new();
@@ -102,7 +104,7 @@ internal static class Template
                         return (SyntaxError, [
                             new Error(
                                 attribute.Location,
-                                $"Missing attribute {attribute.Name}: {MatchStrings(attribute.Name, attributes.Keys)}"
+                                $"Missing attribute {attribute.Name}: {MatchStrings(attribute.Name, attributes.Keys)} of {TemplateName}"
                             )
                         ]);
                     }
@@ -115,7 +117,7 @@ internal static class Template
                         return (SyntaxError, [
                             new Error(
                                 check.Location,
-                                $"Missing bool {check.Name}: {MatchStrings(check.Name, bools.Keys)}"
+                                $"Missing bool {check.Name}: {MatchStrings(check.Name, bools.Keys)} of {TemplateName}"
                             )
                         ]);
                     }
@@ -132,7 +134,7 @@ internal static class Template
                         return (SyntaxError, [
                             new Error(
                                 iterate.Location,
-                                $"Missing array {iterate.Name}: {MatchStrings(iterate.Name, children.Keys)}"
+                                $"Missing array {iterate.Name}: {MatchStrings(iterate.Name, children.Keys)} of {TemplateName}"
                             )
                         ]);
                     }
