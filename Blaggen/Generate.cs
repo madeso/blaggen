@@ -40,6 +40,11 @@ internal static class Generate
             {
                 self.AddVar($"SiteParams_{key}", link => site(link).Config.Params[key]);
             }
+
+            foreach (var key in config.Menus.Keys)
+            {
+                self.AddList($"SiteMenus_{key}", link => site(link).Config.Menus[key].OrderBy(x => x.Weight), MakeMenuItem());
+            }
         }
     }
     
@@ -52,6 +57,11 @@ internal static class Generate
         {
             TemplateHelpers.AddPost(self, x => x.Post);
         })
+    ;
+
+    private static Template.Definition<MenuItem> MakeMenuItem() => new Template.Definition<MenuItem>()
+        .AddVar("Name", x => x.Name)
+        .AddVar("URL", x => x.Url)
     ;
 
     private static Template.Definition<Post> MakePostLink() => new Template.Definition<Post>()

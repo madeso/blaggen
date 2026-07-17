@@ -20,6 +20,18 @@ internal class Taxonomy
     // public HashSet<string> Terms { get; set; } = new HashSet<string>();
 }
 
+internal class MenuItem
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("url")]
+    public string Url { get; set; } = string.Empty;
+
+    [JsonPropertyName("weight")]
+    public int Weight { get; set; }
+}
+
 internal class SiteConfig
 {
     [JsonPropertyName("name")]
@@ -43,6 +55,9 @@ internal class SiteConfig
 
     [JsonPropertyName("tags")]
     public Dictionary<string, Taxonomy> Tags = new();
+
+    [JsonPropertyName("menu")]
+    public Dictionary<string, List<MenuItem>> Menus { get; set; } = new();
 
     [JsonPropertyName("params")]
     public Dictionary<string, string> Params { get; set; } = new();
