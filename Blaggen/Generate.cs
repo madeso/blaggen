@@ -152,7 +152,7 @@ internal static class Generate
             // write sub sections
             foreach (var s in section.Dirs)
             {
-                pages += await WriteSiteRec(s, dirs.Add(section.Name));
+                pages += await WriteSiteRec(s, dirs.Add(s.Name));
             }
 
             return pages;
