@@ -126,8 +126,8 @@ internal static class Generate
                 }
                 else
                 {
-                    await vfs_write.WriteAllTextAsync(public_dir.GetSubDirs(dirs).GetFile("index.html"),
-                        gen(data));
+                    var target = public_dir.GetSubDirs(dirs).GetFile("index.html");
+                    await vfs_write.WriteAllTextAsync(target, gen(data));
                     pages += 1;
                 }
             }
@@ -143,8 +143,8 @@ internal static class Generate
                 }
                 else
                 {
-                    await vfs_write.WriteAllTextAsync(public_dir.GetSubDirs(dirs).GetDir(p.Name).GetFile("index.html"),
-                        gen(data));
+                    var target = public_dir.GetSubDirs(dirs).GetDir(p.Name).GetFile("index.html");
+                    await vfs_write.WriteAllTextAsync(target, gen(data));
                     pages += 1;
                 }
             }
