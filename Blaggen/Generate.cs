@@ -19,7 +19,7 @@ internal static class Generate
         public static void AddPost<T>(Template.Definition<T> self, Func<T, Post> post)
         {
             self.AddVar("Title", link => post(link).Front.Title);
-            self.AddVar("ContentHtml", link => post(link).Html);
+            self.AddVar("ContentHtml", link => Template.Str.DontEscape(post(link).Html));
             self.AddVar("ContentText", link => post(link).Plain);
             self.AddVar("Date", link => post(link).Front.Date.ToString(CultureInfo.InvariantCulture));
 
