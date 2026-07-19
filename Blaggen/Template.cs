@@ -27,7 +27,11 @@ namespace Blaggen;
 // todo(Gustav): should return values always be strings? properties return datetime that format functions could format
 internal static class Template
 {
-    internal record Str(string Value, bool IsEscaped);
+    internal record Str(string Value, bool IsEscaped)
+    {
+        public static Str DontEscape(string s) => new(s, true);
+        public static Str Escape(string s) => new(s, false);
+    }
     internal delegate string EscapeFunction(Str s);
     internal static string Escape_NoEscape(Str s) => s.Value;
     internal static string Escape_Html(Str s) => s.IsEscaped ? s.Value : HttpUtility.HtmlEncode(s.Value);
@@ -37,7 +41,7 @@ internal static class Template
     {
         var ss = str.Select(x => escape(x));
         var combined = string.Join("", ss);
-        return new Str(combined, true);
+        return Str.DontEscape(combined);
     }
 
     internal record Location(FileInfo File, int Line, int Offset);
@@ -55,14 +59,19 @@ internal static class Template
     {
         internal string TemplateName { get; } = name ?? typeof(TParent).Name ?? "";
 
-        private readonly Dictionary<string, Func<TParent, string>> attributes = new ();
+        private readonly Dictionary<string, Func<TParent, Str>> attributes = new ();
         private readonly Dictionary<string, Func<TParent, bool>> bools = new();
         private readonly Dictionary<string, Func<Node, EscapeFunction, (Func<TParent, Str>, ImmutableArray<Error>)>> children = new();
 
-        internal Definition<TParent> AddVar(string name, Func<TParent, string> getter)
+        internal Definition<TParent> AddVar(string name, Func<TParent, Str> getter)
         {
             attributes.Add(name, getter);
             return this;
+        }
+
+        internal Definition<TParent> AddVar(string name, Func<TParent, string> getter)
+        {
+            return AddVar(name, parent => Str.Escape(getter(parent)));
         }
 
         internal Definition<TParent> AddBool(string name, Func<TParent, bool> getter)
@@ -96,7 +105,7 @@ internal static class Template
             switch (node)
             {
                 case Node.Text text:
-                    return (_ => new Str(text.Value, true), NoErrors);
+                    return (_ => Str.DontEscape(text.Value), NoErrors);
                 case Node.Attribute attribute:
                 {
                     if (false == attributes.TryGetValue(attribute.Name, out var getter))
@@ -108,7 +117,7 @@ internal static class Template
                             )
                         ]);
                     }
-                    return (parent => new Str(getter(parent), false), NoErrors);
+                    return (parent => getter(parent), NoErrors);
                 }
                 case Node.If check:
                 {
@@ -125,7 +134,7 @@ internal static class Template
                     var (body, errors) = Validate(check.Body, escape);
                     if (errors.Length > 0) { return (SyntaxError, errors); }
 
-                    return (parent => getter(parent) ? body(parent) : new Str(string.Empty, true), NoErrors);
+                    return (parent => getter(parent) ? body(parent) : Str.DontEscape(string.Empty), NoErrors);
                 }
                 case Node.Iterate iterate:
                 {
@@ -192,7 +201,7 @@ internal static class Template
             if (args.IsEmpty == false)
             {
                 return (
-                    _ => new Str("syntax error", false),
+                    _ => Str.Escape("syntax error"),
                     [new Error(location, "Expected zero arguments")]);
             }
             return (arg => new Str(f(arg.Value), escape_string == EscapeString.No), NoErrors);
@@ -221,9 +230,9 @@ internal static class Template
             {
                 return args.Length switch
                 {
-                    0 => (arg => new Str(f(arg.Value, missing), false), NoErrors),
-                    1 => (arg => new Str(f(arg.Value, args[0].Argument.Value), false), NoErrors),
-                    _ => (_ => new Str("syntax error", false),
+                    0 => (arg => Str.Escape(f(arg.Value, missing)), NoErrors),
+                    1 => (arg => Str.Escape(f(arg.Value, args[0].Argument.Value)), NoErrors),
+                    _ => (_ => Str.Escape("syntax error"),
                     [
                         new Error(
                             location,
@@ -239,16 +248,16 @@ internal static class Template
             {
                 return args.Length switch
                 {
-                    0 => (arg => new Str(f(arg.Value, missing), false), NoErrors),
+                    0 => (arg => Str.Escape(f(arg.Value, missing)), NoErrors),
                     1 => int.TryParse(args[0].Argument.Value, out var number)
-                        ? (arg => new Str(f(arg.Value, number), false), NoErrors)
-                        : (_ => new Str("syntax error", false),
+                        ? (arg => Str.Escape(f(arg.Value, number)), NoErrors)
+                        : (_ => Str.Escape("syntax error"),
                         [
                             new Error(location, "This function takes zero or one int argument"),
                                 new Error(args[0].Location, "this is not a int")
                         ])
                     ,
-                    _ => (_ => new Str("syntax error", false),
+                    _ => (_ => Str.Escape("syntax error"),
                     [
                         new Error(
                             location,
@@ -263,7 +272,7 @@ internal static class Template
         return t;
 
         static (Func, ImmutableArray<Error>) SyntaxError(params Error[] errors)
-            => (_ => new Str("syntax error", false), [..errors]);
+            => (_ => Str.Escape("syntax error"), [..errors]);
 
         static FuncGenerator StringStringArgument(Func<string, string, string, string> f)
         {
@@ -273,7 +282,7 @@ internal static class Template
                 {
                     return SyntaxError(new Error(location, "Expected two arguments"));
                 }
-                return (arg => new Str(f(arg.Value, args[0].Argument.Value, args[1].Argument.Value), false), NoErrors);
+                return (arg => Str.Escape(f(arg.Value, args[0].Argument.Value, args[1].Argument.Value)), NoErrors);
             };
         }
 
@@ -296,7 +305,7 @@ internal static class Template
                     return SyntaxError(new Error(args[1].Location, "Not a integer"));
                 }
 
-                return (arg => new Str(f(arg.Value, lhs, rhs), false), NoErrors);
+                return (arg => Str.Escape(f(arg.Value, lhs, rhs)), NoErrors);
             };
         }
 
@@ -851,7 +860,7 @@ internal static class Template
             }
 
             var arg = Advance();
-            return new FuncArgument(arg.Location, new Str(arg.Value, true));
+            return new FuncArgument(arg.Location, Str.DontEscape(arg.Value));
         }
 
         string ExtractAttributeName()

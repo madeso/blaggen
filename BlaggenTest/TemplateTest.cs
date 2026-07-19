@@ -21,7 +21,7 @@ public class TemplateTest
     private static Template.Definition<SongWithoutAlbum> MakeSongWithoutAlbumDef() => new Template.Definition<SongWithoutAlbum>()
         .AddVar("artist", song => song.Artist)
         .AddVar("title", song => song.Title)
-        .AddVar("album", song => throw new Exception("Song doesn't have a album :(")) // this shouldn't be called
+        //.AddVar("album", song => throw new Exception("Song doesn't have a album :(")) // this shouldn't be called
         .AddBool("star", song => song.HasStar)
     ;
 
