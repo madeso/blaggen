@@ -87,7 +87,7 @@ internal static class Generate
         {
             TemplateHelpers.AddPost(self, x => x.Post);
         })
-        .AddList("Posts", x => x.Section.Posts, MakePostLink())
+        .AddList("Posts", x => x.Section.Posts.OrderByDescending(post => post.Front.Date), MakePostLink())
         .AddList("Sections", x => x.Section.Dirs, MakeSectionLink())
     ;
 
