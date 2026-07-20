@@ -104,7 +104,7 @@ enum PostType
 
 // todo(Gustav): add associated files to be generated...
 internal record Post(string Name, PostType Type, FrontMatter Front, FileInfo SourceFile, string Html, string Plain);
-internal record Section(string Name, Post? Post, ImmutableArray<Post>? Posts, ImmutableArray<Section> Dirs, DirectoryInfo SourceDir);
+internal record Section(string Name, Post? Post, ImmutableArray<Post> Posts, ImmutableArray<Section> Dirs, DirectoryInfo SourceDir);
 internal record Site(SiteConfig Config, Section Root)
 {
     public ImmutableArray<string> DebugString
@@ -130,7 +130,7 @@ internal record Site(SiteConfig Config, Section Root)
                     AddSection(s, depth+1);
                 }
 
-                foreach (var f in root.Posts ?? [])
+                foreach (var f in root.Posts)
                 {
                     AddPost(f);
                 }

@@ -87,7 +87,7 @@ internal static class Generate
         {
             TemplateHelpers.AddPost(self, x => x.Post);
         })
-        .AddList("Posts", x => x.Section.Posts ?? [], MakePostLink())
+        .AddList("Posts", x => x.Section.Posts, MakePostLink())
         .AddList("Sections", x => x.Section.Dirs, MakeSectionLink())
     ;
 
@@ -133,7 +133,7 @@ internal static class Generate
             }
 
             // write pages
-            foreach (var p in section.Posts ?? [])
+            foreach (var p in section.Posts)
             {
                 var data = new TemplatePostData(site, p);
                 var gen = FindInTemplate(dirs, g => g.Post);

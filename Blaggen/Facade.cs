@@ -401,7 +401,7 @@ public static class Facade
 
     private static IEnumerable<Post> AllPosts(Section root)
     {
-        foreach (var p in root.Posts ?? [])
+        foreach (var p in root.Posts)
         {
             yield return p;
         }
