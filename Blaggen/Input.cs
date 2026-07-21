@@ -230,7 +230,13 @@ internal static class Input
 
         var promoted = new List<Post?>();
         var dirs = dirs_async.Select(x => x.Result)
-            .Where(x => x.Section != null, x => promoted.Add(x.Post))
+            .Where(x => x.Section != null, x =>
+            {
+                if(x.Post != null)
+                {
+                    promoted.Add(x.Post);
+                }
+            })
             .Select(x => x.Section).NonNull()
             .ToImmutableArray();
         var files_all = files_async.Select(x => x.Result).NonNull()
@@ -258,6 +264,11 @@ internal static class Input
         {
             var msg = PostsToMessage(index_posts);
             run.WriteInfo($"Detected too many index posts: [blue]{msg}[/], ignored all but first");
+        }
+
+        if (files.IsEmpty && dirs.IsEmpty)
+        {
+            return new SectionOrPost(null, null);
         }
 
         return new SectionOrPost(new Section(section_name, index_posts.FirstOrDefault(), files, dirs, root), null);
