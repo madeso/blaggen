@@ -8,6 +8,8 @@ internal static class Generate
     // data to mustache
     internal record TemplatePostData(Site Site, Post Post);
 
+    internal record Context();
+
     internal record TemplateSectionData(Site Site, Section Section)
     {
         internal Post Post { get; } = Section.Post ??
@@ -16,7 +18,7 @@ internal static class Generate
 
     internal static class TemplateHelpers
     {
-        public static void AddPost<T>(Template.Definition<T> self, Func<T, Post> post)
+        public static void AddPost<T>(Template.Definition<T, Context> self, Func<T, Post> post)
         {
             self.AddVar("Title", link => post(link).Front.Title);
             self.AddVar("ContentHtml", link => Template.Str.DontEscape(post(link).Html));
@@ -28,7 +30,7 @@ internal static class Generate
             attribute Content: did you mean [ContentHtml, ContentText, Site, Date, Title] of 5: [Site, Title, ContentHtml, ContentText, Date]
             */
         }
-        public static void AddSite<T>(Template.Definition<T> self, Func<T, Site> site, SiteConfig config)
+        public static void AddSite<T>(Template.Definition<T, Context> self, Func<T, Site> site, SiteConfig config)
         {
             /*
             array SiteMenus_main: No match in 0: []
@@ -48,7 +50,7 @@ internal static class Generate
         }
     }
     
-    internal static Template.Definition<TemplatePostData> MakePostData(SiteConfig config) => new Template.Definition<TemplatePostData>()
+    internal static Template.Definition<TemplatePostData, Context> MakePostData(SiteConfig config) => new Template.Definition<TemplatePostData, Context>()
         .Add(self =>
         {
             TemplateHelpers.AddSite(self, x => x.Site, config);
@@ -59,12 +61,12 @@ internal static class Generate
         })
     ;
 
-    private static Template.Definition<MenuItem> MakeMenuItem() => new Template.Definition<MenuItem>()
+    private static Template.Definition<MenuItem, Context> MakeMenuItem() => new Template.Definition<MenuItem, Context>()
         .AddVar("Name", x => x.Name)
         .AddVar("URL", x => x.Url)
     ;
 
-    private static Template.Definition<Post> MakePostLink() => new Template.Definition<Post>()
+    private static Template.Definition<Post, Context> MakePostLink() => new Template.Definition<Post, Context>()
         .AddVar("Link", x => x.Name)
         .AddVar("Permalink", x => x.Name) // is this correct???
         .Add(self =>
@@ -72,12 +74,12 @@ internal static class Generate
             TemplateHelpers.AddPost(self, x => x);
         })
     ;
-    private static Template.Definition<Section> MakeSectionLink() => new Template.Definition<Section>()
+    private static Template.Definition<Section, Context> MakeSectionLink() => new Template.Definition<Section, Context>()
         .AddVar("Title", x => x.Post?.Front.Title ?? x.Name)
         .AddVar("Link", x=>x.Name)
     ;
 
-    internal static Template.Definition<TemplateSectionData> MakeSectionData(SiteConfig config) => new Template.Definition<TemplateSectionData>()
+    internal static Template.Definition<TemplateSectionData, Context> MakeSectionData(SiteConfig config) => new Template.Definition<TemplateSectionData, Context>()
         .Add(self =>
         {
             TemplateHelpers.AddSite(self, x => x.Site, config);
@@ -127,7 +129,7 @@ internal static class Generate
                 else
                 {
                     var target = public_dir.GetSubDirs(dirs).GetFile("index.html");
-                    await vfs_write.WriteAllTextAsync(target, gen(data));
+                    await vfs_write.WriteAllTextAsync(target, gen(data, new Context()));
                     pages += 1;
                 }
             }
@@ -144,7 +146,7 @@ internal static class Generate
                 else
                 {
                     var target = public_dir.GetSubDirs(dirs).GetDir(p.Name).GetFile("index.html");
-                    await vfs_write.WriteAllTextAsync(target, gen(data));
+                    await vfs_write.WriteAllTextAsync(target, gen(data, new Context()));
                     pages += 1;
                 }
             }

@@ -9,8 +9,10 @@ namespace BlaggenTest;
 
 public class TemplateTest
 {
+    private record Context();
+
     private record Song(string Artist, string Title, string Album, int Track);
-    private static Template.Definition<Song> MakeSongDef() => new Template.Definition<Song>()
+    private static Template.Definition<Song, Context> MakeSongDef() => new Template.Definition<Song, Context>()
         .AddVar("artist", song => song.Artist)
         .AddVar("title", song => song.Title)
         .AddVar("album", song => song.Album)
@@ -18,21 +20,21 @@ public class TemplateTest
         ;
 
     private record SongWithoutAlbum(string Artist, string Title, bool HasStar);
-    private static Template.Definition<SongWithoutAlbum> MakeSongWithoutAlbumDef() => new Template.Definition<SongWithoutAlbum>()
+    private static Template.Definition<SongWithoutAlbum, Context> MakeSongWithoutAlbumDef() => new Template.Definition<SongWithoutAlbum, Context>()
         .AddVar("artist", song => song.Artist)
         .AddVar("title", song => song.Title)
         //.AddVar("album", song => throw new Exception("Song doesn't have a album :(")) // this shouldn't be called
         .AddBool("star", song => song.HasStar)
     ;
 
-    private static Template.Definition<Song> MakeSongDefWithSpaces() => new Template.Definition<Song>()
+    private static Template.Definition<Song, Context> MakeSongDefWithSpaces() => new Template.Definition<Song, Context>()
         .AddVar("the artist", song => song.Artist)
         .AddVar("the title", song => song.Title)
         .AddVar("the album", song => song.Album)
     ;
 
     private record MixTape(ImmutableArray<SongWithoutAlbum> Songs);
-    private static Template.Definition<MixTape> MakeMixTapeDef() => new Template.Definition<MixTape>()
+    private static Template.Definition<MixTape, Context> MakeMixTapeDef() => new Template.Definition<MixTape, Context>()
         .AddList("songs", mt => mt.Songs, MakeSongWithoutAlbumDef())
         ;
 
@@ -52,8 +54,8 @@ public class TemplateTest
         read.AddContent(file, "{{artist}} - {{title}} ({{album}})");
         using (new AssertionScope())
         {
-            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeSongDef(), Template.Escape_NoEscape);
-            evaluator(AbbaSong).Should().Be("ABBA - dancing queen (Arrival)");
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions<Context>(), cwd, MakeSongDef(), Template.Escape_NoEscape);
+            evaluator(AbbaSong, new Context()).Should().Be("ABBA - dancing queen (Arrival)");
             errors.Should().BeEquivalentTo(new Template.Error[] { });
         }
     }
@@ -66,8 +68,8 @@ public class TemplateTest
         read.AddContent(file, "{{\"artist\"}} - {{\"title\"}} ({{\"album\"}})");
         using (new AssertionScope())
         {
-            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeSongDef(), Template.Escape_NoEscape);
-            evaluator(AbbaSong).Should().Be("ABBA - dancing queen (Arrival)");
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions<Context>(), cwd, MakeSongDef(), Template.Escape_NoEscape);
+            evaluator(AbbaSong, new Context()).Should().Be("ABBA - dancing queen (Arrival)");
             errors.Should().BeEquivalentTo(new Template.Error[] { });
         }
     }
@@ -80,8 +82,8 @@ public class TemplateTest
         read.AddContent(file, "{{\"the artist\"}} - {{\"the title\"}} ({{\"the album\"}})");
         using (new AssertionScope())
         {
-            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeSongDefWithSpaces(), Template.Escape_NoEscape);
-            evaluator(AbbaSong).Should().Be("ABBA - dancing queen (Arrival)");
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions<Context>(), cwd, MakeSongDefWithSpaces(), Template.Escape_NoEscape);
+            evaluator(AbbaSong, new Context()).Should().Be("ABBA - dancing queen (Arrival)");
             errors.Should().BeEquivalentTo(new Template.Error[] { });
         }
     }
@@ -93,8 +95,8 @@ public class TemplateTest
         read.AddContent(file, "{{artist}} - {{title | title}} ( {{- album -}} )");
         using (new AssertionScope())
         {
-            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeSongDef(), Template.Escape_NoEscape);
-            evaluator(AbbaSong).Should().Be("ABBA - Dancing Queen (Arrival)");
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions<Context>(), cwd, MakeSongDef(), Template.Escape_NoEscape);
+            evaluator(AbbaSong, new Context()).Should().Be("ABBA - Dancing Queen (Arrival)");
             errors.Should().BeEquivalentTo(new Template.Error[] { });
         }
     }
@@ -106,8 +108,8 @@ public class TemplateTest
         read.AddContent(file, "{{track | zfill(3)}} {{- /** a comment **/ -}}  . {{title | title}}");
         using (new AssertionScope())
         {
-            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeSongDef(), Template.Escape_NoEscape);
-            evaluator(AbbaSong).Should().Be("002. Dancing Queen");
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions<Context>(), cwd, MakeSongDef(), Template.Escape_NoEscape);
+            evaluator(AbbaSong, new Context()).Should().Be("002. Dancing Queen");
 
             errors.Should().BeEquivalentTo(new Template.Error[] { });
         }
@@ -120,8 +122,8 @@ public class TemplateTest
         read.AddContent(file, "{{#songs}}[{{title}}]{{/songs}}");
         using (new AssertionScope())
         {
-            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeMixTapeDef(), Template.Escape_NoEscape);
-            evaluator(AwesomeMix).Should().Be("[I Will Survive][Smells Like Teen Spirit]");
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions<Context>(), cwd, MakeMixTapeDef(), Template.Escape_NoEscape);
+            evaluator(AwesomeMix, new Context()).Should().Be("[I Will Survive][Smells Like Teen Spirit]");
 
             errors.Should().BeEquivalentTo(new Template.Error[] { });
         }
@@ -134,8 +136,8 @@ public class TemplateTest
         read.AddContent(file, "{{range songs}}[{{title}}]{{end}}");
         using (new AssertionScope())
         {
-            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeMixTapeDef(), Template.Escape_NoEscape);
-            evaluator(AwesomeMix).Should().Be("[I Will Survive][Smells Like Teen Spirit]");
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions<Context>(), cwd, MakeMixTapeDef(), Template.Escape_NoEscape);
+            evaluator(AwesomeMix, new Context()).Should().Be("[I Will Survive][Smells Like Teen Spirit]");
 
             errors.Should().BeEquivalentTo(new Template.Error[] { });
         }
@@ -149,8 +151,8 @@ public class TemplateTest
         read.AddContent(cwd.GetFile("include.txt"), "[{{title}}]");
         using (new AssertionScope())
         {
-            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeMixTapeDef(), Template.Escape_NoEscape);
-            evaluator(AwesomeMix).Should().Be("[I Will Survive][Smells Like Teen Spirit]");
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions<Context>(), cwd, MakeMixTapeDef(), Template.Escape_NoEscape);
+            evaluator(AwesomeMix, new Context()).Should().Be("[I Will Survive][Smells Like Teen Spirit]");
 
             errors.Should().BeEquivalentTo(new Template.Error[] { });
         }
@@ -165,8 +167,8 @@ public class TemplateTest
         read.AddContent(cwd.GetFile("include.txt"), "[{{title}}]");
         using (new AssertionScope())
         {
-            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeMixTapeDef(), Template.Escape_NoEscape);
-            evaluator(AwesomeMix).Should().Be("[I Will Survive][Smells Like Teen Spirit]");
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions<Context>(), cwd, MakeMixTapeDef(), Template.Escape_NoEscape);
+            evaluator(AwesomeMix, new Context()).Should().Be("[I Will Survive][Smells Like Teen Spirit]");
 
             errors.Should().BeEquivalentTo(new Template.Error[] { });
         }
@@ -180,8 +182,8 @@ public class TemplateTest
         read.AddContent(cwd.GetFile("file.txt"), "[{{title}}]");
         using (new AssertionScope())
         {
-            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeMixTapeDef(), Template.Escape_NoEscape);
-            evaluator(AwesomeMix).Should().Be("[I Will Survive][Smells Like Teen Spirit]");
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions<Context>(), cwd, MakeMixTapeDef(), Template.Escape_NoEscape);
+            evaluator(AwesomeMix, new Context()).Should().Be("[I Will Survive][Smells Like Teen Spirit]");
 
             errors.Should().BeEquivalentTo(new Template.Error[] { });
         }
@@ -194,8 +196,8 @@ public class TemplateTest
         read.AddContent(file, "{{range songs -}} [ {{- if star -}} {{- title -}} {{- end -}} ] {{- end}}");
         using (new AssertionScope())
         {
-            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions(), cwd, MakeMixTapeDef(), Template.Escape_NoEscape);
-            evaluator(AwesomeMix).Should().Be("[I Will Survive][]");
+            var (evaluator, errors) = await Template.Parse(file, read, Template.DefaultFunctions<Context>(), cwd, MakeMixTapeDef(), Template.Escape_NoEscape);
+            evaluator(AwesomeMix, new Context()).Should().Be("[I Will Survive][]");
 
             errors.Should().BeEquivalentTo(new Template.Error[] { });
         }

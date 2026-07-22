@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Blaggen;
 
-internal record TemplateFolder(Func<Generate.TemplatePostData, string>? Post, Func<Generate.TemplateSectionData, string>? Section);
+internal record TemplateFolder(Func<Generate.TemplatePostData, Generate.Context, string>? Post, Func<Generate.TemplateSectionData, Generate.Context, string>? Section);
 
 internal class TemplateDictionary
 {
@@ -22,11 +22,11 @@ internal class TemplateDictionary
 
     internal static async Task<TemplateDictionary?> Load(Run run, VfsRead vfs, DirectoryInfo root, DirectoryInfo template_folder, SiteConfig site_config)
     {
-        var functions = Template.DefaultFunctions();
+        var functions = Template.DefaultFunctions<Generate.Context>();
         var site_culture = site_config.CultureInfo;
         foreach(var (name, format) in site_config.DateFormats)
         {
-            functions.Add("DateFormat" + name, Template.NoArguments(x => DateTime.Parse(x, CultureInfo.InvariantCulture).ToString(format, site_culture)));
+            functions.Add("DateFormat" + name, Template.NoArguments<Generate.Context>(x => DateTime.Parse(x, CultureInfo.InvariantCulture).ToString(format, site_culture)));
         }
 
         var ret = new Dictionary<string, TemplateFolder>();
@@ -60,7 +60,7 @@ internal class TemplateDictionary
             }
         }
 
-        async Task<Func<T, string>?> LoadSingleTemplate<T>(string name, DirectoryInfo dir, Template.Definition<T> def) where T : class
+        async Task<Func<T, Generate.Context, string>?> LoadSingleTemplate<T>(string name, DirectoryInfo dir, Template.Definition<T, Generate.Context> def) where T : class
         {
             var post_file = dir.GetFile(name + ".html");
             if (vfs.Exists(post_file) == false)
