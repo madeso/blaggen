@@ -10,7 +10,7 @@ internal static class Generate
 
     internal record Context();
 
-    internal record TemplateSectionData(Site Site, Section Section)
+    internal record TemplateSectionData(Site Site, Section Section, WriteInfo Write)
     {
         internal Post Post { get; } = Section.Post ??
                                       new Post("index", PostType.Section, new FrontMatter(), new FileInfo(@"C:\missing.md"), "", "");
@@ -61,6 +61,7 @@ internal static class Generate
         })
     ;
 
+    // todo(Gustav): expand with WriteInfo
     private static Template.Definition<MenuItem, Context> MakeMenuItem() => new Template.Definition<MenuItem, Context>()
         .AddVar("Name", x => x.Name)
         .AddVar("URL", x => x.Url)
@@ -74,9 +75,13 @@ internal static class Generate
             TemplateHelpers.AddPost(self, x => x);
         })
     ;
-    private static Template.Definition<Section, Context> MakeSectionLink() => new Template.Definition<Section, Context>()
-        .AddVar("Title", x => x.Post?.Front.Title ?? x.Name)
-        .AddVar("Link", x=>x.Name)
+
+    internal record WriteInfo(FileInfo Target, DirectoryInfo PublicDir);
+    internal record SectionLink(Section Section, WriteInfo Write);
+    private static Template.Definition<SectionLink, Context> MakeSectionLink() => new Template.Definition<SectionLink, Context>()
+        .AddVar("Title", x => x.Section.Post?.Front.Title ?? x.Section.Name)
+        // todo(Gustav): add Write Info to link
+        .AddVar("Link", x=>x.Section.Name)
     ;
 
     internal static Template.Definition<TemplateSectionData, Context> MakeSectionData(SiteConfig config) => new Template.Definition<TemplateSectionData, Context>()
@@ -90,7 +95,7 @@ internal static class Generate
             TemplateHelpers.AddPost(self, x => x.Post);
         })
         .AddList("Posts", x => x.Section.Posts.OrderByDescending(post => post.Front.Date), MakePostLink())
-        .AddList("Sections", x => x.Section.Dirs, MakeSectionLink())
+        .AddList("Sections", x => x.Section.Dirs.Select(y => new SectionLink(y, x.Write)), MakeSectionLink())
     ;
 
     private static string GetRelativePath(DirectoryInfo public_dir, FileInfo x)
@@ -120,7 +125,8 @@ internal static class Generate
             int pages = 0;
             // write section
             {
-                var data = new TemplateSectionData(site, section);
+                var target = public_dir.GetSubDirs(dirs).GetFile("index.html");
+                var data = new TemplateSectionData(site, section, new WriteInfo(target, public_dir));
                 var gen = FindInTemplate(dirs, g => g.Section);
                 if (gen == null)
                 {
@@ -128,7 +134,6 @@ internal static class Generate
                 }
                 else
                 {
-                    var target = public_dir.GetSubDirs(dirs).GetFile("index.html");
                     await vfs_write.WriteAllTextAsync(target, gen(data, new Context()));
                     pages += 1;
                 }
