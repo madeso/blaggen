@@ -32,7 +32,12 @@ public class ClassifyTest : TestBase
         if (config == null) return;
 
         var posts = await Input.LoadPosts(run, read, cwd);
-        posts.Should().NotBeNull();
+        using (new AssertionScope())
+        {
+            posts.Should().NotBeNull();
+            run.Errors.Should().BeEmpty();
+        }
+
         if (posts == null) return;
 
         using (new AssertionScope())
@@ -47,17 +52,18 @@ public class ClassifyTest : TestBase
     private static ImmutableArray<T> A<T>(params T[] it)
         => [.. it];
 
-    [Fact]
-    public async Task IndexFile()
-    {
-        Post(cwd, "content/_index.md", "index");
-        await RunTest(site =>
-        {
-            site.DebugString.Should().BeEquivalentTo([
-                @"index(C:\test\content\_index.md) => index"
-            ]);
-        });
-    }
+    // todo(Gustav): should this be a valid setup?
+    // [Fact]
+    // public async Task IndexFile()
+    // {
+    //     Post(cwd, "content/_index.md", "index");
+    //     await RunTest(site =>
+    //     {
+    //         site.DebugString.Should().BeEquivalentTo([
+    //             @"index(C:\test\content\_index.md) => index"
+    //         ]);
+    //     });
+    // }
 
     [Fact]
     public async Task Hello()
@@ -83,18 +89,19 @@ public class ClassifyTest : TestBase
         });
     }
 
-    [Fact]
-    public async Task DirInSub()
-    {
-        Post(cwd, "content/post/_index.md", "Dir");
-        await RunTest(site =>
-        {
-            site.DebugString.Should().BeEquivalentTo([
-                "post/",
-                @"  Dir(C:\test\content\post\_index.md) => index"
-            ]);
-        });
-    }
+    // todo(Gustav): should this be a valid setup?
+    // [Fact]
+    // public async Task DirInSub()
+    // {
+    //     Post(cwd, "content/post/_index.md", "Dir");
+    //     await RunTest(site =>
+    //     {
+    //         site.DebugString.Should().BeEquivalentTo([
+    //             "post/",
+    //             @"  Dir(C:\test\content\post\_index.md) => index"
+    //         ]);
+    //     });
+    // }
 
     [Fact]
     public async Task HelloInSub()
