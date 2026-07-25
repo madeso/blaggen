@@ -59,13 +59,19 @@ internal static class Template
     {
         internal string TemplateName { get; } = name ?? typeof(TParent).Name ?? "";
 
-        private readonly Dictionary<string, Func<TParent, Str>> attributes = new ();
-        private readonly Dictionary<string, Func<TParent, bool>> bools = new();
+        private readonly Dictionary<string, Func<TParent, TContext, Str>> attributes = new ();
+        private readonly Dictionary<string, Func<TParent, TContext, bool>> bools = new();
         private readonly Dictionary<string, Func<Node, EscapeFunction, (Func<TParent, TContext, Str>, ImmutableArray<Error>)>> children = new();
+
+        internal Definition<TParent, TContext> AddVar(string name, Func<TParent, TContext, Str> getter)
+        {
+            attributes.Add(name, getter);
+            return this;
+        }
 
         internal Definition<TParent, TContext> AddVar(string name, Func<TParent, Str> getter)
         {
-            attributes.Add(name, getter);
+            attributes.Add(name, (t, _) => getter(t));
             return this;
         }
 
@@ -74,22 +80,33 @@ internal static class Template
             return AddVar(name, parent => Str.Escape(getter(parent)));
         }
 
-        internal Definition<TParent, TContext> AddBool(string name, Func<TParent, bool> getter)
+        internal Definition<TParent, TContext> AddBool(string name, Func<TParent, TContext, bool> getter)
         {
             bools.Add(name, getter);
             return this;
         }
 
-        internal Definition<TParent, TContext> AddList<TChild>(string name, Func<TParent, IEnumerable<TChild>> childSelector, Definition<TChild, TContext> childDef)
+        internal Definition<TParent, TContext> AddBool(string name, Func<TParent, bool> getter)
+        {
+            bools.Add(name, (t, _) => getter(t));
+            return this;
+        }
+
+        internal Definition<TParent, TContext> AddList<TChild>(string name,
+            Func<TParent, IEnumerable<TChild>> child_selector, Definition<TChild, TContext> child_def)
+            => AddList(name, (t, _) => child_selector(t), child_def);
+
+        internal Definition<TParent, TContext> AddList<TChild>(string name,
+            Func<TParent, TContext, IEnumerable<TChild>> child_selector, Definition<TChild, TContext> child_def)
         {
             children.Add(name, (node, esc) =>
             {
-                var (getter, errors) = childDef.Validate(node, esc);
+                var (getter, errors) = child_def.Validate(node, esc);
                 if (errors.Length > 0) { return (SyntaxError, errors); }
 
                 return ((parent, context) =>
                 {
-                    var selector = childSelector(parent);
+                    var selector = child_selector(parent, context);
                     var strings = selector.Select(x => getter(x, context));
                     return JoinStr(strings, esc);
                 }, NoErrors);
@@ -122,7 +139,7 @@ internal static class Template
                             )
                         ]);
                     }
-                    return ( (parent, _) => getter(parent), NoErrors);
+                    return ( (parent, ctx) => getter(parent, ctx), NoErrors);
                 }
                 case Node.If check:
                 {
@@ -139,7 +156,7 @@ internal static class Template
                     var (body, errors) = Validate(check.Body, escape);
                     if (errors.Length > 0) { return (SyntaxError, errors); }
 
-                    return ( (parent,context) => getter(parent) ? body(parent, context) : Str.DontEscape(string.Empty), NoErrors);
+                    return ( (parent,context) => getter(parent, context) ? body(parent, context) : Str.DontEscape(string.Empty), NoErrors);
                 }
                 case Node.Iterate iterate:
                 {

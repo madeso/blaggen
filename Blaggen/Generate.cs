@@ -8,7 +8,7 @@ internal static class Generate
     // data to mustache
     internal record TemplatePostData(Site Site, Post Post);
 
-    internal record Context();
+    internal record Context(DirectoryInfo Public, FileInfo Target);
 
     internal record TemplateSectionData(Site Site, Section Section, WriteInfo Write)
     {
@@ -24,18 +24,9 @@ internal static class Generate
             self.AddVar("ContentHtml", link => Template.Str.DontEscape(post(link).Html));
             self.AddVar("ContentText", link => post(link).Plain);
             self.AddVar("Date", link => post(link).Front.Date.ToString(CultureInfo.InvariantCulture));
-
-            /*
-            attribute Permalink: did you mean [Link, Title, Date] of 5: [Link, Title, ContentHtml, ContentText, Date]
-            attribute Content: did you mean [ContentHtml, ContentText, Site, Date, Title] of 5: [Site, Title, ContentHtml, ContentText, Date]
-            */
         }
         public static void AddSite<T>(Template.Definition<T, Context> self, Func<T, Site> site, SiteConfig config)
         {
-            /*
-            array SiteMenus_main: No match in 0: []
-            array SiteMenus_main: No match in 2: [Posts, Sections]
-            */
             self.AddVar("Site_Title", link => site(link).Config.Name);
             self.AddVar("Site_BaseURL", link => site(link).Config.Url);
             foreach (var key in config.Params.Keys)
@@ -45,7 +36,7 @@ internal static class Generate
 
             foreach (var key in config.Menus.Keys)
             {
-                self.AddList($"SiteMenus_{key}", link => site(link).Config.Menus[key].OrderBy(x => x.Weight), MakeMenuItem());
+                self.AddList($"SiteMenus_{key}", (link, ctx) => site(link).Config.Menus[key].OrderBy(x => x.Weight).Select(x => new MenuItemLink(x, ctx)), MakeMenuItem());
             }
         }
     }
@@ -61,10 +52,29 @@ internal static class Generate
         })
     ;
 
-    // todo(Gustav): expand with WriteInfo
-    private static Template.Definition<MenuItem, Context> MakeMenuItem() => new Template.Definition<MenuItem, Context>()
-        .AddVar("Name", x => x.Name)
-        .AddVar("URL", x => x.Url)
+    private record MenuItemLink(MenuItem Menu, Context Context);
+    private static Template.Definition<MenuItemLink, Context> MakeMenuItem() => new Template.Definition<MenuItemLink, Context>()
+        .AddVar("Name", x => x.Menu.Name)
+        .AddVar("URL", x =>
+        {
+            var base_url = x.Menu.Url;
+
+            if(Uri.TryCreate(base_url, UriKind.RelativeOrAbsolute, out var u))
+            {
+                if (u.IsAbsoluteUri) return base_url;
+
+                if (base_url.EndsWith('/') == false)
+                {
+                    var to_file = x.Context.Public.GetFile(base_url);
+                    var rel = GetRelativePath(x.Context.Target, to_file);
+                    return rel;
+                }
+            }
+
+            var to_root = Path.GetRelativePath(x.Context.Target.Directory?.FullName ?? "", x.Context.Public.FullName);
+            var link = to_root + base_url;
+            return link;
+        })
     ;
 
     private static Template.Definition<Post, Context> MakePostLink() => new Template.Definition<Post, Context>()
@@ -98,9 +108,9 @@ internal static class Generate
         .AddList("Sections", x => x.Section.Dirs.Select(y => new SectionLink(y, x.Write)), MakeSectionLink())
     ;
 
-    private static string GetRelativePath(DirectoryInfo public_dir, FileInfo x)
+    private static string GetRelativePath(FileInfo from, FileInfo to)
     {
-        var rel = Path.GetRelativePath(public_dir.FullName, x.FullName);
+        var rel = Path.GetRelativePath(from.FullName, to.FullName);
         var split = rel.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         var fin = split.Where(dir => dir != ".");
         return string.Join("/", fin);
@@ -134,7 +144,7 @@ internal static class Generate
                 }
                 else
                 {
-                    await vfs_write.WriteAllTextAsync(target, gen(data, new Context()));
+                    await vfs_write.WriteAllTextAsync(target, gen(data, new Context(public_dir, target)));
                     pages += 1;
                 }
             }
@@ -151,7 +161,7 @@ internal static class Generate
                 else
                 {
                     var target = public_dir.GetSubDirs(dirs).GetDir(p.Name).GetFile("index.html");
-                    await vfs_write.WriteAllTextAsync(target, gen(data, new Context()));
+                    await vfs_write.WriteAllTextAsync(target, gen(data, new Context(public_dir, target)));
                     pages += 1;
                 }
             }
