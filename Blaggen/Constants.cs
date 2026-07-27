@@ -12,6 +12,7 @@ internal static class Constants
 
     internal const string TEMPLATE_POST = "single";
     internal const string TEMPLATE_SECTION = "list";
+    internal const string TEMPLATE_INDEX = "index";
 
     internal static DirectoryInfo CalculateTemplateDirectoryFromString(string template_name, DirectoryInfo root)
     {

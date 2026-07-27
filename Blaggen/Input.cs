@@ -4,7 +4,11 @@ using System.Text;
 
 namespace Blaggen;
 
-internal record TemplateFolder(Func<Generate.TemplatePostData, Generate.Context, string>? Post, Func<Generate.TemplateSectionData, Generate.Context, string>? Section);
+internal record TemplateFolder(
+    Func<Generate.TemplatePostData, Generate.Context, string>? Post,
+    Func<Generate.TemplateSectionData, Generate.Context, string>? Section,
+    Func<Generate.TemplateSectionData, Generate.Context, string>? Index
+);
 
 internal class TemplateDictionary
 {
@@ -44,10 +48,17 @@ internal class TemplateDictionary
         {
             var post = await LoadSingleTemplate(Constants.TEMPLATE_POST, dir, Generate.MakePostData(site_config));
             var section = await LoadSingleTemplate(Constants.TEMPLATE_SECTION, dir, Generate.MakeSectionData(site_config));
+            var (index_path, index) = await LoadSingleTemplateWithFile(Constants.TEMPLATE_INDEX, dir, Generate.MakeSectionData(site_config));
 
-            if (post != null || section != null)
+            if (pattern.Length != 0 && index != null)
             {
-                ret.Add(KeyFrom(pattern), new TemplateFolder(post, section));
+                run.WriteError($"Found index pattern in non index location: ${index_path}");
+                index = null;
+            }
+
+            if (post != null || section != null || index != null)
+            {
+                ret.Add(KeyFrom(pattern), new TemplateFolder(post, section, index));
             }
             else
             {
@@ -62,11 +73,17 @@ internal class TemplateDictionary
 
         async Task<Func<T, Generate.Context, string>?> LoadSingleTemplate<T>(string name, DirectoryInfo dir, Template.Definition<T, Generate.Context> def) where T : class
         {
+            var (_, func) = await LoadSingleTemplateWithFile(name, dir, def);
+            return func;
+        }
+
+        async Task<(FileInfo, Func<T, Generate.Context, string>?)> LoadSingleTemplateWithFile<T>(string name, DirectoryInfo dir, Template.Definition<T, Generate.Context> def) where T : class
+        {
             var post_file = dir.GetFile(name + ".html");
             if (vfs.Exists(post_file) == false)
             {
                 // run.WriteInfo($"Missing file {post_file}");
-                return null;
+                return (post_file, null);
             }
 
             var (func, errors) = await Template.Parse(post_file, vfs, functions, partial_folder, def, Template.Escape_Html);
@@ -76,7 +93,7 @@ internal class TemplateDictionary
                 run.WriteError($"{error.Location.File}({error.Location.Line}:{error.Location.Offset}): {error.Message}");
             }
 
-            return func;
+            return (post_file, func);
         }
     }
 

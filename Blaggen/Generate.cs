@@ -137,15 +137,33 @@ internal static class Generate
             {
                 var target = public_dir.GetSubDirs(dirs).GetFile("index.html");
                 var data = new TemplateSectionData(site, section, new WriteInfo(target, public_dir));
-                var gen = FindInTemplate(dirs, g => g.Section);
-                if (gen == null)
+                var include_index = dirs.Length == 0;
+                var section_was_written = false;
+                
+                if(include_index)
                 {
-                    run.WriteError($"No template found for section {section.SourceDir}");
+                    var index = FindInTemplate(dirs, g => g.Index);
+                    if(index != null)
+                    {
+                        await vfs_write.WriteAllTextAsync(target, index(data, new Context(public_dir, target)));
+                        pages += 1;
+                        section_was_written = true;
+                    }
                 }
-                else
+
+                if (section_was_written == false)
                 {
-                    await vfs_write.WriteAllTextAsync(target, gen(data, new Context(public_dir, target)));
-                    pages += 1;
+                    var gen = FindInTemplate(dirs, g => g.Section);
+                    if (gen == null)
+                    {
+                        var index_or = include_index ? "index/" : "";
+                        run.WriteError($"No template found for the {index_or}section {section.SourceDir}");
+                    }
+                    else
+                    {
+                        await vfs_write.WriteAllTextAsync(target, gen(data, new Context(public_dir, target)));
+                        pages += 1;
+                    }
                 }
             }
 
