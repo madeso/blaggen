@@ -36,7 +36,10 @@ internal class TemplateDictionary
         var ret = new Dictionary<string, TemplateFolder>();
         var partial_folder = template_folder.GetDir("partials");
         var layout_folder = template_folder.GetDir("layouts");
-        await LoadTemplateRecursive(layout_folder, []);
+        foreach (var d in vfs.GetDirectories(layout_folder))
+        {
+            await LoadTemplateRecursive(d, [d.Name]);
+        }
         if (ret.Count == 0)
         {
             run.WriteError($"Found no layouts in [red]{layout_folder}[/]");
@@ -50,7 +53,7 @@ internal class TemplateDictionary
             var section = await LoadSingleTemplate(Constants.TEMPLATE_SECTION, dir, Generate.MakeSectionData(site_config));
             var (index_path, index) = await LoadSingleTemplateWithFile(Constants.TEMPLATE_INDEX, dir, Generate.MakeSectionData(site_config));
 
-            if (pattern.Length != 0 && index != null)
+            if (pattern.Length != 1 && index != null && pattern[0] != Constants.DEFAULT_TEMPLATE_NAME)
             {
                 run.WriteError($"Found index pattern in non index location: ${index_path}");
                 index = null;
@@ -100,7 +103,7 @@ internal class TemplateDictionary
     private static string KeyFrom(ImmutableArray<string> pattern)
     {
         var ret = string.Join('/', pattern);
-        if (ret == "") return "_default";
+        if (ret == "") return Constants.DEFAULT_TEMPLATE_NAME;
         return ret;
     }
 }
