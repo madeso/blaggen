@@ -32,6 +32,18 @@ internal class MenuItem
     public int Weight { get; set; }
 }
 
+internal class PageParam
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("optional")]
+    public bool Optional { get; set; } = false;
+
+    [JsonPropertyName("var")]
+    public string? Var { get; set; } = null;
+}
+
 internal class SiteConfig
 {
     [JsonPropertyName("name")]
@@ -61,6 +73,9 @@ internal class SiteConfig
 
     [JsonPropertyName("params")]
     public Dictionary<string, string> Params { get; set; } = new();
+
+    [JsonPropertyName("pages")]
+    public Dictionary<string, List<PageParam>> PageParams { get; set; }= new();
 
     [JsonPropertyName("url")]
     public string BaseUrl { get; set; } = string.Empty;
@@ -92,6 +107,10 @@ public class FrontMatter
     // note: tag concept is a kind of taxonomy, as is category
     [JsonPropertyName("taxonomy")]
     public Dictionary<string, HashSet<string>> TaxonomyData { get; set; } = new();
+
+    // todo(Gustav): switch to a union in c# 10
+    [JsonPropertyName("params")]
+    public Dictionary<string, JsonElement> Params { get; set; } = new();
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }

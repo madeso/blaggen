@@ -49,9 +49,9 @@ internal class TemplateDictionary
 
         async Task LoadTemplateRecursive(DirectoryInfo dir, ImmutableArray<string> pattern)
         {
-            var post = await LoadSingleTemplate(Constants.TEMPLATE_POST, dir, Generate.MakePostData(site_config));
-            var section = await LoadSingleTemplate(Constants.TEMPLATE_SECTION, dir, Generate.MakeSectionData(site_config));
-            var (index_path, index) = await LoadSingleTemplateWithFile(Constants.TEMPLATE_INDEX, dir, Generate.MakeSectionData(site_config));
+            var post = await LoadSingleTemplate(Constants.TEMPLATE_POST, dir, Generate.MakePostData(site_config, pattern));
+            var section = await LoadSingleTemplate(Constants.TEMPLATE_SECTION, dir, Generate.MakeSectionData(site_config, pattern));
+            var (index_path, index) = await LoadSingleTemplateWithFile(Constants.TEMPLATE_INDEX, dir, Generate.MakeSectionData(site_config, pattern));
 
             if (pattern.Length != 1 && index != null && pattern[0] != Constants.DEFAULT_TEMPLATE_NAME)
             {

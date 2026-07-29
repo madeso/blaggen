@@ -1,5 +1,6 @@
 ﻿using System.Collections.Immutable;
 using System.Globalization;
+using System.Text.Json;
 
 namespace Blaggen;
 
@@ -18,12 +19,43 @@ internal static class Generate
 
     internal static class TemplateHelpers
     {
-        public static void AddPost<T>(Template.Definition<T, Context> self, Func<T, Post> post)
+        public static void AddPost<T>(Template.Definition<T, Context> self, Func<T, Post> post, SiteConfig site, ImmutableArray<string> post_types)
         {
             self.AddVar("Title", link => post(link).Front.Title);
             self.AddVar("ContentHtml", link => Template.Str.DontEscape(post(link).Html));
             self.AddVar("ContentText", link => post(link).Plain);
             self.AddVar("Date", link => post(link).Front.Date.ToString(CultureInfo.InvariantCulture));
+
+            // todo(Gustav): how to handle nesting?
+            foreach (var type in post_types)
+            {
+                if (false == site.PageParams.TryGetValue(type, out var param_list)) continue;
+
+                foreach (var pa in param_list)
+                {
+                    var template_name = $"Params_{pa.Name}";
+                    if (pa.Optional)
+                    {
+                        self.AddBool(template_name, link => post(link).Front.Params.ContainsKey(pa.Name));
+                    }
+
+                    if (pa.Var != null)
+                    {
+                        self.AddList(template_name, link => post(link).Front.Params.TryGetValue(pa.Name, out var val) ? val.EnumerateArray() : [],
+                            new Template.Definition<JsonElement, Context>($"array of {pa}")
+                            .AddVar(pa.Var, x => x.ToString())
+                            );
+                    }
+                    else
+                    {
+                        self.AddVar(template_name, link =>
+                        {
+                            if (false == post(link).Front.Params.TryGetValue(pa.Name, out var val)) return string.Empty;
+                            return val.GetString() ?? string.Empty;
+                        });
+                    }
+                }
+            }
         }
         public static void AddSite<T>(Template.Definition<T, Context> self, Func<T, Site> site, SiteConfig config)
         {
@@ -41,14 +73,14 @@ internal static class Generate
         }
     }
     
-    internal static Template.Definition<TemplatePostData, Context> MakePostData(SiteConfig config) => new Template.Definition<TemplatePostData, Context>()
+    internal static Template.Definition<TemplatePostData, Context> MakePostData(SiteConfig config, ImmutableArray<string> page_types) => new Template.Definition<TemplatePostData, Context>($"PostData[{string.Join('/', page_types)}]")
         .Add(self =>
         {
             TemplateHelpers.AddSite(self, x => x.Site, config);
         })
         .Add(self =>
         {
-            TemplateHelpers.AddPost(self, x => x.Post);
+            TemplateHelpers.AddPost(self, x => x.Post, config, page_types);
         })
     ;
 
@@ -77,12 +109,12 @@ internal static class Generate
         })
     ;
 
-    private static Template.Definition<Post, Context> MakePostLink() => new Template.Definition<Post, Context>()
+    private static Template.Definition<Post, Context> MakePostLink(SiteConfig site, ImmutableArray<string> post_types) => new Template.Definition<Post, Context>()
         .AddVar("Link", x => x.Name)
         .AddVar("Permalink", x => x.Name) // is this correct???
         .Add(self =>
         {
-            TemplateHelpers.AddPost(self, x => x);
+            TemplateHelpers.AddPost(self, x => x, site, post_types);
         })
     ;
 
@@ -94,7 +126,7 @@ internal static class Generate
         .AddVar("Link", x=>x.Section.Name)
     ;
 
-    internal static Template.Definition<TemplateSectionData, Context> MakeSectionData(SiteConfig config) => new Template.Definition<TemplateSectionData, Context>()
+    internal static Template.Definition<TemplateSectionData, Context> MakeSectionData(SiteConfig config, ImmutableArray<string> post_types) => new Template.Definition<TemplateSectionData, Context>()
         .Add(self =>
         {
             TemplateHelpers.AddSite(self, x => x.Site, config);
@@ -102,9 +134,9 @@ internal static class Generate
         .AddBool("hasPost", x => x.Section.Post != null)
         .Add(self =>
         {
-            TemplateHelpers.AddPost(self, x => x.Post);
+            TemplateHelpers.AddPost(self, x => x.Post, config, post_types);
         })
-        .AddList("Posts", x => x.Section.Posts.OrderByDescending(post => post.Front.Date), MakePostLink())
+        .AddList("Posts", x => x.Section.Posts.OrderByDescending(post => post.Front.Date), MakePostLink(config, post_types))
         .AddList("Sections", x => x.Section.Dirs.Select(y => new SectionLink(y, x.Write)), MakeSectionLink())
     ;
 
