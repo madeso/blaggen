@@ -436,6 +436,43 @@ public static class Facade
         return 0;
     }
 
+    public static async Task<int> MigratePageParam(Run run, VfsRead vfs, VfsWrite vfs_write, DirectoryInfo root, string param)
+    {
+        run.Status("Parsing directory");
+        var section = await Input.LoadPosts(run, vfs, root);
+        if (section == null)
+        {
+            return -1;
+        }
+
+        run.Status("Collecting");
+        var posts = AllPosts(section);
+        var migrated = 0;
+        var total = 0;
+
+        foreach (var p in posts)
+        {
+            total += 1;
+            if (p.Front.ExtensionData == null) continue;
+            if (p.Front.ExtensionData.Remove(param, out var val) == false)
+            {
+                continue;
+            }
+
+            if (p.Front.Params.TryAdd(param, val) == false)
+            {
+                run.WriteError($"{p.SourceFile} contains {param} in both extension and in params");
+                continue;
+            }
+
+            var contents = Input.PostToFileData(p);
+            await vfs_write.WriteAllTextAsync(p.SourceFile, contents);
+            migrated += 1;
+        }
+
+        run.WriteInfo($"Migrated ${migrated} posts out of {total}");
+        return 0;
+    }
 
     public static async Task<int> RemoveTagFromGroup(Run run, VfsRead vfs, VfsWrite vfs_write, DirectoryInfo root, string taxonomy, string term, string term_to_remove)
     {

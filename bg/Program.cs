@@ -21,7 +21,11 @@ internal class Program
         {
             config.AddCommand<InitSiteCommand>("init");
             config.AddCommand<NewPostCommand>("new");
-            config.AddCommand<MigrateCommand>("migrate").WithAlias("from-hugo");
+            config.AddBranch("migrate", migrate =>
+            {
+                migrate.AddCommand<MigrateCommand>("from-hugo");
+                migrate.AddCommand<MigratePageParamsCommand>("page-param");
+            });
             config.AddCommand<GenerateCommand>("generate").WithAlias("publish").WithAlias("build");
             config.AddCommand<ServerCommand>("server").WithAlias("serve").WithAlias("dev");
 
@@ -284,6 +288,43 @@ internal sealed class RemoveTagCommand : AsyncCommand<RemoveTagCommand.Settings>
                     string.IsNullOrWhiteSpace(args.What)==false
                         ? args.What
                         : args.Where);
+            });
+        return ret;
+    }
+}
+
+
+
+[Description("Migrate page params")]
+internal sealed class MigratePageParamsCommand : AsyncCommand<MigratePageParamsCommand.Settings>
+{
+    public sealed class Settings : CommandSettings
+    {
+        [Description("The param to migrate")]
+        [CommandArgument(1, "<param>")]
+        public string Param { get; init; } = string.Empty;
+    }
+
+    public override async Task<int> ExecuteAsync([NotNull] CommandContext context, [NotNull] Settings args)
+    {
+        var ret = -1;
+        await AnsiConsole.Status()
+            .StartAsync("Working...", async ctx =>
+            {
+                var run = new RunConsoleWithContext(ctx);
+                var vfsRead = new VfsReadFile();
+
+                var root = Facade.FindRoot(vfsRead, Facade.GetCurrentDirectory());
+                if (root == null)
+                {
+                    run.WriteError($"Unable to find root");
+                    ret = -1;
+                    return;
+                }
+
+                var vfsWrite = new VfsWriteFile();
+
+                ret = await Facade.MigratePageParam(run, vfsRead, vfsWrite, root, args.Param);
             });
         return ret;
     }
