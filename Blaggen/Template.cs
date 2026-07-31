@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Web;
+using static Blaggen.Template;
 [assembly: InternalsVisibleTo("BlaggenTest")]
 
 namespace Blaggen;
@@ -104,9 +105,13 @@ internal static class Template
                 var (getter, errors) = child_def.Validate(node, esc);
                 if (errors.Length > 0) { return (SyntaxError, errors); }
 
+                // todo(Gustav): generate filters from node filter
+                List<Func<IEnumerable<TChild>, IEnumerable<TChild>>> filters = new();
+
                 return ((parent, context) =>
                 {
                     var selector = child_selector(parent, context);
+                    selector = filters.Aggregate(selector, (current, f) => f(current));
                     var strings = selector.Select(x => getter(x, context));
                     return JoinStr(strings, esc);
                 }, NoErrors);
@@ -353,14 +358,14 @@ internal static class Template
 
 
     // --------------------------------------------------------------------------------------------
-
+    internal record FilterFunction(string Name, Location Location, List<FuncArgument> Arguments);
     internal abstract record Node
     {
         private Node() { }
 
         internal record Text(string Value, Location Location) : Node();
         internal record Attribute(string Name, Location Location) : Node();
-        internal record Iterate(string Name, Node Body, Location Location) : Node();
+        internal record Iterate(string Name, List<FilterFunction> Filters, Node Body, Location Location) : Node();
         internal record If(string Name, Node Body, Location Location) : Node();
         internal record FunctionCall<TContext>(string Name, Func<TContext> Function, Node Arg, Location Location) : Node();
         internal record Group(List<Node> Nodes, Location Location) : Node();
@@ -908,6 +913,33 @@ internal static class Template
                     if (Match(TokenType.KeywordRange))
                     {
                         var attribute = ExtractAttributeName();
+
+                        var filters = new List<FilterFunction>();
+
+                        while (Peek().Type == TokenType.Pipe)
+                        {
+                            Advance();
+                            var name = Consume(TokenType.Ident, ExpectedMessage("function name"));
+                            var arguments = new List<FuncArgument>();
+
+                            if (Match(TokenType.LeftParen))
+                            {
+                                while (Peek().Type != TokenType.RightParen && !IsAtEnd())
+                                {
+                                    arguments.Add(ParseFunctionArg());
+
+                                    if (Peek().Type != TokenType.RightParen)
+                                    {
+                                        Consume(TokenType.Comma, ExpectedMessage("comma for the next function argument"));
+                                    }
+                                }
+
+                                Consume(TokenType.RightParen, ExpectedMessage(") to end function"));
+                            }
+
+                            filters.Add(new FilterFunction(name.Value, name.Location, arguments));
+                        }
+
                         Consume(TokenType.EndCode, ExpectedMessage("}}"));
 
                         var group = await ParseGroup();
@@ -915,7 +947,7 @@ internal static class Template
                         Consume(TokenType.KeywordEnd, ExpectedMessage("keyword end"));
                         Consume(TokenType.EndCode, ExpectedMessage("}}"));
 
-                        nodes.Add(new Node.Iterate(attribute, group, start));
+                        nodes.Add(new Node.Iterate(attribute, filters, group, start));
                     }
                     else if (Match(TokenType.KeywordIf))
                     {
