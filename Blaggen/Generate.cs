@@ -59,6 +59,8 @@ internal static class Generate
         }
         public static void AddSite<T>(Template.Definition<T, Context> self, Func<T, Site> site, SiteConfig config)
         {
+            self.AddList("Site_RegularPages", link => site(link).Root.AllPosts, MakePostLink(config, []));
+
             self.AddVar("Site_Title", link => site(link).Config.Name);
             self.AddVar("Site_BaseURL", link => site(link).Config.Url);
             foreach (var key in config.Params.Keys)

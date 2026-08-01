@@ -355,7 +355,7 @@ public static class Facade
 
         run.Status("Collecting");
         // todo(Gustav): also use ColCounter here?
-        var keys = AllPosts(site).SelectMany(p => p.Front.TaxonomyData.Keys).ToHashSet();
+        var keys = site.AllPosts.SelectMany(p => p.Front.TaxonomyData.Keys).ToHashSet();
         AnsiConsole.WriteLine($"{keys.Count} unique group(s)");
         foreach (var key in keys)
         {
@@ -375,7 +375,7 @@ public static class Facade
         }
 
         run.Status("Collecting");
-        var selected = AllPosts(posts)
+        var selected = posts.AllPosts
             .Select(p => p.Front.TaxonomyData.TryGetValue(taxonomy, out var props) ? props : null)
             .Where(p => p != null)
             .ToImmutableArray();
@@ -397,19 +397,6 @@ public static class Facade
         }
 
         return 0;
-    }
-
-    private static IEnumerable<Post> AllPosts(Section root)
-    {
-        foreach (var p in root.Posts)
-        {
-            yield return p;
-        }
-
-        foreach (var p in root.Dirs.SelectMany(AllPosts))
-        {
-            yield return p;
-        }
     }
 
     public static async Task<int> AddAdditionalTermToTaxonomy(Run run, VfsRead vfs, VfsWrite vfs_write, DirectoryInfo root, string taxonomy, string term, string additional_term)
@@ -446,7 +433,7 @@ public static class Facade
         }
 
         run.Status("Collecting");
-        var posts = AllPosts(section);
+        var posts = section.AllPosts;
         var migrated = 0;
         var total = 0;
 
@@ -514,7 +501,7 @@ public static class Facade
         }
 
         run.Status("Collecting");
-        var selected = AllPosts(section)
+        var selected = section.AllPosts
                 .Select(p => p.Front.TaxonomyData.TryGetValue(taxonomy, out var props)
                     ? new PostWithOptionalTags(props, p)
                     : new PostWithOptionalTags(null, p))
