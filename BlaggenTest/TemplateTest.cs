@@ -35,7 +35,7 @@ public class TemplateTest
 
     private record MixTape(ImmutableArray<SongWithoutAlbum> Songs);
     private static Template.Definition<MixTape, Context> MakeMixTapeDef() => new Template.Definition<MixTape, Context>()
-        .AddList("songs", mt => mt.Songs, MakeSongWithoutAlbumDef())
+        .AddList("songs", (mt, _) => mt.Songs, MakeSongWithoutAlbumDef())
         ;
 
     private readonly Song AbbaSong = new("ABBA", "dancing queen", "Arrival", 2);

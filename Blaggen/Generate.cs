@@ -41,7 +41,7 @@ internal static class Generate
 
                     if (pa.Var != null)
                     {
-                        self.AddList(template_name, link => post(link).Front.Params.TryGetValue(pa.Name, out var val) ? val.EnumerateArray() : [],
+                        self.AddList(template_name, (link, _) => post(link).Front.Params.TryGetValue(pa.Name, out var val) ? val.EnumerateArray() : [],
                             new Template.Definition<JsonElement, Context>($"array of {pa}")
                             .AddVar(pa.Var, x => x.ToString())
                             );
@@ -59,7 +59,7 @@ internal static class Generate
         }
         public static void AddSite<T>(Template.Definition<T, Context> self, Func<T, Site> site, SiteConfig config)
         {
-            self.AddList("Site_RegularPages", link => site(link).Root.AllPosts, MakePostLink(config, []));
+            self.AddList("Site_RegularPages", (link, _) => site(link).Root.AllPosts, MakePostLink(config, []));
 
             self.AddVar("Site_Title", link => site(link).Config.Name);
             self.AddVar("Site_BaseURL", link => site(link).Config.Url);
@@ -141,8 +141,8 @@ internal static class Generate
         {
             TemplateHelpers.AddPost(self, x => x.Post, config, post_types);
         })
-        .AddList("Posts", x => x.Section.Posts.OrderByDescending(post => post.Front.Date), MakePostLink(config, post_types))
-        .AddList("Sections", x => x.Section.Dirs.Select(y => new SectionLink(y, x.Write)), MakeSectionLink())
+        .AddList("Posts", (x, _) => x.Section.Posts.OrderByDescending(post => post.Front.Date), MakePostLink(config, post_types))
+        .AddList("Sections", (x, _) => x.Section.Dirs.Select(y => new SectionLink(y, x.Write)), MakeSectionLink())
     ;
 
     private static string GetRelativePath(FileInfo from, FileInfo to)

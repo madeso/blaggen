@@ -95,12 +95,9 @@ internal static class Template
         }
 
         internal Definition<TParent, TContext> AddList<TChild>(string name,
-            Func<TParent, IEnumerable<TChild>> child_selector, Definition<TChild, TContext> child_def)
-            => AddList(name, (t, _) => child_selector(t), child_def, DefaultFilterFunctions<TChild>());
-
-        internal Definition<TParent, TContext> AddList<TChild>(string name,
-            Func<TParent, TContext, IEnumerable<TChild>> child_selector, Definition<TChild, TContext> child_def, Dictionary<string, FilterFuncGenerator<TChild>> filter_dict)
+            Func<TParent, TContext, IEnumerable<TChild>> child_selector, Definition<TChild, TContext> child_def, Dictionary<string, FilterFuncGenerator<TChild>>? a_filter_dict = null)
         {
+            var filter_dict = a_filter_dict ?? DefaultFilterFunctions<TChild>();
             children.Add(name, (node, filter_syntax_list, esc) =>
             {
                 var (getter, errors) = child_def.Validate(node, esc);
