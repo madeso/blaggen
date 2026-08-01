@@ -49,12 +49,13 @@ internal static class Template
     internal record Error(Location Location, string Message);
     internal record FuncArgument(Location Location, Str Argument);
 
-    // parse arguments, return function call or error
-    internal delegate (Func<TContext>, ImmutableArray<Error>) FuncGenerator<TContext>(Location call, ImmutableArray<FuncArgument> arguments);
-
     // apply dynamic string function and return result
     internal delegate Str Func<in TContext>(TContext context, Str arg);
+    internal delegate IEnumerable<TChild> FilterFunc<TChild>(IEnumerable<TChild> arg);
 
+    // parse arguments, return function call or error
+    internal delegate (Func<TContext>, ImmutableArray<Error>) FuncGenerator<TContext>(Location call, ImmutableArray<FuncArgument> arguments);
+    internal delegate (FilterFunc<TChild>, ImmutableArray<Error>) FilterFuncGenerator<TChild>(Location call, ImmutableArray<FuncArgument> arguments);
 
     internal class Definition<TParent, TContext>(string? name = null)
     {
@@ -62,7 +63,7 @@ internal static class Template
 
         private readonly Dictionary<string, Func<TParent, TContext, Str>> attributes = new ();
         private readonly Dictionary<string, Func<TParent, TContext, bool>> bools = new();
-        private readonly Dictionary<string, Func<Node, EscapeFunction, (Func<TParent, TContext, Str>, ImmutableArray<Error>)>> children = new();
+        private readonly Dictionary<string, Func<Node, List<FilterFunctionSyntax>, EscapeFunction, (Func<TParent, TContext, Str>, ImmutableArray<Error>)>> children = new();
 
         internal Definition<TParent, TContext> AddVar(string name, Func<TParent, TContext, Str> getter)
         {
@@ -95,18 +96,32 @@ internal static class Template
 
         internal Definition<TParent, TContext> AddList<TChild>(string name,
             Func<TParent, IEnumerable<TChild>> child_selector, Definition<TChild, TContext> child_def)
-            => AddList(name, (t, _) => child_selector(t), child_def);
+            => AddList(name, (t, _) => child_selector(t), child_def, DefaultFilterFunctions<TChild>());
 
         internal Definition<TParent, TContext> AddList<TChild>(string name,
-            Func<TParent, TContext, IEnumerable<TChild>> child_selector, Definition<TChild, TContext> child_def)
+            Func<TParent, TContext, IEnumerable<TChild>> child_selector, Definition<TChild, TContext> child_def, Dictionary<string, FilterFuncGenerator<TChild>> filter_dict)
         {
-            children.Add(name, (node, esc) =>
+            children.Add(name, (node, filter_syntax_list, esc) =>
             {
                 var (getter, errors) = child_def.Validate(node, esc);
                 if (errors.Length > 0) { return (SyntaxError, errors); }
 
                 // todo(Gustav): generate filters from node filter
-                List<Func<IEnumerable<TChild>, IEnumerable<TChild>>> filters = new();
+                List<FilterFunc<TChild>> filters = new();
+                List<Error> filter_errors = new();
+                foreach (var filter_syntax in filter_syntax_list)
+                {
+                    if (false == filter_dict.TryGetValue(filter_syntax.Name, out var filter_generator))
+                    {
+                        filter_errors.Add(new Error(filter_syntax.Location, "Unknown filter function"));
+                        continue;
+                    }
+
+                    var (fil, generator_errors) = filter_generator(filter_syntax.Location, filter_syntax.Arguments);
+                    filters.Add(fil);
+                    filter_errors.AddRange(generator_errors);
+                }
+                if (filter_errors.Count > 0) { return (SyntaxError, [..filter_errors]); }
 
                 return ((parent, context) =>
                 {
@@ -174,7 +189,7 @@ internal static class Template
                             )
                         ]);
                     }
-                    return validator(iterate.Body, escape);
+                    return validator(iterate.Body, iterate.Filters, escape);
                 }
                 case Node.FunctionCall<TContext> fc:
                 {
@@ -234,6 +249,11 @@ internal static class Template
             }
             return ((_, arg) => new Str(f(arg.Value), escape_string == EscapeString.No), NoErrors);
         };
+    }
+
+    internal static Dictionary<string, FilterFuncGenerator<TChild>> DefaultFilterFunctions<TChild>()
+    {
+        return new();
     }
 
     internal static Dictionary<string, FuncGenerator<TContext>> DefaultFunctions<TContext>()
@@ -358,14 +378,14 @@ internal static class Template
 
 
     // --------------------------------------------------------------------------------------------
-    internal record FilterFunction(string Name, Location Location, List<FuncArgument> Arguments);
+    internal record FilterFunctionSyntax(string Name, Location Location, ImmutableArray<FuncArgument> Arguments);
     internal abstract record Node
     {
         private Node() { }
 
         internal record Text(string Value, Location Location) : Node();
         internal record Attribute(string Name, Location Location) : Node();
-        internal record Iterate(string Name, List<FilterFunction> Filters, Node Body, Location Location) : Node();
+        internal record Iterate(string Name, List<FilterFunctionSyntax> Filters, Node Body, Location Location) : Node();
         internal record If(string Name, Node Body, Location Location) : Node();
         internal record FunctionCall<TContext>(string Name, Func<TContext> Function, Node Arg, Location Location) : Node();
         internal record Group(List<Node> Nodes, Location Location) : Node();
@@ -914,7 +934,7 @@ internal static class Template
                     {
                         var attribute = ExtractAttributeName();
 
-                        var filters = new List<FilterFunction>();
+                        var filters = new List<FilterFunctionSyntax>();
 
                         while (Peek().Type == TokenType.Pipe)
                         {
@@ -937,7 +957,7 @@ internal static class Template
                                 Consume(TokenType.RightParen, ExpectedMessage(") to end function"));
                             }
 
-                            filters.Add(new FilterFunction(name.Value, name.Location, arguments));
+                            filters.Add(new FilterFunctionSyntax(name.Value, name.Location, arguments.ToImmutableArray()));
                         }
 
                         Consume(TokenType.EndCode, ExpectedMessage("}}"));

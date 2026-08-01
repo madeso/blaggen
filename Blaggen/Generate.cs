@@ -68,7 +68,10 @@ internal static class Generate
 
             foreach (var key in config.Menus.Keys)
             {
-                self.AddList($"SiteMenus_{key}", (link, ctx) => site(link).Config.Menus[key].OrderBy(x => x.Weight).Select(x => new MenuItemLink(x, ctx)), MakeMenuItem());
+                self.AddList($"SiteMenus_{key}",
+                    (link, ctx) => site(link).Config.Menus[key].OrderBy(x => x.Weight).Select(x => new MenuItemLink(x, ctx)),
+                    MakeMenuItem(),
+                    Template.DefaultFilterFunctions<MenuItemLink>());
             }
         }
     }
