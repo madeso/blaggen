@@ -55,7 +55,7 @@ internal static class Template
 
     // parse arguments, return function call or error
     internal delegate (Func<TContext>, ImmutableArray<Error>) FuncGenerator<TContext>(Location call, ImmutableArray<FuncArgument> arguments);
-    internal delegate (FilterFunc<TChild>, ImmutableArray<Error>) FilterFuncGenerator<TChild>(Location call, ImmutableArray<FuncArgument> arguments);
+    internal delegate (FilterFunc<TChild>, ImmutableArray<Error>) FilterFuncGenerator<TChild, in TFilter>(Location call, TFilter filter, ImmutableArray<FuncArgument> arguments);
 
     internal class Definition<TParent, TContext>(string? name = null)
     {
@@ -94,16 +94,15 @@ internal static class Template
             return this;
         }
 
-        internal Definition<TParent, TContext> AddList<TChild>(string name,
-            Func<TParent, TContext, IEnumerable<TChild>> child_selector, Definition<TChild, TContext> child_def, Dictionary<string, FilterFuncGenerator<TChild>>? a_filter_dict = null)
+        internal Definition<TParent, TContext> AddList<TChild, TFilter>(string name,
+            Func<TParent, TContext, IEnumerable<TChild>> child_selector, Func<TFilter, Definition<TChild, TContext>> child_def_func,
+            TFilter filter_start, Dictionary<string, FilterFuncGenerator<TChild, TFilter>>? a_filter_dict = null)
         {
-            var filter_dict = a_filter_dict ?? DefaultFilterFunctions<TChild>();
+            var filter_dict = a_filter_dict ?? DefaultFilterFunctions<TChild, TFilter>();
             children.Add(name, (node, filter_syntax_list, esc) =>
             {
-                var (getter, errors) = child_def.Validate(node, esc);
-                if (errors.Length > 0) { return (SyntaxError, errors); }
+                var filter_arg = filter_start;
 
-                // todo(Gustav): generate filters from node filter
                 List<FilterFunc<TChild>> filters = new();
                 List<Error> filter_errors = new();
                 foreach (var filter_syntax in filter_syntax_list)
@@ -114,11 +113,14 @@ internal static class Template
                         continue;
                     }
 
-                    var (fil, generator_errors) = filter_generator(filter_syntax.Location, filter_syntax.Arguments);
+                    var (fil, generator_errors) = filter_generator(filter_syntax.Location, filter_arg, filter_syntax.Arguments);
                     filters.Add(fil);
                     filter_errors.AddRange(generator_errors);
                 }
-                if (filter_errors.Count > 0) { return (SyntaxError, [..filter_errors]); }
+                if (filter_errors.Count > 0) { return (SyntaxError, [.. filter_errors]); }
+
+                var (getter, errors) = child_def_func(filter_arg).Validate(node, esc);
+                if (errors.Length > 0) { return (SyntaxError, errors); }
 
                 return ((parent, context) =>
                 {
@@ -248,7 +250,7 @@ internal static class Template
         };
     }
 
-    internal static Dictionary<string, FilterFuncGenerator<TChild>> DefaultFilterFunctions<TChild>()
+    internal static Dictionary<string, FilterFuncGenerator<TChild, TFilter>> DefaultFilterFunctions<TChild, TFilter>()
     {
         return new();
     }

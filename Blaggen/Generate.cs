@@ -1,5 +1,6 @@
 ﻿using System.Collections.Immutable;
 using System.Globalization;
+using System.Net.Http.Headers;
 using System.Text.Json;
 
 namespace Blaggen;
@@ -42,8 +43,9 @@ internal static class Generate
                     if (pa.Var != null)
                     {
                         self.AddList(template_name, (link, _) => post(link).Front.Params.TryGetValue(pa.Name, out var val) ? val.EnumerateArray() : [],
-                            new Template.Definition<JsonElement, Context>($"array of {pa}")
-                            .AddVar(pa.Var, x => x.ToString())
+                            _ => new Template.Definition<JsonElement, Context>($"array of {pa}")
+                                .AddVar(pa.Var, x => x.ToString()),
+                            new FilterContext()
                             );
                     }
                     else
@@ -59,7 +61,7 @@ internal static class Generate
         }
         public static void AddSite<T>(Template.Definition<T, Context> self, Func<T, Site> site, SiteConfig config)
         {
-            self.AddList("Site_RegularPages", (link, _) => site(link).Root.AllPosts, MakePostLink(config, []));
+            self.AddList("Site_RegularPages", (link, _) => site(link).Root.AllPosts, x => MakePostLink(config, []), new FilterContext());
 
             self.AddVar("Site_Title", link => site(link).Config.Name);
             self.AddVar("Site_BaseURL", link => site(link).Config.Url);
@@ -72,8 +74,8 @@ internal static class Generate
             {
                 self.AddList($"SiteMenus_{key}",
                     (link, ctx) => site(link).Config.Menus[key].OrderBy(x => x.Weight).Select(x => new MenuItemLink(x, ctx)),
-                    MakeMenuItem(),
-                    Template.DefaultFilterFunctions<MenuItemLink>());
+                    _ => MakeMenuItem(),
+                    new FilterContext());
             }
         }
     }
@@ -123,6 +125,8 @@ internal static class Generate
         })
     ;
 
+    internal record FilterContext();
+
     internal record WriteInfo(FileInfo Target, DirectoryInfo PublicDir);
     internal record SectionLink(Section Section, WriteInfo Write);
     private static Template.Definition<SectionLink, Context> MakeSectionLink() => new Template.Definition<SectionLink, Context>()
@@ -141,8 +145,8 @@ internal static class Generate
         {
             TemplateHelpers.AddPost(self, x => x.Post, config, post_types);
         })
-        .AddList("Posts", (x, _) => x.Section.Posts.OrderByDescending(post => post.Front.Date), MakePostLink(config, post_types))
-        .AddList("Sections", (x, _) => x.Section.Dirs.Select(y => new SectionLink(y, x.Write)), MakeSectionLink())
+        .AddList("Posts", (x, _) => x.Section.Posts.OrderByDescending(post => post.Front.Date), _ => MakePostLink(config, post_types), new FilterContext())
+        .AddList("Sections", (x, _) => x.Section.Dirs.Select(y => new SectionLink(y, x.Write)), _ => MakeSectionLink(), new FilterContext())
     ;
 
     private static string GetRelativePath(FileInfo from, FileInfo to)
