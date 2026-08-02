@@ -227,7 +227,7 @@ internal static class Input
     {
         var section_name = root.Name;
 
-        var files_async = vfs.GetFiles(root).Where(f => f.Extension.ToLowerInvariant() == ".md") .Select(async f =>
+        var files_async = vfs.GetFiles(root).Where(f => f.Extension.ToLowerInvariant() == ".md").Select(async f =>
         {
             var lines = (await vfs.ReadAllTextAsync(f)).Split('\n');
             var (fm, markdown_source) = ParsePostToTuple(run, lines, f);
@@ -239,7 +239,7 @@ internal static class Input
 
             var markdown = markdown_parser.Parse(markdown_source);
 
-            var post = new Post(is_index ? "index" : file_name_without_extension, is_index ? PostType.Section : PostType.Post, fm, f, markdown.ToHtml(), markdown.ToPlainText());
+            var post = new Post(is_index ? "index" : file_name_without_extension, is_index ? PostType.Section : PostType.Post, fm, f, relative_paths, markdown.ToHtml(), markdown.ToPlainText());
             return new ParsedPost(post, is_promoted);
         }).ToImmutableArray();
         var dirs_async = vfs.GetDirectories(root).Select(async d =>

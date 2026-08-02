@@ -15,7 +15,7 @@ internal static class Generate
     internal record TemplateSectionData(Site Site, Section Section, WriteInfo Write)
     {
         internal Post Post { get; } = Section.Post ??
-                                      new Post("index", PostType.Section, new FrontMatter(), new FileInfo(@"C:\missing.md"), "", "");
+                                      new Post("index", PostType.Section, new FrontMatter(), new FileInfo(@"C:\missing.md"), [], "", "");
     }
 
     internal static class TemplateHelpers
@@ -98,11 +98,22 @@ internal static class Generate
 
                 context.PostTypes = [..post_types];
 
-                // todo(Gustav): actually implement this filter
-                return (x => x.Where(p =>p.SourceFile.Exists), Template.NoErrors);
+                return (x => x.Where(p => IncludePost(p.PostTypes, post_types)), Template.NoErrors);
             });
 
             return ret;
+        }
+
+        private static bool IncludePost(ImmutableArray<string> post_path, string[] query)
+        {
+            if (query.Length > post_path.Length) return false;
+
+            for (var query_index = 0; query_index < query.Length; query_index += 1)
+            {
+                if (post_path[query_index] != query[query_index]) return false;
+            }
+
+            return true;
         }
     }
     
