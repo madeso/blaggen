@@ -109,7 +109,9 @@ internal static class Template
                 {
                     if (false == filter_dict.TryGetValue(filter_syntax.Name, out var filter_generator))
                     {
-                        filter_errors.Add(new Error(filter_syntax.Location, "Unknown filter function"));
+                        filter_errors.Add(new Error(filter_syntax.Location,
+                            $"Unknown filter function `{filter_syntax.Name}`: {MatchStrings(filter_syntax.Name, filter_dict.Keys)} of {TemplateName}"
+                        ));
                         continue;
                     }
 
@@ -154,7 +156,7 @@ internal static class Template
                         return (SyntaxError, [
                             new Error(
                                 attribute.Location,
-                                $"Missing attribute {attribute.Name}: {MatchStrings(attribute.Name, attributes.Keys)} of {TemplateName}"
+                                $"Unknown attribute `{attribute.Name}`: {MatchStrings(attribute.Name, attributes.Keys)} of {TemplateName}"
                             )
                         ]);
                     }
@@ -167,7 +169,7 @@ internal static class Template
                         return (SyntaxError, [
                             new Error(
                                 check.Location,
-                                $"Missing bool {check.Name}: {MatchStrings(check.Name, bools.Keys)} of {TemplateName}"
+                                $"Unknown bool `{check.Name}`: {MatchStrings(check.Name, bools.Keys)} of {TemplateName}"
                             )
                         ]);
                     }
@@ -184,7 +186,7 @@ internal static class Template
                         return (SyntaxError, [
                             new Error(
                                 iterate.Location,
-                                $"Missing array {iterate.Name}: {MatchStrings(iterate.Name, children.Keys)} of {TemplateName}"
+                                $"Unknown iteration `{iterate.Name}`: {MatchStrings(iterate.Name, children.Keys)} of {TemplateName}"
                             )
                         ]);
                     }
@@ -400,13 +402,13 @@ internal static class Template
         var matches = EditDistance.ClosestMatches(name, 10, all).ToImmutableArray();
 
         return matches.Length > 0
-                ? $"did you mean {ToArrayString(matches)} of {all.Length}: {ToArrayString(all)}"
+                ? $"Did you mean {ToArrayString(matches)} of {all.Length}: {ToArrayString(all)}"
                 : $"No match in {all.Length}: {ToArrayString(all)}"
             ;
 
         static string ToArrayString(IEnumerable<string> candidates)
         {
-            var s = string.Join(", ", candidates);
+            var s = string.Join(", ", candidates.Select(x => $"`{x}`") );
             return $"[{s}]";
         }
     }
@@ -1082,7 +1084,7 @@ internal static class Template
                 }
                 else
                 {
-                    ReportError(name.Location, $"Unknown function named {name.Value}: {MatchStrings(name.Value, functions.Keys)}");
+                    ReportError(name.Location, $"Unknown function `{name.Value}`: {MatchStrings(name.Value, functions.Keys)}");
                 }
             }
             nodes.Add(node);
