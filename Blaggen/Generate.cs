@@ -61,7 +61,7 @@ internal static class Generate
         }
         public static void AddSite<T>(Template.Definition<T, Context> self, Func<T, Site> site, SiteConfig config)
         {
-            self.AddList("Site_RegularPages", (link, _) => site(link).Root.AllPosts, context => MakePostLink(config, context.PostTypes), new FilterContext([]), PostFilterFunctions());
+            self.AddList("Site_RegularPages", (link, _) => TemplateHelpers.DefaultPostOrder(site(link).Root.AllPosts), context => MakePostLink(config, context.PostTypes), new FilterContext([]), PostFilterFunctions());
 
             self.AddVar("Site_Title", link => site(link).Config.Name);
             self.AddVar("Site_BaseURL", link => site(link).Config.Url);
@@ -78,6 +78,9 @@ internal static class Generate
                     new FilterContext([]));
             }
         }
+
+        internal static IEnumerable<Post> DefaultPostOrder(IEnumerable<Post> posts) =>
+            posts.OrderByDescending(post => post.Front.Date);
 
         internal static Dictionary<string, Template.FilterFuncGenerator<Post, FilterContext>> PostFilterFunctions()
         {
@@ -96,7 +99,7 @@ internal static class Generate
                     return (x => x, [new Template.Error(arguments[0].Location, $"`section`argument `{post_types}` needs to be non empty")]);
                 }
 
-                context.PostTypes = [..post_types];
+                context.PostTypes = [.. post_types];
 
                 return (x => x.Where(p => IncludePost(p.PostTypes, post_types)), Template.NoErrors);
             });
@@ -116,7 +119,7 @@ internal static class Generate
             return true;
         }
     }
-    
+
     internal static Template.Definition<TemplatePostData, Context> MakePostData(SiteConfig config, ImmutableArray<string> page_types) => new Template.Definition<TemplatePostData, Context>($"PostData[{string.Join('/', page_types)}]")
         .Add(self =>
         {
@@ -135,7 +138,7 @@ internal static class Generate
         {
             var base_url = x.Menu.Url;
 
-            if(Uri.TryCreate(base_url, UriKind.RelativeOrAbsolute, out var u))
+            if (Uri.TryCreate(base_url, UriKind.RelativeOrAbsolute, out var u))
             {
                 if (u.IsAbsoluteUri) return base_url;
 
@@ -172,7 +175,7 @@ internal static class Generate
     private static Template.Definition<SectionLink, Context> MakeSectionLink() => new Template.Definition<SectionLink, Context>()
         .AddVar("Title", x => x.Section.Post?.Front.Title ?? x.Section.Name)
         // todo(Gustav): add Write Info to link
-        .AddVar("Link", x=>x.Section.Name)
+        .AddVar("Link", x => x.Section.Name)
     ;
 
     internal static Template.Definition<TemplateSectionData, Context> MakeSectionData(SiteConfig config, ImmutableArray<string> post_types) => new Template.Definition<TemplateSectionData, Context>()
@@ -185,7 +188,7 @@ internal static class Generate
         {
             TemplateHelpers.AddPost(self, x => x.Post, config, post_types);
         })
-        .AddList("Posts", (x, _) => x.Section.Posts.OrderByDescending(post => post.Front.Date), ctx => MakePostLink(config, ctx.PostTypes), new FilterContext(post_types), TemplateHelpers.PostFilterFunctions())
+        .AddList("Posts", (x, _) => TemplateHelpers.DefaultPostOrder(x.Section.Posts), ctx => MakePostLink(config, ctx.PostTypes), new FilterContext(post_types), TemplateHelpers.PostFilterFunctions())
         .AddList("Sections", (x, _) => x.Section.Dirs.Select(y => new SectionLink(y, x.Write)), _ => MakeSectionLink(), new FilterContext(post_types))
     ;
 
@@ -209,7 +212,7 @@ internal static class Generate
         DirectoryInfo public_dir)
     {
         return await WriteSiteRec(site.Root, []);
-        
+
 
         async Task<int> WriteSiteRec(Section section, ImmutableArray<string> dirs)
         {
@@ -220,11 +223,11 @@ internal static class Generate
                 var data = new TemplateSectionData(site, section, new WriteInfo(target, public_dir));
                 var include_index = dirs.Length == 0;
                 var section_was_written = false;
-                
-                if(include_index)
+
+                if (include_index)
                 {
                     var index = FindInTemplate(dirs, g => g.Index);
-                    if(index != null)
+                    if (index != null)
                     {
                         await vfs_write.WriteAllTextAsync(target, index(data, new Context(public_dir, target)));
                         pages += 1;
