@@ -254,7 +254,39 @@ internal static class Template
 
     internal static Dictionary<string, FilterFuncGenerator<TChild, TFilter>> DefaultFilterFunctions<TChild, TFilter>()
     {
-        return new();
+        Dictionary<string, FilterFuncGenerator<TChild, TFilter>> ret = new();
+
+        // todo(Gustav): add more filter functions
+
+        ret.Add("first", (call, _, arguments) =>
+        {
+            if (arguments.Length > 1)
+            {
+                return (x => x, [new Error(call, "`first` needs 0 or 1 argument")]);
+            }
+
+            int count = 1;
+
+            if (arguments.Length == 1)
+            {
+                var count_str = arguments[0].Argument.Value;
+                if (int.TryParse(count_str, out var parsed) == false)
+                {
+                    return (x => x, [new Error(arguments[0].Location, $"`first` argument `{count_str}` needs to be a positive integer")]);
+                }
+
+                if (parsed <= 0)
+                {
+                    return (x => x, [new Error(arguments[0].Location, $"`first`argument `{parsed}` needs to be positive")]);
+                }
+
+                count = parsed;
+            }
+
+            return (x => x.Take(count), NoErrors);
+        });
+
+        return ret;
     }
 
     internal static Dictionary<string, FuncGenerator<TContext>> DefaultFunctions<TContext>()
