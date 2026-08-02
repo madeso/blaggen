@@ -424,7 +424,7 @@ internal static class Template
         internal record Group(List<Node> Nodes, Location Location) : Node();
     }
 
-    private static ImmutableArray<Error> NoErrors => ImmutableArray<Error>.Empty;
+    public static ImmutableArray<Error> NoErrors => ImmutableArray<Error>.Empty;
     private static Location UnknownLocation => new(new FileInfo("unknown-file.txt"), -1, -1);
 
     private static string MatchStrings(string name, IEnumerable<string> candidates)

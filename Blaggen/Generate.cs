@@ -61,7 +61,7 @@ internal static class Generate
         }
         public static void AddSite<T>(Template.Definition<T, Context> self, Func<T, Site> site, SiteConfig config)
         {
-            self.AddList("Site_RegularPages", (link, _) => site(link).Root.AllPosts, context => MakePostLink(config, context.PostTypes), new FilterContext([]));
+            self.AddList("Site_RegularPages", (link, _) => site(link).Root.AllPosts, context => MakePostLink(config, context.PostTypes), new FilterContext([]), PostFilterFunctions());
 
             self.AddVar("Site_Title", link => site(link).Config.Name);
             self.AddVar("Site_BaseURL", link => site(link).Config.Url);
@@ -77,6 +77,32 @@ internal static class Generate
                     _ => MakeMenuItem(),
                     new FilterContext([]));
             }
+        }
+
+        internal static Dictionary<string, Template.FilterFuncGenerator<Post, FilterContext>> PostFilterFunctions()
+        {
+            var ret = Template.DefaultFilterFunctions<Post, FilterContext>();
+
+            ret.Add("section", (call, context, arguments) =>
+            {
+                if (arguments.Length != 1)
+                {
+                    return (x => x, [new Template.Error(call, "`section` needs 1 argument")]);
+                }
+                var post_types = arguments[0].Argument.Value.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+                if (post_types.Length == 0)
+                {
+                    return (x => x, [new Template.Error(arguments[0].Location, $"`section`argument `{post_types}` needs to be non empty")]);
+                }
+
+                context.PostTypes = [..post_types];
+
+                // todo(Gustav): actually implement this filter
+                return (x => x.Where(p =>p.SourceFile.Exists), Template.NoErrors);
+            });
+
+            return ret;
         }
     }
     
@@ -125,7 +151,10 @@ internal static class Generate
         })
     ;
 
-    internal record FilterContext(ImmutableArray<string> PostTypes);
+    internal class FilterContext(ImmutableArray<string> post_types)
+    {
+        public ImmutableArray<string> PostTypes { get; set; } = post_types;
+    }
 
     internal record WriteInfo(FileInfo Target, DirectoryInfo PublicDir);
     internal record SectionLink(Section Section, WriteInfo Write);
@@ -145,7 +174,7 @@ internal static class Generate
         {
             TemplateHelpers.AddPost(self, x => x.Post, config, post_types);
         })
-        .AddList("Posts", (x, _) => x.Section.Posts.OrderByDescending(post => post.Front.Date), ctx => MakePostLink(config, ctx.PostTypes), new FilterContext(post_types))
+        .AddList("Posts", (x, _) => x.Section.Posts.OrderByDescending(post => post.Front.Date), ctx => MakePostLink(config, ctx.PostTypes), new FilterContext(post_types), TemplateHelpers.PostFilterFunctions())
         .AddList("Sections", (x, _) => x.Section.Dirs.Select(y => new SectionLink(y, x.Write)), _ => MakeSectionLink(), new FilterContext(post_types))
     ;
 
